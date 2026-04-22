@@ -193,6 +193,11 @@
     grid-column: 1 / -1;
   }
 
+  @media (max-width: 600px) {
+    .income-grid { grid-template-columns: 1fr; }
+    .income-chart-card { grid-column: 1; }
+  }
+
   .income-stat {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -203,6 +208,8 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+    min-height: 140px;
+    text-align: center;
   }
   .income-stat::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--accent3), var(--accent)); border-radius: 12px 12px 0 0; }
   .income-stat-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
