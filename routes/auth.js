@@ -14,21 +14,21 @@ const ORIGIN = () => process.env.ORIGIN || `https://${RP_ID()}`;
 
 let pendingChallenge = null;
 
-function getStoredCredential() {
+function getStoredCredentials() {
+  const json = process.env.WEBAUTHN_CREDENTIALS;
+  if (json) {
+    try { return JSON.parse(json); } catch { return []; }
+  }
+  // Legacy fallback — single credential env vars
   const id = process.env.WEBAUTHN_CREDENTIAL_ID;
   const pubKey = process.env.WEBAUTHN_PUBLIC_KEY;
-  if (!id || !pubKey) return null;
-  return {
-    id,                                          // base64url string — required by v13
-    publicKey: Buffer.from(pubKey, 'base64url'), // Uint8Array — required for signature verify
-    counter: 0
-  };
+  return (id && pubKey) ? [{ id, publicKey: pubKey }] : [];
 }
 
 // Registration step 1 — get options
 router.get('/register/challenge', async (req, res) => {
-  const existing = getStoredCredential();
-  if (existing && req.headers['x-setup-key'] !== process.env.AGENT_API_KEY) {
+  const existing = getStoredCredentials();
+  if (existing.length && req.headers['x-setup-key'] !== process.env.AGENT_API_KEY) {
     return res.status(403).json({ error: 'Already registered.' });
   }
   try {
@@ -64,11 +64,13 @@ router.post('/register/verify', async (req, res) => {
     });
     if (!verification.verified) return res.status(400).json({ error: 'Verification failed' });
     const { credential } = verification.registrationInfo;
+    const existing = getStoredCredentials();
+    const newCred = { id: credential.id, publicKey: Buffer.from(credential.publicKey).toString('base64url') };
+    const updated = [...existing, newCred];
     res.json({
       success: true,
-      WEBAUTHN_CREDENTIAL_ID: credential.id,  // already a base64url string in v13
-      WEBAUTHN_PUBLIC_KEY: Buffer.from(credential.publicKey).toString('base64url'),
-      message: 'Add these two values as Vercel env vars, then redeploy.'
+      WEBAUTHN_CREDENTIALS: JSON.stringify(updated),
+      message: 'Set WEBAUTHN_CREDENTIALS env var to this value, then redeploy.'
     });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -78,11 +80,11 @@ router.post('/register/verify', async (req, res) => {
 // Auth step 1 — get challenge
 router.get('/challenge', async (req, res) => {
   try {
-    const stored = getStoredCredential();
+    const credentials = getStoredCredentials();
     const options = await generateAuthenticationOptions({
       rpID: RP_ID(),
       userVerification: 'required',
-      allowCredentials: stored ? [{ id: stored.id, type: 'public-key' }] : []
+      allowCredentials: credentials.map(c => ({ id: c.id, type: 'public-key' }))
     });
     pendingChallenge = options.challenge;
     res.json(options);
@@ -93,15 +95,17 @@ router.get('/challenge', async (req, res) => {
 
 // Auth step 2 — verify and set session cookie
 router.post('/verify', async (req, res) => {
-  const stored = getStoredCredential();
-  if (!stored) return res.status(400).json({ error: 'No passkey registered. Visit /setup.html first.' });
+  const credentials = getStoredCredentials();
+  if (!credentials.length) return res.status(400).json({ error: 'No passkey registered. Visit /setup.html first.' });
+  const match = credentials.find(c => c.id === req.body.id);
+  if (!match) return res.status(401).json({ error: 'Credential not recognized.' });
   try {
     const verification = await verifyAuthenticationResponse({
       response: req.body,
       expectedChallenge: pendingChallenge,
       expectedOrigin: ORIGIN(),
       expectedRPID: RP_ID(),
-      credential: { id: stored.id, publicKey: stored.publicKey, counter: stored.counter },
+      credential: { id: match.id, publicKey: Buffer.from(match.publicKey, 'base64url'), counter: 0 },
       requireUserVerification: true
     });
     if (!verification.verified) return res.status(401).json({ error: 'Authentication failed' });
