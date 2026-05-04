@@ -19,8 +19,8 @@ function getStoredCredential() {
   const pubKey = process.env.WEBAUTHN_PUBLIC_KEY;
   if (!id || !pubKey) return null;
   return {
-    id: Buffer.from(id, 'base64url'),
-    publicKey: Buffer.from(pubKey, 'base64url'),
+    id,                                          // base64url string — required by v13
+    publicKey: Buffer.from(pubKey, 'base64url'), // Uint8Array — required for signature verify
     counter: 0
   };
 }
@@ -66,7 +66,7 @@ router.post('/register/verify', async (req, res) => {
     const { credential } = verification.registrationInfo;
     res.json({
       success: true,
-      WEBAUTHN_CREDENTIAL_ID: Buffer.from(credential.id).toString('base64url'),
+      WEBAUTHN_CREDENTIAL_ID: credential.id,  // already a base64url string in v13
       WEBAUTHN_PUBLIC_KEY: Buffer.from(credential.publicKey).toString('base64url'),
       message: 'Add these two values as Vercel env vars, then redeploy.'
     });
