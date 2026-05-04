@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patrick Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0f14;
+      --surface: #13161d;
+      --border: #1e2330;
+      --text: #e8eaf0;
+      --dim: #4a5168;
+      --accent: #00d4aa;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    .wordmark {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+    .icon {
+      font-size: 40px;
+      margin-bottom: 24px;
+      display: block;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: var(--dim);
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+    .btn {
+      width: 100%;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      letter-spacing: 0.5px;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .status {
+      margin-top: 16px;
+      font-size: 11px;
+      color: var(--dim);
+      min-height: 18px;
+    }
+    .status.error { color: #e05; }
+    .setup-link {
+      margin-top: 24px;
+      font-size: 11px;
+      color: var(--dim);
+    }
+    .setup-link a { color: var(--accent); text-decoration: none; }
+    .setup-link a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="wordmark">Patrick Hewitt · Command Center</div>
+  <span class="icon">⌘</span>
+  <h1>Sign In</h1>
+  <p class="subtitle">Use Face ID, Touch ID, or fingerprint to authenticate.</p>
+  <button class="btn" id="btn" onclick="login()">Authenticate</button>
+  <p class="status" id="status"></p>
+  <p class="setup-link">First time? <a href="/setup.html">Register your passkey →</a></p>
+</div>
+<script>
+  function b64urlToBuffer(b) {
+    const pad = '='.repeat((4 - b.length % 4) % 4);
+    const base64 = (b + pad).replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(base64);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  }
+
+  function bufferToB64url(buf) {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
+  async function login() {
+    const btn = document.getElementById('btn');
+    const status = document.getElementById('status');
+    btn.disabled = true;
+    status.className = 'status';
+    status.textContent = 'Waiting for biometric...';
+    try {
+      const opts = await fetch('/auth/challenge').then(r => r.json());
+      if (opts.error) throw new Error(opts.error);
+
+      opts.challenge = b64urlToBuffer(opts.challenge);
+      if (opts.allowCredentials) {
+        opts.allowCredentials = opts.allowCredentials.map(c => ({
+          ...c, id: b64urlToBuffer(c.id)
+        }));
+      }
+
+      const cred = await navigator.credentials.get({ publicKey: opts });
+      const payload = {
+        id: cred.id,
+        rawId: bufferToB64url(cred.rawId),
+        response: {
+          authenticatorData: bufferToB64url(cred.response.authenticatorData),
+          clientDataJSON: bufferToB64url(cred.response.clientDataJSON),
+          signature: bufferToB64url(cred.response.signature),
+          userHandle: cred.response.userHandle ? bufferToB64url(cred.response.userHandle) : null
+        },
+        type: cred.type,
+        clientExtensionResults: cred.getClientExtensionResults()
+      };
+
+      const result = await fetch('/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(r => r.json());
+
+      if (!result.success) throw new Error(result.error);
+      window.location.href = '/';
+    } catch (e) {
+      status.className = 'status error';
+      status.textContent = e.name === 'NotAllowedError' ? 'Cancelled.' : `Error: ${e.message}`;
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>

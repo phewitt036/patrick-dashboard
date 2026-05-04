@@ -453,6 +453,8 @@
   .notes-save-status { font-size: 11px; color: var(--dim); }
 
   footer { text-align: center; color: var(--dim); font-size: 11px; padding: 24px 0; letter-spacing: 1px; }
+  .logout-btn { background: none; border: none; color: var(--dim); font-family: 'JetBrains Mono', monospace; font-size: 11px; cursor: pointer; letter-spacing: 1px; margin-left: 16px; }
+  .logout-btn:hover { color: var(--text); }
 
   .project-card, .stat-box, .qlink { animation: fadeUp 0.5s ease both; }
   @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
@@ -687,7 +689,7 @@
     </div>
   </div>
 
-  <footer>PATRICK HEWITT · COMMAND CENTER · NORTH TEXAS</footer>
+  <footer>PATRICK HEWITT · COMMAND CENTER · NORTH TEXAS<button class="logout-btn" onclick="logout()">SIGN OUT</button></footer>
 
 </div>
 <script>
@@ -730,6 +732,9 @@
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
+      notesEl.value = '';
+      document.getElementById('note-title').value = '';
+      localStorage.setItem('phewitt_notes', '');
       status.style.color = 'var(--accent)';
       status.textContent = `Saved → ${data.filename}`;
       setTimeout(() => { status.textContent = ''; status.style.color = 'var(--dim)'; }, 4000);
@@ -965,6 +970,11 @@
 
   loadOutput('scout');
   loadOutput('pam');
+
+  async function logout() {
+    await fetch('/auth/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  }
 </script>
 </body>
 </html>
