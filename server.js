@@ -9,6 +9,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Routes
 app.use('/api/income', require('./routes/salesforce'));
 app.use('/api/agent', require('./routes/agents'));
+app.use('/api/pimax', require('./routes/pimax'));
 
 // Env test
 app.get('/api/test-env', (req, res) => {
