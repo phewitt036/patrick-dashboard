@@ -753,6 +753,17 @@
         <div class="mining-stat-label">Rejected</div>
       </div>
     </div>
+    <div class="mining-rig-label">Unmineable · DOGE</div>
+    <div class="mining-grid">
+      <div class="mining-stat">
+        <div class="mining-stat-val" id="unmineable-balance" style="color:#c8a400;">—</div>
+        <div class="mining-stat-label">Balance</div>
+      </div>
+      <div class="mining-stat">
+        <div class="mining-stat-val" id="unmineable-threshold" style="color:var(--muted);">—</div>
+        <div class="mining-stat-label">Payout At</div>
+      </div>
+    </div>
     <div class="mining-meta">
       <span id="mine-status">loading...</span>
       <button class="mining-refresh" onclick="loadMining()">↻ Refresh</button>
@@ -1268,6 +1279,10 @@
       const d = await res.json();
       applyMinerStats('pimax', d.pimax);
       applyMinerStats('pihole', d.pihole);
+      if (d.unmineable) {
+        document.getElementById('unmineable-balance').textContent = parseFloat(d.unmineable.balance).toFixed(4) + ' DOGE';
+        document.getElementById('unmineable-threshold').textContent = d.unmineable.threshold + ' DOGE';
+      }
       const total = (d.pimax.hashrate?.current ?? 0) + (d.pihole.hashrate?.current ?? 0);
       document.getElementById('mine-status').textContent = `${fmtHash(total)} combined · rx/0 · ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
     } catch (e) {

@@ -70,4 +70,14 @@ router.post('/note', async (req, res) => {
   }
 });
 
+router.get('/mining', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/mining`, { headers: hubHeaders() });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(502).json({ error: 'pimax unreachable' });
+  }
+});
+
 module.exports = router;
