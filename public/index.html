@@ -1107,8 +1107,23 @@
     }
   }
 
-  updateShiftUI();
-  setInterval(updateShiftUI, 60000);
+  async function syncShiftState() {
+    try {
+      const res = await fetch('/api/income/shift/active');
+      const data = await res.json();
+      if (data.active) {
+        localStorage.setItem('active_shift', JSON.stringify({ startTime: data.clockIn, dcfId: data.recordId }));
+      } else {
+        localStorage.removeItem('active_shift');
+      }
+    } catch (e) {
+      // fall back to localStorage if request fails
+    }
+    updateShiftUI();
+  }
+
+  syncShiftState();
+  setInterval(syncShiftState, 60000);
 
   // --- Tab switching ---
   function switchTab(event, tab) {

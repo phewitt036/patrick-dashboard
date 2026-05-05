@@ -67,6 +67,24 @@ router.get('/trend', async (req, res) => {
   }
 });
 
+// Get active shift — returns open Daily_Cash_Flow__c for today if one exists
+router.get('/shift/active', async (req, res) => {
+  try {
+    const conn = await getConnection();
+    const result = await conn.query(`
+      SELECT Id, Clock_In__c, Date__c FROM Daily_Cash_Flow__c
+      WHERE Clock_In__c != null AND Clock_Out__c = null AND Date__c = TODAY
+      ORDER BY CreatedDate DESC LIMIT 1
+    `);
+    if (result.records.length === 0) return res.json({ active: false });
+    const dcf = result.records[0];
+    res.json({ active: true, recordId: dcf.Id, clockIn: dcf.Clock_In__c });
+  } catch (err) {
+    console.error('[Shift/Active]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Start a shift — creates an open Daily_Cash_Flow__c (no clock-out yet)
 router.post('/shift/start', async (req, res) => {
   const { clockIn } = req.body;
