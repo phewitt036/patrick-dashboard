@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hailey's Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500&family=Sacramento&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --coral: #E8614A;
+    --coral-light: #F2856F;
+    --coral-pale: #FAD4CC;
+    --coral-deep: #C94A34;
+    --teal: #2A9D8F;
+    --teal-light: #4DBFB3;
+    --teal-pale: #C8EEEB;
+    --pink: #E8A0B4;
+    --pink-deep: #D4607E;
+    --pink-pale: #FAE8EF;
+    --jade: #00966D;
+    --jade-light: #2DBF93;
+    --jade-pale: #C8EDE3;
+    --jade-deep: #00704F;
+    --cream: #FDF6F0;
+    --warm-white: #FEFAF7;
+    --text-dark: #2C1810;
+    --text-mid: #6B4035;
+    --text-soft: #9C7060;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--text-dark);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(232,97,74,0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(42,157,143,0.07) 0%, transparent 50%),
+      radial-gradient(ellipse at 60% 30%, rgba(232,160,180,0.06) 0%, transparent 40%),
+      radial-gradient(ellipse at 10% 80%, rgba(0,150,109,0.05) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 24px 60px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── HEADER ── */
+  header {
+    padding: 40px 0 32px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 2px solid var(--coral-pale);
+    margin-bottom: 36px;
+  }
+
+  .header-left h1 {
+    font-family: 'Sacramento', cursive;
+    font-size: 64px;
+    color: var(--coral);
+    line-height: 1;
+    letter-spacing: 1px;
+  }
+
+  .header-left .subtitle {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--jade);
+    margin-top: 4px;
+  }
+
+  .header-right {
+    text-align: right;
+  }
+
+  .live-time {
+    font-family: 'Playfair Display', serif;
+    font-size: 36px;
+    font-weight: 400;
+    color: var(--coral-deep);
+    line-height: 1;
+  }
+
+  .live-date {
+    font-size: 12px;
+    color: var(--text-soft);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* ── GRADUATION COUNTDOWN ── */
+  .grad-banner {
+    background: linear-gradient(135deg, var(--coral) 0%, var(--coral-light) 40%, var(--pink-deep) 100%);
+    border-radius: 20px;
+    padding: 28px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(232,97,74,0.3);
+  }
+
+  .grad-banner::before {
+    content: '🎓';
+    position: absolute;
+    right: 160px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 80px;
+    opacity: 0.15;
+  }
+
+  .grad-banner::after {
+    content: '✦';
+    position: absolute;
+    left: 40%;
+    top: 10px;
+    font-size: 14px;
+    color: rgba(255,255,255,0.4);
+    animation: twinkle 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes twinkle {
+    from { opacity: 0.3; transform: scale(1); }
+    to { opacity: 0.8; transform: scale(1.3); }
+  }
+
+  .grad-left h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 4px;
+  }
+
+  .grad-left p {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: white;
+    font-style: italic;
+  }
+
+  .countdown-units {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .count-unit {
+    text-align: center;
+    background: rgba(255,255,255,0.2);
+    border-radius: 12px;
+    padding: 12px 18px;
+    backdrop-filter: blur(10px);
+  }
+
+  .count-unit .num {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: white;
+    line-height: 1;
+    display: block;
+  }
+
+  .count-unit .label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.75);
+    margin-top: 4px;
+    display: block;
+  }
+
+  .count-sep {
+    font-size: 24px;
+    color: rgba(255,255,255,0.5);
+    font-weight: 300;
+    margin-bottom: 16px;
+  }
+
+  /* ── GRID LAYOUT ── */
+  .grid-main {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  .grid-bottom {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  /* ── CARD BASE ── */
+  .card {
+    background: var(--warm-white);
+    border-radius: 20px;
+    padding: 28px;
+    box-shadow: 0 2px 16px rgba(44,24,16,0.06);
+    border: 1px solid rgba(232,97,74,0.08);
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .card:nth-child(1) { animation-delay: 0.05s; }
+  .card:nth-child(2) { animation-delay: 0.10s; }
+  .card:nth-child(3) { animation-delay: 0.15s; }
+  .card:nth-child(4) { animation-delay: 0.20s; }
+  .card:nth-child(5) { animation-delay: 0.25s; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-dark);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--coral);
+    flex-shrink: 0;
+  }
+
+  .card-title .dot.teal { background: var(--teal); }
+  .card-title .dot.pink { background: var(--pink-deep); }
+  .card-title .dot.jade { background: var(--jade); }
+
+  /* ── CALENDAR ── */
+  .calendar-card {
+    grid-column: span 1;
+  }
+
+  .cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .cal-month {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--coral-deep);
+  }
+
+  .cal-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--coral);
+    font-size: 18px;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+
+  .cal-btn:hover { background: var(--coral-pale); }
+
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+  }
+
+  .cal-day-label {
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    padding: 4px 0 8px;
+    font-weight: 500;
+  }
+
+  .cal-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text-mid);
+    font-weight: 400;
+  }
+
+  .cal-day:hover:not(.empty) { background: var(--coral-pale); color: var(--coral-deep); }
+  .cal-day.today { background: var(--coral); color: white; font-weight: 600; box-shadow: 0 3px 10px rgba(232,97,74,0.4); }
+  .cal-day.has-event { position: relative; }
+  .cal-day.has-event::after { content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--teal); }
+  .cal-day.today.has-event::after { background: white; }
+  .cal-day.other-month { color: #ccc; }
+  .cal-day.empty { pointer-events: none; }
+  .cal-day.game-day::after { background: var(--jade) !important; }
+
+  /* ── NOTES ── */
+  .notes-card { grid-column: span 2; }
+
+  .notes-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .notes-grid::-webkit-scrollbar { width: 4px; }
+  .notes-grid::-webkit-scrollbar-track { background: transparent; }
+  .notes-grid::-webkit-scrollbar-thumb { background: var(--coral-pale); border-radius: 2px; }
+
+  .note-item {
+    border-radius: 14px;
+    padding: 16px;
+    position: relative;
+    transition: transform 0.2s;
+  }
+
+  .note-item:hover { transform: translateY(-2px); }
+
+  .note-item.coral { background: var(--coral-pale); border-left: 3px solid var(--coral); }
+  .note-item.teal { background: var(--teal-pale); border-left: 3px solid var(--teal); }
+  .note-item.pink { background: var(--pink-pale); border-left: 3px solid var(--pink-deep); }
+  .note-item.jade { background: var(--jade-pale); border-left: 3px solid var(--jade); }
+
+  .note-title-input {
+    font-family: 'Playfair Display', serif;
+    font-size: 13px;
+    font-weight: 600;
+    background: none;
+    border: none;
+    outline: none;
+    width: 100%;
+    color: var(--text-dark);
+    margin-bottom: 6px;
+  }
+
+  .note-body-input {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    background: none;
+    border: none;
+    outline: none;
+    width: 100%;
+    resize: none;
+    color: var(--text-mid);
+    line-height: 1.6;
+    min-height: 60px;
+  }
+
+  .note-delete {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    color: var(--text-soft);
+    font-size: 14px;
+    transition: opacity 0.2s;
+  }
+
+  .note-item:hover .note-delete { opacity: 1; }
+
+  .add-note-btn {
+    border: 2px dashed var(--coral-pale);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--coral-light);
+    font-size: 13px;
+    font-weight: 500;
+    background: none;
+    transition: all 0.2s;
+    width: 100%;
+    min-height: 80px;
+  }
+
+  .add-note-btn:hover { border-color: var(--coral); color: var(--coral); background: var(--coral-pale); }
+
+  /* ── FOOTBALL SCHEDULE ── */
+  .schedule-card { grid-column: span 1; }
+
+  .schedule-list { display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto; }
+  .schedule-list::-webkit-scrollbar { width: 4px; }
+  .schedule-list::-webkit-scrollbar-thumb { background: var(--jade-pale); border-radius: 2px; }
+
+  .game-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--cream);
+    transition: background 0.2s;
+  }
+
+  .game-row:hover { background: var(--jade-pale); }
+
+  .game-row.home { border-left: 3px solid var(--jade); }
+  .game-row.away { border-left: 3px solid var(--teal); }
+  .game-row.next { background: var(--jade-pale); box-shadow: 0 2px 8px rgba(107,175,146,0.2); }
+
+  .game-date {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    min-width: 42px;
+  }
+
+  .game-opp {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-dark);
+    flex: 1;
+  }
+
+  .game-badge {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+
+  .game-badge.home { background: var(--jade-pale); color: var(--jade); }
+  .game-badge.away { background: var(--teal-pale); color: var(--teal); }
+  .game-badge.next-badge { background: var(--coral-pale); color: var(--coral-deep); }
+
+  /* ── MOOD LOG ── */
+  .mood-card {}
+
+  .mood-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .mood-label {
+    font-size: 12px;
+    color: var(--text-mid);
+    font-weight: 500;
+    width: 60px;
+  }
+
+  .mood-emojis {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+  }
+
+  .mood-emoji {
+    font-size: 22px;
+    cursor: pointer;
+    border-radius: 10px;
+    padding: 6px;
+    transition: all 0.15s;
+    border: 2px solid transparent;
+    background: none;
+  }
+
+  .mood-emoji:hover { transform: scale(1.2); background: var(--coral-pale); }
+  .mood-emoji.selected { border-color: var(--coral); background: var(--coral-pale); transform: scale(1.15); }
+
+  .mood-history {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--coral-pale);
+  }
+
+  .mood-history-title {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    margin-bottom: 10px;
+  }
+
+  .mood-history-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .mood-hist-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .mood-hist-item .day-label {
+    font-size: 9px;
+    color: var(--text-soft);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .mood-hist-item .emoji-display {
+    font-size: 18px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--cream);
+  }
+
+  /* ── SAVINGS MILESTONE ── */
+  .savings-card {}
+
+  .savings-goal {
+    margin-bottom: 20px;
+  }
+
+  .savings-goal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+
+  .savings-goal-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-dark);
+  }
+
+  .savings-amounts {
+    font-size: 12px;
+    color: var(--text-soft);
+  }
+
+  .savings-amounts span { color: var(--coral-deep); font-weight: 600; }
+
+  .progress-track {
+    height: 10px;
+    background: var(--coral-pale);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 1s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .progress-fill.coral { background: linear-gradient(90deg, var(--coral-light), var(--coral)); }
+  .progress-fill.teal { background: linear-gradient(90deg, var(--teal-light), var(--teal)); }
+  .progress-fill.jade { background: linear-gradient(90deg, var(--jade-light), var(--jade)); }
+  .progress-fill.pink { background: linear-gradient(90deg, var(--pink), var(--pink-deep)); }
+
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+
+  .progress-pct {
+    font-size: 11px;
+    color: var(--text-soft);
+    text-align: right;
+  }
+
+  .savings-add {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--coral-pale);
+    display: flex;
+    gap: 8px;
+  }
+
+  .savings-input-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .savings-input-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-soft);
+  }
+
+  .savings-input {
+    border: 1.5px solid var(--coral-pale);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-dark);
+    background: var(--cream);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .savings-input:focus { border-color: var(--coral); }
+
+  .savings-btn {
+    align-self: flex-end;
+    background: var(--coral);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 9px 18px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .savings-btn:hover { background: var(--coral-deep); transform: translateY(-1px); }
+
+  /* ── JADE HIGHLIGHTS ── */
+  header {
+    border-bottom: 2px solid var(--coral-pale);
+    position: relative;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 80px;
+    height: 2px;
+    background: var(--jade);
+    border-radius: 2px;
+  }
+
+  .jade-name-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--jade-pale);
+    color: var(--jade-deep);
+    border: 1px solid var(--jade-light);
+    border-radius: 20px;
+    padding: 3px 10px 3px 7px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+  .jade-gem { font-size: 12px; }
+
+  .card.jade-card {
+    border-top: 3px solid var(--jade);
+  }
+  .card.jade-card-left {
+    border-left: 3px solid var(--jade);
+  }
+
+  .card-title .dot.jade { background: var(--jade); }
+
+  .jade-divider {
+    height: 1px;
+    background: linear-gradient(90deg, var(--jade-pale), transparent);
+    margin: 12px 0;
+  }
+
+  .savings-input:focus { border-color: var(--jade); box-shadow: 0 0 0 3px rgba(0,150,109,0.1); }
+
+  .jade-section-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--jade);
+    font-weight: 600;
+  }
+
+  .pcn-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .pcn-logo {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--jade), var(--teal));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .grid-main { grid-template-columns: 1fr 1fr; }
+    .notes-card { grid-column: span 2; }
+  }
+
+  @media (max-width: 700px) {
+    .grid-main, .grid-bottom { grid-template-columns: 1fr; }
+    .notes-card { grid-column: span 1; }
+    .grad-banner { flex-direction: column; gap: 20px; text-align: center; }
+    .header-left h1 { font-size: 48px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <h1>Hailey</h1>
+      <p class="subtitle">Senior Year · Class of 2027 · PCN Panthers <span class="jade-name-tag"><span class="jade-gem">💎</span> Jade</span></p>
+    </div>
+    <div class="header-right">
+      <div class="live-time" id="liveTime">--:-- --</div>
+      <div class="live-date" id="liveDate">Loading...</div>
+    </div>
+  </header>
+
+  <!-- GRADUATION COUNTDOWN BANNER -->
+  <div class="grad-banner">
+    <div class="grad-left">
+      <h2>Counting Down To</h2>
+      <p>Putnam City North Graduation</p>
+    </div>
+    <div class="countdown-units">
+      <div class="count-unit">
+        <span class="num" id="cdDays">--</span>
+        <span class="label">Days</span>
+      </div>
+      <span class="count-sep">:</span>
+      <div class="count-unit">
+        <span class="num" id="cdHours">--</span>
+        <span class="label">Hours</span>
+      </div>
+      <span class="count-sep">:</span>
+      <div class="count-unit">
+        <span class="num" id="cdMins">--</span>
+        <span class="label">Mins</span>
+      </div>
+      <span class="count-sep">:</span>
+      <div class="count-unit">
+        <span class="num" id="cdSecs">--</span>
+        <span class="label">Secs</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="grid-main">
+
+    <!-- CALENDAR -->
+    <div class="card calendar-card jade-card">
+      <div class="card-header">
+        <div class="card-title"><span class="dot"></span> Calendar</div>
+      </div>
+      <div class="cal-nav">
+        <button class="cal-btn" id="calPrev">‹</button>
+        <span class="cal-month" id="calMonth">May 2026</span>
+        <button class="cal-btn" id="calNext">›</button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+
+    <!-- NOTES -->
+    <div class="card notes-card">
+      <div class="card-header">
+        <div class="card-title"><span class="dot pink"></span> My Notes</div>
+        <button class="add-note-btn" id="addNoteBtn" style="width:auto; min-height: auto; padding: 6px 14px; font-size:12px; border-radius:20px; border-width:1.5px;">+ New Note</button>
+      </div>
+      <div class="notes-grid" id="notesGrid">
+        <div class="note-item coral">
+          <button class="note-delete" onclick="deleteNote(this)">✕</button>
+          <input class="note-title-input" value="Pom Practice" placeholder="Title...">
+          <textarea class="note-body-input" placeholder="Note...">Routine changes for Friday — new formation in the second section. Don't forget hair ribbons!</textarea>
+        </div>
+        <div class="note-item teal">
+          <button class="note-delete" onclick="deleteNote(this)">✕</button>
+          <input class="note-title-input" value="Senior Year Goals" placeholder="Title...">
+          <textarea class="note-body-input" placeholder="Note...">🎓 Finish strong in all AP classes
+🏆 Dominate pom season as captain
+💰 Save up for grad trip
+🌸 Make every moment count</textarea>
+        </div>
+        <div class="note-item jade">
+          <button class="note-delete" onclick="deleteNote(this)">✕</button>
+          <input class="note-title-input" value="Shopping List" placeholder="Title...">
+          <textarea class="note-body-input" placeholder="Note...">New uniform accessories, white sneakers (size 8), sparkle hair ties for home games</textarea>
+        </div>
+        <div class="note-item pink">
+          <button class="note-delete" onclick="deleteNote(this)">✕</button>
+          <input class="note-title-input" value="Reminder 📌" placeholder="Title...">
+          <textarea class="note-body-input" placeholder="Note...">Senior photos — schedule by August! Ask mom about photographer.</textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM GRID -->
+  <div class="grid-bottom">
+
+    <!-- PCN PANTHERS SCHEDULE -->
+    <div class="card schedule-card jade-card-left">
+      <div class="card-header">
+        <div class="pcn-header">
+          <div class="pcn-logo">🐾</div>
+          <div>
+            <div class="card-title" style="margin-bottom:2px;"><span class="dot jade"></span> PCN Panthers 2026 Schedule</div>
+            <div style="font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--jade-deep); font-weight:600; margin-top:2px;">Pom Captain · Senior Season</div>
+          </div>
+        </div>
+      </div>
+      <div class="schedule-list" id="scheduleList"></div>
+    </div>
+
+    <!-- RIGHT COLUMN: MOOD + SAVINGS -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+
+      <!-- MOOD LOG -->
+      <div class="card mood-card">
+        <div class="card-header" style="margin-bottom:14px;">
+          <div class="card-title"><span class="dot pink"></span> Mood Check-In</div>
+          <span style="font-size:11px; color:var(--text-soft);">How are you today?</span>
+        </div>
+
+        <div class="mood-row">
+          <span class="mood-label">Today</span>
+          <div class="mood-emojis" id="moodPicker">
+            <button class="mood-emoji" data-mood="😊" title="Happy" onclick="selectMood(this)">😊</button>
+            <button class="mood-emoji" data-mood="🥰" title="Loved" onclick="selectMood(this)">🥰</button>
+            <button class="mood-emoji" data-mood="😎" title="Confident" onclick="selectMood(this)">😎</button>
+            <button class="mood-emoji" data-mood="😌" title="Calm" onclick="selectMood(this)">😌</button>
+            <button class="mood-emoji" data-mood="😴" title="Tired" onclick="selectMood(this)">😴</button>
+            <button class="mood-emoji" data-mood="😤" title="Frustrated" onclick="selectMood(this)">😤</button>
+            <button class="mood-emoji" data-mood="😢" title="Sad" onclick="selectMood(this)">😢</button>
+          </div>
+        </div>
+
+        <div class="mood-history">
+          <div class="mood-history-title">This Week</div>
+          <div class="mood-history-row" id="moodHistory"></div>
+        </div>
+      </div>
+
+      <!-- SAVINGS MILESTONES -->
+      <div class="card savings-card jade-card">
+        <div class="card-header" style="margin-bottom:16px;">
+          <div class="card-title"><span class="dot teal"></span> Savings Goals</div>
+        </div>
+
+        <div id="goalsContainer">
+          <div class="savings-goal" data-goal="gradTrip" data-target="800">
+            <div class="savings-goal-header">
+              <span class="savings-goal-name">✈️ Grad Trip Fund</span>
+              <span class="savings-amounts"><span id="gradTripAmt">$320</span> / $800</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill coral" id="gradTripBar" style="width:40%"></div></div>
+            <div class="progress-pct" id="gradTripPct">40%</div>
+          </div>
+
+          <div class="savings-goal" data-goal="car" data-target="2000">
+            <div class="savings-goal-header">
+              <span class="savings-goal-name">🚗 Car Fund</span>
+              <span class="savings-amounts"><span id="carAmt">$640</span> / $2,000</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill jade" id="carBar" style="width:32%"></div></div>
+            <div class="progress-pct" id="carPct">32%</div>
+          </div>
+
+          <div class="savings-goal" data-goal="wardrobe" data-target="300">
+            <div class="savings-goal-header">
+              <span class="savings-goal-name">👗 Senior Year Wardrobe</span>
+              <span class="savings-amounts"><span id="wardrobeAmt">$210</span> / $300</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill pink" id="wardrobeBar" style="width:70%"></div></div>
+            <div class="progress-pct" id="wardrobePct">70%</div>
+          </div>
+        </div>
+
+        <div class="savings-add">
+          <div class="savings-input-group">
+            <span class="savings-input-label">Goal</span>
+            <select class="savings-input" id="goalSelect">
+              <option value="gradTrip">Grad Trip</option>
+              <option value="car">Car Fund</option>
+              <option value="wardrobe">Wardrobe</option>
+            </select>
+          </div>
+          <div class="savings-input-group">
+            <span class="savings-input-label">Add $</span>
+            <input class="savings-input" type="number" id="savingsAmount" placeholder="25" min="1">
+          </div>
+          <button class="savings-btn" onclick="addSavings()">+ Add</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── LIVE CLOCK ──
+  function updateClock() {
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes().toString().padStart(2,'0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = (h % 12 || 12);
+    document.getElementById('liveTime').textContent = `${h12}:${m} ${ampm}`;
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    document.getElementById('liveDate').textContent = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ── GRADUATION COUNTDOWN (May 23, 2027) ──
+  function updateCountdown() {
+    const target = new Date('2027-05-23T14:00:00');
+    const now = new Date();
+    const diff = target - now;
+    if (diff <= 0) {
+      document.getElementById('cdDays').textContent = '🎓';
+      return;
+    }
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById('cdDays').textContent = d;
+    document.getElementById('cdHours').textContent = String(h).padStart(2,'0');
+    document.getElementById('cdMins').textContent = String(m).padStart(2,'0');
+    document.getElementById('cdSecs').textContent = String(s).padStart(2,'0');
+  }
+  setInterval(updateCountdown, 1000);
+  updateCountdown();
+
+  // ── CALENDAR ──
+  let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
+
+  const gameDates = [
+    {y:2026, m:8, d:28}, {y:2026, m:9, d:2}, {y:2026, m:9, d:9},
+    {y:2026, m:9, d:16}, {y:2026, m:9, d:23}, {y:2026, m:9, d:30},
+    {y:2026, m:10, d:7}, {y:2026, m:10, d:14}, {y:2026, m:10, d:21},
+    {y:2026, m:10, d:28}, {y:2026, m:11, d:6},
+  ];
+
+  function isGameDay(y, m, d) {
+    return gameDates.some(g => g.y === y && g.m === m && g.d === d);
+  }
+
+  function buildCalendar() {
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    document.getElementById('calMonth').textContent = `${months[calMonth]} ${calYear}`;
+    const grid = document.getElementById('calGrid');
+    grid.innerHTML = '';
+
+    ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+      const el = document.createElement('div');
+      el.className = 'cal-day-label';
+      el.textContent = d;
+      grid.appendChild(el);
+    });
+
+    const first = new Date(calYear, calMonth, 1).getDay();
+    const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+    const today = new Date();
+
+    for (let i = 0; i < first; i++) {
+      const el = document.createElement('div');
+      el.className = 'cal-day empty';
+      grid.appendChild(el);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const el = document.createElement('div');
+      el.className = 'cal-day';
+      el.textContent = d;
+      const isToday = d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
+      if (isToday) el.classList.add('today');
+      if (isGameDay(calYear, calMonth, d)) el.classList.add('has-event', 'game-day');
+      grid.appendChild(el);
+    }
+  }
+
+  document.getElementById('calPrev').onclick = () => {
+    calMonth--;
+    if (calMonth < 0) { calMonth = 11; calYear--; }
+    buildCalendar();
+  };
+  document.getElementById('calNext').onclick = () => {
+    calMonth++;
+    if (calMonth > 11) { calMonth = 0; calYear++; }
+    buildCalendar();
+  };
+  buildCalendar();
+
+  // ── NOTES ──
+  const noteColors = ['coral','teal','jade','pink'];
+  let noteColorIdx = 0;
+
+  document.getElementById('addNoteBtn').onclick = () => {
+    const grid = document.getElementById('notesGrid');
+    const color = noteColors[noteColorIdx % noteColors.length];
+    noteColorIdx++;
+    const div = document.createElement('div');
+    div.className = `note-item ${color}`;
+    div.innerHTML = `
+      <button class="note-delete" onclick="deleteNote(this)">✕</button>
+      <input class="note-title-input" placeholder="Title...">
+      <textarea class="note-body-input" placeholder="Type your note here..." rows="3"></textarea>
+    `;
+    grid.appendChild(div);
+    div.querySelector('input').focus();
+  };
+
+  function deleteNote(btn) {
+    btn.closest('.note-item').remove();
+  }
+
+  // ── PCN SCHEDULE ──
+  const schedule = [
+    { date:'Aug 28', opp:'vs. Mustang', home: true },
+    { date:'Sep 4',  opp:'@ Edmond Santa Fe', home: false },
+    { date:'Sep 11', opp:'vs. Yukon', home: true },
+    { date:'Sep 18', opp:'@ Westmoore', home: false },
+    { date:'Sep 25', opp:'vs. Southmoore', home: true },
+    { date:'Oct 2',  opp:'@ Edmond Memorial', home: false },
+    { date:'Oct 9',  opp:'vs. Deer Creek', home: true },
+    { date:'Oct 16', opp:'@ Midwest City', home: false },
+    { date:'Oct 23', opp:'vs. Putnam City', home: true },
+    { date:'Oct 30', opp:'@ Putnam City West', home: false },
+    { date:'Nov 6',  opp:'vs. Edmond North', home: true },
+  ];
+
+  const todayDate = new Date();
+  const scheduleList = document.getElementById('scheduleList');
+
+  schedule.forEach((g, i) => {
+    const gameDate = new Date(`${g.date}, 2026`);
+    const isNext = gameDate >= todayDate && (i === 0 || new Date(`${schedule[i-1].date}, 2026`) < todayDate);
+
+    const row = document.createElement('div');
+    row.className = `game-row ${g.home ? 'home' : 'away'}${isNext ? ' next' : ''}`;
+    row.innerHTML = `
+      <span class="game-date">${g.date}</span>
+      <span class="game-opp">${g.opp}</span>
+      ${isNext ? '<span class="game-badge next-badge">Next</span>' : ''}
+      <span class="game-badge ${g.home ? 'home' : 'away'}">${g.home ? 'Home' : 'Away'}</span>
+    `;
+    scheduleList.appendChild(row);
+  });
+
+  // ── MOOD LOG ──
+  const moodDays = ['S','M','T','W','T','F','S'];
+  let moodData = JSON.parse(localStorage.getItem('haileyMoods') || '{}');
+
+  function selectMood(btn) {
+    document.querySelectorAll('.mood-emoji').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    const todayKey = new Date().toISOString().split('T')[0];
+    moodData[todayKey] = btn.dataset.mood;
+    try { localStorage.setItem('haileyMoods', JSON.stringify(moodData)); } catch(e) {}
+    renderMoodHistory();
+  }
+
+  function renderMoodHistory() {
+    const container = document.getElementById('moodHistory');
+    container.innerHTML = '';
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      const dayLabel = moodDays[d.getDay()];
+      const emoji = moodData[key] || '';
+      const item = document.createElement('div');
+      item.className = 'mood-hist-item';
+      item.innerHTML = `
+        <div class="emoji-display">${emoji || '<span style="color:#ddd;font-size:12px;">·</span>'}</div>
+        <span class="day-label">${dayLabel}</span>
+      `;
+      container.appendChild(item);
+    }
+    const todayKey = new Date().toISOString().split('T')[0];
+    if (moodData[todayKey]) {
+      document.querySelectorAll('.mood-emoji').forEach(b => {
+        if (b.dataset.mood === moodData[todayKey]) b.classList.add('selected');
+      });
+    }
+  }
+  renderMoodHistory();
+
+  // ── SAVINGS ──
+  let savings = JSON.parse(localStorage.getItem('haileySavings') || JSON.stringify({
+    gradTrip: 320, car: 640, wardrobe: 210
+  }));
+  const targets = { gradTrip: 800, car: 2000, wardrobe: 300 };
+  const goalKeys = ['gradTrip', 'car', 'wardrobe'];
+
+  function renderSavings() {
+    goalKeys.forEach(key => {
+      const amt = savings[key];
+      const target = targets[key];
+      const pct = Math.min(100, Math.round((amt / target) * 100));
+      const amtEl = document.getElementById(`${key}Amt`);
+      const barEl = document.getElementById(`${key}Bar`);
+      const pctEl = document.getElementById(`${key}Pct`);
+      if (amtEl) amtEl.textContent = `$${amt.toLocaleString()}`;
+      if (barEl) barEl.style.width = `${pct}%`;
+      if (pctEl) pctEl.textContent = `${pct}%`;
+    });
+  }
+
+  function addSavings() {
+    const key = document.getElementById('goalSelect').value;
+    const amt = parseFloat(document.getElementById('savingsAmount').value);
+    if (!amt || amt <= 0) return;
+    savings[key] = (savings[key] || 0) + amt;
+    try { localStorage.setItem('haileySavings', JSON.stringify(savings)); } catch(e) {}
+    renderSavings();
+    document.getElementById('savingsAmount').value = '';
+    const bar = document.getElementById(`${key}Bar`);
+    if (bar) bar.style.transition = 'width 0.8s ease';
+  }
+
+  renderSavings();
+</script>
+</body>
+</html>
