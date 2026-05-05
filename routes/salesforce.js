@@ -67,4 +67,45 @@ router.get('/trend', async (req, res) => {
   }
 });
 
+// Start a shift — creates an open Daily_Cash_Flow__c (no clock-out yet)
+router.post('/shift/start', async (req, res) => {
+  const { clockIn } = req.body;
+  if (!clockIn) return res.status(400).json({ error: 'clockIn required' });
+  const isoRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$/;
+  if (!isoRe.test(clockIn)) return res.status(400).json({ error: 'Invalid datetime format' });
+  try {
+    const conn = await getConnection();
+    const result = await conn.sobject('Daily_Cash_Flow__c').create({
+      Date__c: clockIn.slice(0, 10),
+      Clock_In__c: clockIn
+    });
+    if (!result.success) throw new Error((result.errors || []).join(', ') || 'Create failed');
+    res.json({ success: true, recordId: result.id });
+  } catch (err) {
+    console.error('[Shift/Start]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// End a shift — closes the open Daily_Cash_Flow__c
+router.post('/shift/end', async (req, res) => {
+  const { recordId, clockOut, miles } = req.body;
+  if (!recordId || !clockOut) return res.status(400).json({ error: 'recordId and clockOut required' });
+  const isoRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$/;
+  if (!isoRe.test(clockOut)) return res.status(400).json({ error: 'Invalid datetime format' });
+  try {
+    const conn = await getConnection();
+    const result = await conn.sobject('Daily_Cash_Flow__c').update({
+      Id: recordId,
+      Clock_Out__c: clockOut,
+      Total_Shift_Miles__c: parseFloat(miles) || 0
+    });
+    if (!result.success) throw new Error((result.errors || []).join(', ') || 'Update failed');
+    res.json({ success: true, recordId });
+  } catch (err) {
+    console.error('[Shift/End]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
