@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hailey's Dashboard</title>
 <link rel="icon" type="image/svg+xml" href="/favicon-hailey.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon-hailey.png">
+<meta name="apple-mobile-web-app-title" content="Hailey">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500&family=Sacramento&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -687,6 +691,21 @@
 
   .savings-btn:hover { background: var(--coral-deep); transform: translateY(-1px); }
 
+  .goal-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    color: var(--text-soft);
+    font-size: 13px;
+    padding: 0 0 0 8px;
+    line-height: 1;
+    transition: opacity 0.2s, color 0.2s;
+    flex-shrink: 0;
+  }
+  .savings-goal:hover .goal-delete { opacity: 1; }
+  .goal-delete:hover { color: var(--coral-deep); }
+
   /* ── JADE HIGHLIGHTS ── */
   header {
     border-bottom: 2px solid var(--coral-pale);
@@ -930,6 +949,7 @@
             <div class="savings-goal-header">
               <span class="savings-goal-name">✈️ Grad Trip Fund</span>
               <span class="savings-amounts"><span id="gradTripAmt">$320</span> / $800</span>
+              <button class="goal-delete" onclick="removeGoal('gradTrip')">✕</button>
             </div>
             <div class="progress-track"><div class="progress-fill coral" id="gradTripBar" style="width:40%"></div></div>
             <div class="progress-pct" id="gradTripPct">40%</div>
@@ -939,6 +959,7 @@
             <div class="savings-goal-header">
               <span class="savings-goal-name">🚗 Car Fund</span>
               <span class="savings-amounts"><span id="carAmt">$640</span> / $2,000</span>
+              <button class="goal-delete" onclick="removeGoal('car')">✕</button>
             </div>
             <div class="progress-track"><div class="progress-fill jade" id="carBar" style="width:32%"></div></div>
             <div class="progress-pct" id="carPct">32%</div>
@@ -948,6 +969,7 @@
             <div class="savings-goal-header">
               <span class="savings-goal-name">👗 Senior Year Wardrobe</span>
               <span class="savings-amounts"><span id="wardrobeAmt">$210</span> / $300</span>
+              <button class="goal-delete" onclick="removeGoal('wardrobe')">✕</button>
             </div>
             <div class="progress-track"><div class="progress-fill pink" id="wardrobeBar" style="width:70%"></div></div>
             <div class="progress-pct" id="wardrobePct">70%</div>
@@ -1188,6 +1210,14 @@
       if (barEl) barEl.style.width = `${pct}%`;
       if (pctEl) pctEl.textContent = `${pct}%`;
     });
+  }
+
+  function removeGoal(key) {
+    document.querySelector(`.savings-goal[data-goal="${key}"]`)?.remove();
+    delete savings[key];
+    try { localStorage.setItem('haileySavings', JSON.stringify(savings)); } catch(e) {}
+    const opt = document.querySelector(`#goalSelect option[value="${key}"]`);
+    if (opt) opt.remove();
   }
 
   function addSavings() {
