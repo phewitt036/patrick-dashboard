@@ -128,7 +128,7 @@
   }
 
   .grad-banner::before {
-    content: '🎓';
+    content: '✨';
     position: absolute;
     right: 160px;
     top: 50%;
@@ -207,6 +207,113 @@
     color: rgba(255,255,255,0.5);
     font-weight: 300;
     margin-bottom: 16px;
+  }
+
+  /* ── COUNTDOWN MANAGE ── */
+  .countdown-manage {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .countdown-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--warm-white);
+    border: 1.5px solid var(--coral-pale);
+    border-radius: 20px;
+    padding: 6px 10px 6px 12px;
+    font-size: 12px;
+    color: var(--text-mid);
+    transition: all 0.2s;
+  }
+
+  .countdown-chip.active {
+    background: var(--coral-pale);
+    border-color: var(--coral);
+    color: var(--coral-deep);
+    font-weight: 600;
+  }
+
+  .countdown-chip-days { opacity: 0.6; font-size: 11px; }
+
+  .countdown-chip-del {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-soft);
+    font-size: 11px;
+    padding: 0 0 0 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    line-height: 1;
+  }
+  .countdown-chip:hover .countdown-chip-del { opacity: 1; }
+
+  .add-cd-btn {
+    background: none;
+    border: 2px dashed var(--coral-pale);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--coral-light);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .add-cd-btn:hover { border-color: var(--coral); color: var(--coral); background: var(--coral-pale); }
+
+  .countdown-form-row {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .countdown-form-row.open { display: flex; }
+
+  .cd-input {
+    border: 1.5px solid var(--coral-pale);
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-dark);
+    background: var(--warm-white);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .cd-input:focus { border-color: var(--coral); }
+  .cd-input-name { width: 200px; }
+
+  .cd-save-btn {
+    background: var(--coral);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 7px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .cd-save-btn:hover { background: var(--coral-deep); }
+
+  .cd-cancel-btn {
+    background: none;
+    border: 1.5px solid var(--coral-pale);
+    color: var(--text-soft);
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
   }
 
   /* ── GRID LAYOUT ── */
@@ -813,11 +920,11 @@
     </div>
   </header>
 
-  <!-- GRADUATION COUNTDOWN BANNER -->
+  <!-- COUNTDOWN BANNER -->
   <div class="grad-banner">
     <div class="grad-left">
       <h2>Counting Down To</h2>
-      <p>Putnam City North Graduation</p>
+      <p id="countdownEventName">--</p>
     </div>
     <div class="countdown-units">
       <div class="count-unit">
@@ -840,6 +947,18 @@
         <span class="label">Secs</span>
       </div>
     </div>
+  </div>
+
+  <!-- COUNTDOWN MANAGE -->
+  <div class="countdown-manage">
+    <div id="countdownChips"></div>
+    <button class="add-cd-btn" id="addCdBtn">+ Add Countdown</button>
+  </div>
+  <div class="countdown-form-row" id="countdownFormRow">
+    <input class="cd-input cd-input-name" id="cdName" type="text" placeholder="Event name...">
+    <input class="cd-input" id="cdDate" type="datetime-local">
+    <button class="cd-save-btn" onclick="saveNewCountdown()">Add</button>
+    <button class="cd-cancel-btn" onclick="document.getElementById('countdownFormRow').classList.remove('open')">Cancel</button>
   </div>
 
   <!-- MAIN GRID -->
@@ -1014,13 +1133,81 @@
   setInterval(updateClock, 1000);
   updateClock();
 
-  // ── GRADUATION COUNTDOWN (May 23, 2027) ──
+  // ── COUNTDOWNS ──
+  const CD_DEFAULTS = [
+    { id: 'graduation', name: 'Putnam City North Graduation', date: '2027-05-23T14:00:00', emoji: '🎓' }
+  ];
+
+  let countdowns = JSON.parse(localStorage.getItem('haileyCountdowns') || 'null') || CD_DEFAULTS;
+
+  function saveCountdowns() {
+    localStorage.setItem('haileyCountdowns', JSON.stringify(countdowns));
+  }
+
+  function getActiveCountdown() {
+    const now = new Date();
+    const upcoming = countdowns.filter(c => new Date(c.date) > now)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    return upcoming[0] || countdowns.slice().sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  }
+
+  function renderCountdownChips() {
+    const active = getActiveCountdown();
+    const container = document.getElementById('countdownChips');
+    container.innerHTML = '';
+    countdowns.slice()
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .forEach(cd => {
+        const now = new Date();
+        const diff = new Date(cd.date) - now;
+        const days = Math.ceil(diff / 86400000);
+        const daysLabel = diff <= 0 ? 'passed' : `${days}d`;
+        const isActive = active && cd.id === active.id;
+        const chip = document.createElement('div');
+        chip.className = `countdown-chip${isActive ? ' active' : ''}`;
+        chip.innerHTML = `<span>${cd.emoji || '📅'} ${cd.name}</span><span class="countdown-chip-days"> · ${daysLabel}</span>${countdowns.length > 1 ? `<button class="countdown-chip-del" onclick="removeCountdown('${cd.id}',event)">✕</button>` : ''}`;
+        container.appendChild(chip);
+      });
+    if (active) document.getElementById('countdownEventName').textContent = active.name;
+  }
+
+  function removeCountdown(id, e) {
+    e.stopPropagation();
+    if (countdowns.length <= 1) return;
+    countdowns = countdowns.filter(c => c.id !== id);
+    saveCountdowns();
+    renderCountdownChips();
+  }
+
+  function saveNewCountdown() {
+    const name = document.getElementById('cdName').value.trim();
+    const date = document.getElementById('cdDate').value;
+    if (!name || !date) return;
+    countdowns.push({ id: Date.now().toString(), name, date, emoji: '📅' });
+    saveCountdowns();
+    renderCountdownChips();
+    document.getElementById('cdName').value = '';
+    document.getElementById('cdDate').value = '';
+    document.getElementById('countdownFormRow').classList.remove('open');
+  }
+
+  document.getElementById('addCdBtn').onclick = () => {
+    document.getElementById('countdownFormRow').classList.toggle('open');
+    if (document.getElementById('countdownFormRow').classList.contains('open')) {
+      document.getElementById('cdName').focus();
+    }
+  };
+
+  renderCountdownChips();
+
   function updateCountdown() {
-    const target = new Date('2027-05-23T14:00:00');
+    const active = getActiveCountdown();
+    if (!active) return;
+    const target = new Date(active.date);
     const now = new Date();
     const diff = target - now;
     if (diff <= 0) {
-      document.getElementById('cdDays').textContent = '🎓';
+      document.getElementById('cdDays').textContent = active.emoji || '🎉';
       return;
     }
     const d = Math.floor(diff / 86400000);
