@@ -43,7 +43,6 @@
     overflow-x: hidden;
   }
 
-  /* Background texture */
   body::before {
     content: '';
     position: fixed;
@@ -73,6 +72,18 @@
     justify-content: space-between;
     border-bottom: 2px solid var(--coral-pale);
     margin-bottom: 36px;
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 80px;
+    height: 2px;
+    background: var(--jade);
+    border-radius: 2px;
   }
 
   .header-left h1 {
@@ -93,9 +104,7 @@
     margin-top: 4px;
   }
 
-  .header-right {
-    text-align: right;
-  }
+  .header-right { text-align: right; }
 
   .live-time {
     font-family: 'Playfair Display', serif;
@@ -121,7 +130,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 32px;
+    margin-bottom: 16px;
     position: relative;
     overflow: hidden;
     box-shadow: 0 8px 32px rgba(232,97,74,0.3);
@@ -170,11 +179,7 @@
     font-style: italic;
   }
 
-  .countdown-units {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-  }
+  .countdown-units { display: flex; gap: 16px; align-items: center; }
 
   .count-unit {
     text-align: center;
@@ -353,6 +358,9 @@
   .card:nth-child(4) { animation-delay: 0.20s; }
   .card:nth-child(5) { animation-delay: 0.25s; }
 
+  .card.jade-card      { border-top:  3px solid var(--jade); }
+  .card.jade-card-left { border-left: 3px solid var(--jade); }
+
   .card-header {
     display: flex;
     align-items: center;
@@ -370,532 +378,13 @@
     gap: 8px;
   }
 
-  .card-title .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--coral);
-    flex-shrink: 0;
-  }
-
-  .card-title .dot.teal { background: var(--teal); }
-  .card-title .dot.pink { background: var(--pink-deep); }
-  .card-title .dot.jade { background: var(--jade); }
-
-  /* ── CALENDAR ── */
-  .calendar-card {
-    grid-column: span 1;
-  }
-
-  .cal-nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-  }
-
-  .cal-month {
-    font-family: 'Playfair Display', serif;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--coral-deep);
-  }
-
-  .cal-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--coral);
-    font-size: 18px;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s;
-  }
-
-  .cal-btn:hover { background: var(--coral-pale); }
-
-  .cal-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-  }
-
-  .cal-day-label {
-    text-align: center;
-    font-size: 10px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--text-soft);
-    padding: 4px 0 8px;
-    font-weight: 500;
-  }
-
-  .cal-day {
-    aspect-ratio: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.15s;
-    color: var(--text-mid);
-    font-weight: 400;
-  }
-
-  .cal-day:hover:not(.empty) { background: var(--coral-pale); color: var(--coral-deep); }
-  .cal-day.today { background: var(--coral); color: white; font-weight: 600; box-shadow: 0 3px 10px rgba(232,97,74,0.4); }
-  .cal-day.has-event { position: relative; }
-  .cal-day.has-event::after { content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--teal); }
-  .cal-day.today.has-event::after { background: white; }
-  .cal-day.other-month { color: #ccc; }
-  .cal-day.empty { pointer-events: none; }
-  .cal-day.game-day::after { background: var(--jade) !important; }
-
-  /* ── NOTES ── */
-  .notes-card { grid-column: span 2; }
-
-  .notes-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    max-height: 320px;
-    overflow-y: auto;
-  }
-
-  .notes-grid::-webkit-scrollbar { width: 4px; }
-  .notes-grid::-webkit-scrollbar-track { background: transparent; }
-  .notes-grid::-webkit-scrollbar-thumb { background: var(--coral-pale); border-radius: 2px; }
-
-  .note-item {
-    border-radius: 14px;
-    padding: 16px;
-    position: relative;
-    transition: transform 0.2s;
-  }
-
-  .note-item:hover { transform: translateY(-2px); }
-
-  .note-item.coral { background: var(--coral-pale); border-left: 3px solid var(--coral); }
-  .note-item.teal { background: var(--teal-pale); border-left: 3px solid var(--teal); }
-  .note-item.pink { background: var(--pink-pale); border-left: 3px solid var(--pink-deep); }
-  .note-item.jade { background: var(--jade-pale); border-left: 3px solid var(--jade); }
-
-  .note-title-input {
-    font-family: 'Playfair Display', serif;
-    font-size: 13px;
-    font-weight: 600;
-    background: none;
-    border: none;
-    outline: none;
-    width: 100%;
-    color: var(--text-dark);
-    margin-bottom: 6px;
-  }
-
-  .note-body-input {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 12px;
-    background: none;
-    border: none;
-    outline: none;
-    width: 100%;
-    resize: none;
-    color: var(--text-mid);
-    line-height: 1.6;
-    min-height: 60px;
-  }
-
-  .note-delete {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    opacity: 0;
-    color: var(--text-soft);
-    font-size: 14px;
-    transition: opacity 0.2s;
-  }
-
-  .note-item:hover .note-delete { opacity: 1; }
-
-  .add-note-btn {
-    border: 2px dashed var(--coral-pale);
-    border-radius: 14px;
-    padding: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    cursor: pointer;
-    color: var(--coral-light);
-    font-size: 13px;
-    font-weight: 500;
-    background: none;
-    transition: all 0.2s;
-    width: 100%;
-    min-height: 80px;
-  }
-
-  .add-note-btn:hover { border-color: var(--coral); color: var(--coral); background: var(--coral-pale); }
-
-  /* ── FOOTBALL SCHEDULE ── */
-  .schedule-card { grid-column: span 1; }
-
-  .schedule-list { display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto; }
-  .schedule-list::-webkit-scrollbar { width: 4px; }
-  .schedule-list::-webkit-scrollbar-thumb { background: var(--jade-pale); border-radius: 2px; }
-
-  .game-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    border-radius: 12px;
-    background: var(--cream);
-    transition: background 0.2s;
-  }
-
-  .game-row:hover { background: var(--jade-pale); }
-
-  .game-row.home { border-left: 3px solid var(--jade); }
-  .game-row.away { border-left: 3px solid var(--teal); }
-  .game-row.next { background: var(--jade-pale); box-shadow: 0 2px 8px rgba(107,175,146,0.2); }
-
-  .game-date {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--text-soft);
-    min-width: 42px;
-  }
-
-  .game-opp {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-dark);
-    flex: 1;
-  }
-
-  .game-badge {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    padding: 3px 8px;
-    border-radius: 20px;
-  }
-
-  .game-badge.home { background: var(--jade-pale); color: var(--jade); }
-  .game-badge.away { background: var(--teal-pale); color: var(--teal); }
-  .game-badge.next-badge { background: var(--coral-pale); color: var(--coral-deep); }
-
-  /* ── SPOTIFY ── */
-  .spotify-card {}
-
-  .spotify-connect {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 8px 0 4px;
-    text-align: center;
-  }
-
-  .spotify-icon {
-    width: 48px;
-    height: 48px;
-    background: #1DB954;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    box-shadow: 0 4px 16px rgba(29,185,84,0.3);
-  }
-
-  .spotify-connect p {
-    font-size: 12px;
-    color: var(--text-soft);
-    line-height: 1.5;
-    max-width: 200px;
-  }
-
-  .spotify-connect-btn {
-    background: #1DB954;
-    color: white;
-    border: none;
-    border-radius: 20px;
-    padding: 9px 22px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: default;
-    letter-spacing: 0.5px;
-    opacity: 0.6;
-    position: relative;
-  }
-
-  .spotify-connect-btn::after {
-    content: 'Coming soon';
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--text-dark);
-    color: white;
-    font-size: 10px;
-    font-weight: 400;
-    padding: 4px 8px;
-    border-radius: 6px;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-  }
-
-  .spotify-connect-btn:hover::after { opacity: 1; }
-
-  /* ── MOOD LOG ── */
-  .mood-card {}
-
-  .mood-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 16px;
-  }
-
-  .mood-label {
-    font-size: 12px;
-    color: var(--text-mid);
-    font-weight: 500;
-    width: 60px;
-  }
-
-  .mood-emojis {
-    display: flex;
-    gap: 6px;
-    flex: 1;
-  }
-
-  .mood-emoji {
-    font-size: 22px;
-    cursor: pointer;
-    border-radius: 10px;
-    padding: 6px;
-    transition: all 0.15s;
-    border: 2px solid transparent;
-    background: none;
-  }
-
-  .mood-emoji:hover { transform: scale(1.2); background: var(--coral-pale); }
-  .mood-emoji.selected { border-color: var(--coral); background: var(--coral-pale); transform: scale(1.15); }
-
-  .mood-history {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid var(--coral-pale);
-  }
-
-  .mood-history-title {
-    font-size: 11px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--text-soft);
-    margin-bottom: 10px;
-  }
-
-  .mood-history-row {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-  }
-
-  .mood-hist-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-  }
-
-  .mood-hist-item .day-label {
-    font-size: 9px;
-    color: var(--text-soft);
-    letter-spacing: 1px;
-    text-transform: uppercase;
-  }
-
-  .mood-hist-item .emoji-display {
-    font-size: 18px;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    background: var(--cream);
-  }
-
-  /* ── SAVINGS MILESTONE ── */
-  .savings-card {}
-
-  .savings-goal {
-    margin-bottom: 20px;
-  }
-
-  .savings-goal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 8px;
-  }
-
-  .savings-goal-name {
-    font-family: 'Playfair Display', serif;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-dark);
-  }
-
-  .savings-amounts {
-    font-size: 12px;
-    color: var(--text-soft);
-  }
-
-  .savings-amounts span { color: var(--coral-deep); font-weight: 600; }
-
-  .progress-track {
-    height: 10px;
-    background: var(--coral-pale);
-    border-radius: 10px;
-    overflow: hidden;
-    margin-bottom: 4px;
-  }
-
-  .progress-fill {
-    height: 100%;
-    border-radius: 10px;
-    transition: width 1s ease;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .progress-fill.coral { background: linear-gradient(90deg, var(--coral-light), var(--coral)); }
-  .progress-fill.teal { background: linear-gradient(90deg, var(--teal-light), var(--teal)); }
-  .progress-fill.jade { background: linear-gradient(90deg, var(--jade-light), var(--jade)); }
-  .progress-fill.pink { background: linear-gradient(90deg, var(--pink), var(--pink-deep)); }
-
-  .progress-fill::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-    animation: shimmer 2s ease-in-out infinite;
-  }
-
-  @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(200%); }
-  }
-
-  .progress-pct {
-    font-size: 11px;
-    color: var(--text-soft);
-    text-align: right;
-  }
-
-  .savings-add {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid var(--coral-pale);
-    display: flex;
-    gap: 8px;
-  }
-
-  .savings-input-group {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .savings-input-label {
-    font-size: 10px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--text-soft);
-  }
-
-  .savings-input {
-    border: 1.5px solid var(--coral-pale);
-    border-radius: 10px;
-    padding: 8px 12px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    color: var(--text-dark);
-    background: var(--cream);
-    outline: none;
-    transition: border-color 0.2s;
-  }
-
-  .savings-input:focus { border-color: var(--coral); }
-
-  .savings-btn {
-    align-self: flex-end;
-    background: var(--coral);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    padding: 9px 18px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .savings-btn:hover { background: var(--coral-deep); transform: translateY(-1px); }
-
-  .goal-delete {
-    background: none;
-    border: none;
-    cursor: pointer;
-    opacity: 0;
-    color: var(--text-soft);
-    font-size: 13px;
-    padding: 0 0 0 8px;
-    line-height: 1;
-    transition: opacity 0.2s, color 0.2s;
-    flex-shrink: 0;
-  }
-  .savings-goal:hover .goal-delete { opacity: 1; }
-  .goal-delete:hover { color: var(--coral-deep); }
-
-  /* ── JADE HIGHLIGHTS ── */
-  header {
-    border-bottom: 2px solid var(--coral-pale);
-    position: relative;
-  }
-  header::after {
-    content: '';
-    position: absolute;
-    bottom: -2px;
-    left: 0;
-    width: 80px;
-    height: 2px;
-    background: var(--jade);
-    border-radius: 2px;
-  }
-
+  .card-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--coral); flex-shrink: 0; }
+  .card-title .dot.teal  { background: var(--teal); }
+  .card-title .dot.pink  { background: var(--pink-deep); }
+  .card-title .dot.jade  { background: var(--jade); }
+  .card-title .dot.green { background: #1DB954; }
+
+  /* ── JADE NAME TAG ── */
   .jade-name-tag {
     display: inline-flex;
     align-items: center;
@@ -914,55 +403,138 @@
   }
   .jade-gem { font-size: 12px; }
 
-  .card.jade-card {
-    border-top: 3px solid var(--jade);
-  }
-  .card.jade-card-left {
-    border-left: 3px solid var(--jade);
-  }
+  /* ── CALENDAR ── */
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .cal-month { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600; color: var(--coral-deep); }
+  .cal-btn { background: none; border: none; cursor: pointer; color: var(--coral); font-size: 18px; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+  .cal-btn:hover { background: var(--coral-pale); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-day-label { text-align: center; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-soft); padding: 4px 0 8px; font-weight: 500; }
+  .cal-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 13px; border-radius: 8px; cursor: pointer; transition: all 0.15s; color: var(--text-mid); font-weight: 400; }
+  .cal-day:hover:not(.empty) { background: var(--coral-pale); color: var(--coral-deep); }
+  .cal-day.today { background: var(--coral); color: white; font-weight: 600; box-shadow: 0 3px 10px rgba(232,97,74,0.4); }
+  .cal-day.has-event { position: relative; }
+  .cal-day.has-event::after { content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--teal); }
+  .cal-day.today.has-event::after { background: white; }
+  .cal-day.other-month { color: #ccc; }
+  .cal-day.empty { pointer-events: none; }
+  .cal-day.game-day::after { background: var(--jade) !important; }
 
-  .card-title .dot.jade { background: var(--jade); }
+  /* ── NOTES ── */
+  .notes-card { grid-column: span 2; }
+  .notes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-height: 320px; overflow-y: auto; }
+  .notes-grid::-webkit-scrollbar { width: 4px; }
+  .notes-grid::-webkit-scrollbar-track { background: transparent; }
+  .notes-grid::-webkit-scrollbar-thumb { background: var(--coral-pale); border-radius: 2px; }
+  .note-item { border-radius: 14px; padding: 16px; position: relative; transition: transform 0.2s; }
+  .note-item:hover { transform: translateY(-2px); }
+  .note-item.coral { background: var(--coral-pale); border-left: 3px solid var(--coral); }
+  .note-item.teal  { background: var(--teal-pale);  border-left: 3px solid var(--teal); }
+  .note-item.pink  { background: var(--pink-pale);  border-left: 3px solid var(--pink-deep); }
+  .note-item.jade  { background: var(--jade-pale);  border-left: 3px solid var(--jade); }
+  .note-title-input { font-family: 'Playfair Display', serif; font-size: 13px; font-weight: 600; background: none; border: none; outline: none; width: 100%; color: var(--text-dark); margin-bottom: 6px; }
+  .note-body-input  { font-family: 'DM Sans', sans-serif; font-size: 12px; background: none; border: none; outline: none; width: 100%; resize: none; color: var(--text-mid); line-height: 1.6; min-height: 60px; }
+  .note-delete { position: absolute; top: 10px; right: 10px; background: none; border: none; cursor: pointer; opacity: 0; color: var(--text-soft); font-size: 14px; transition: opacity 0.2s; }
+  .note-item:hover .note-delete { opacity: 1; }
+  .add-note-btn { border: 2px dashed var(--coral-pale); border-radius: 14px; padding: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; color: var(--coral-light); font-size: 13px; font-weight: 500; background: none; transition: all 0.2s; width: 100%; min-height: 80px; }
+  .add-note-btn:hover { border-color: var(--coral); color: var(--coral); background: var(--coral-pale); }
 
-  .jade-divider {
-    height: 1px;
-    background: linear-gradient(90deg, var(--jade-pale), transparent);
-    margin: 12px 0;
-  }
+  /* ── SCHEDULE ── */
+  .schedule-list { display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto; }
+  .schedule-list::-webkit-scrollbar { width: 4px; }
+  .schedule-list::-webkit-scrollbar-thumb { background: var(--jade-pale); border-radius: 2px; }
+  .game-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: var(--cream); transition: background 0.2s; }
+  .game-row:hover { background: var(--jade-pale); }
+  .game-row.home { border-left: 3px solid var(--jade); }
+  .game-row.away { border-left: 3px solid var(--teal); }
+  .game-row.next { background: var(--jade-pale); box-shadow: 0 2px 8px rgba(107,175,146,0.2); }
+  .game-date { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-soft); min-width: 42px; }
+  .game-opp  { font-size: 13px; font-weight: 500; color: var(--text-dark); flex: 1; }
+  .game-badge { font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 3px 8px; border-radius: 20px; }
+  .game-badge.home       { background: var(--jade-pale); color: var(--jade); }
+  .game-badge.away       { background: var(--teal-pale); color: var(--teal); }
+  .game-badge.next-badge { background: var(--coral-pale); color: var(--coral-deep); }
 
+  /* ── PCN ── */
+  .pcn-header { display: flex; align-items: center; gap: 10px; }
+  .pcn-logo { width: 36px; height: 36px; background: linear-gradient(135deg, var(--jade), var(--teal)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+
+  /* ── SPOTIFY ── */
+  .spotify-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+
+  .spotify-connect { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 10px 0; }
+  .spotify-connect-icon { width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #1DB954, #158a3e); display: flex; align-items: center; justify-content: center; font-size: 26px; box-shadow: 0 4px 16px rgba(29,185,84,0.3); }
+  .spotify-connect p { font-size: 13px; color: var(--text-soft); text-align: center; line-height: 1.5; }
+  .spotify-connect-btn { background: #1DB954; color: white; border: none; border-radius: 20px; padding: 10px 24px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; letter-spacing: 0.5px; }
+  .spotify-connect-btn:hover { background: #17a349; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(29,185,84,0.35); }
+
+  .spotify-playing { display: none; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+  .spotify-playing.visible { display: flex; }
+  .spotify-album-art { width: 88px; height: 88px; border-radius: 12px; background: var(--coral-pale); box-shadow: 0 4px 20px rgba(232,97,74,0.2); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
+  .spotify-album-art img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+  .spotify-album-placeholder { font-size: 36px; }
+  .spotify-info { text-align: center; width: 100%; }
+  .spotify-track  { font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 600; color: var(--text-dark); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .spotify-artist { font-size: 12px; color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .spotify-progress-wrap { width: 100%; }
+  .spotify-progress-bar  { width: 100%; height: 3px; background: var(--coral-pale); border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
+  .spotify-progress-fill { height: 100%; background: linear-gradient(90deg, var(--coral), var(--pink-deep)); border-radius: 3px; transition: width 1s linear; width: 0%; }
+  .spotify-times { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-soft); letter-spacing: 0.5px; }
+  .spotify-controls { display: flex; align-items: center; gap: 16px; }
+  .sp-ctrl-btn { background: none; border: none; cursor: pointer; color: var(--text-soft); font-size: 18px; transition: color 0.15s, transform 0.15s; display: flex; align-items: center; justify-content: center; padding: 4px; }
+  .sp-ctrl-btn:hover { color: var(--coral); transform: scale(1.15); }
+  .sp-ctrl-btn.play-pause { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, var(--coral), var(--coral-deep)); color: white; font-size: 16px; box-shadow: 0 3px 12px rgba(232,97,74,0.4); }
+  .sp-ctrl-btn.play-pause:hover { transform: scale(1.1); box-shadow: 0 4px 16px rgba(232,97,74,0.5); }
+
+  .spotify-not-playing { display: none; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; }
+  .spotify-not-playing.visible { display: flex; }
+  .spotify-not-playing p { font-size: 13px; color: var(--text-soft); font-style: italic; }
+
+  /* ── MOOD ── */
+  .mood-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .mood-label { font-size: 12px; color: var(--text-mid); font-weight: 500; width: 60px; }
+  .mood-emojis { display: flex; gap: 6px; flex: 1; }
+  .mood-emoji { font-size: 22px; cursor: pointer; border-radius: 10px; padding: 6px; transition: all 0.15s; border: 2px solid transparent; background: none; }
+  .mood-emoji:hover { transform: scale(1.2); background: var(--coral-pale); }
+  .mood-emoji.selected { border-color: var(--coral); background: var(--coral-pale); transform: scale(1.15); }
+  .mood-history { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--coral-pale); }
+  .mood-history-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-soft); margin-bottom: 10px; }
+  .mood-history-row { display: flex; gap: 6px; align-items: center; }
+  .mood-hist-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .mood-hist-item .day-label { font-size: 9px; color: var(--text-soft); letter-spacing: 1px; text-transform: uppercase; }
+  .mood-hist-item .emoji-display { font-size: 18px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--cream); }
+
+  /* ── SAVINGS ── */
+  .savings-goal { margin-bottom: 20px; }
+  .savings-goal-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .savings-goal-name { font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 600; color: var(--text-dark); }
+  .savings-amounts { font-size: 12px; color: var(--text-soft); }
+  .savings-amounts span { color: var(--coral-deep); font-weight: 600; }
+  .progress-track { height: 10px; background: var(--coral-pale); border-radius: 10px; overflow: hidden; margin-bottom: 4px; }
+  .progress-fill { height: 100%; border-radius: 10px; transition: width 1s ease; position: relative; overflow: hidden; }
+  .progress-fill.coral { background: linear-gradient(90deg, var(--coral-light), var(--coral)); }
+  .progress-fill.teal  { background: linear-gradient(90deg, var(--teal-light),  var(--teal)); }
+  .progress-fill.jade  { background: linear-gradient(90deg, var(--jade-light),  var(--jade)); }
+  .progress-fill.pink  { background: linear-gradient(90deg, var(--pink),        var(--pink-deep)); }
+  .progress-fill::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation: shimmer 2s ease-in-out infinite; }
+  @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+  .progress-pct { font-size: 11px; color: var(--text-soft); text-align: right; }
+  .savings-add { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--coral-pale); display: flex; gap: 8px; }
+  .savings-input-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .savings-input-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-soft); }
+  .savings-input { border: 1.5px solid var(--coral-pale); border-radius: 10px; padding: 8px 12px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text-dark); background: var(--cream); outline: none; transition: border-color 0.2s; }
   .savings-input:focus { border-color: var(--jade); box-shadow: 0 0 0 3px rgba(0,150,109,0.1); }
-
-  .jade-section-label {
-    font-size: 10px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--jade);
-    font-weight: 600;
-  }
-
-  .pcn-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .pcn-logo {
-    width: 36px;
-    height: 36px;
-    background: linear-gradient(135deg, var(--jade), var(--teal));
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    flex-shrink: 0;
-  }
+  .savings-btn { align-self: flex-end; background: var(--coral); color: white; border: none; border-radius: 10px; padding: 9px 18px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+  .savings-btn:hover { background: var(--coral-deep); transform: translateY(-1px); }
+  .goal-delete { background: none; border: none; cursor: pointer; opacity: 0; color: var(--text-soft); font-size: 13px; padding: 0 0 0 8px; line-height: 1; transition: opacity 0.2s, color 0.2s; flex-shrink: 0; }
+  .savings-goal:hover .goal-delete { opacity: 1; }
+  .goal-delete:hover { color: var(--coral-deep); }
 
   /* Responsive */
   @media (max-width: 1100px) {
     .grid-main { grid-template-columns: 1fr 1fr; }
     .notes-card { grid-column: span 2; }
   }
-
   @media (max-width: 700px) {
     .grid-main, .grid-bottom { grid-template-columns: 1fr; }
     .notes-card { grid-column: span 1; }
@@ -972,7 +544,6 @@
 </style>
 </head>
 <body>
-
 <div class="container">
 
   <!-- HEADER -->
@@ -983,7 +554,7 @@
     </div>
     <div class="header-right">
       <div class="live-time" id="liveTime">--:-- --</div>
-      <div class="live-date" id="liveDate">Loading...</div>
+      <div class="live-date"  id="liveDate">Loading...</div>
     </div>
   </header>
 
@@ -994,25 +565,13 @@
       <p id="countdownEventName">--</p>
     </div>
     <div class="countdown-units">
-      <div class="count-unit">
-        <span class="num" id="cdDays">--</span>
-        <span class="label">Days</span>
-      </div>
+      <div class="count-unit"><span class="num" id="cdDays">--</span><span class="label">Days</span></div>
       <span class="count-sep">:</span>
-      <div class="count-unit">
-        <span class="num" id="cdHours">--</span>
-        <span class="label">Hours</span>
-      </div>
+      <div class="count-unit"><span class="num" id="cdHours">--</span><span class="label">Hours</span></div>
       <span class="count-sep">:</span>
-      <div class="count-unit">
-        <span class="num" id="cdMins">--</span>
-        <span class="label">Mins</span>
-      </div>
+      <div class="count-unit"><span class="num" id="cdMins">--</span><span class="label">Mins</span></div>
       <span class="count-sep">:</span>
-      <div class="count-unit">
-        <span class="num" id="cdSecs">--</span>
-        <span class="label">Secs</span>
-      </div>
+      <div class="count-unit"><span class="num" id="cdSecs">--</span><span class="label">Secs</span></div>
     </div>
   </div>
 
@@ -1034,7 +593,7 @@
     <!-- CALENDAR -->
     <div class="card calendar-card jade-card">
       <div class="card-header">
-        <div class="card-title"><span class="dot"></span> Calendar</div>
+        <div class="card-title"><span class="dot jade"></span> Calendar</div>
       </div>
       <div class="cal-nav">
         <button class="cal-btn" id="calPrev">‹</button>
@@ -1048,7 +607,7 @@
     <div class="card notes-card">
       <div class="card-header">
         <div class="card-title"><span class="dot pink"></span> My Notes</div>
-        <button class="add-note-btn" id="addNoteBtn" style="width:auto; min-height: auto; padding: 6px 14px; font-size:12px; border-radius:20px; border-width:1.5px;">+ New Note</button>
+        <button class="add-note-btn" id="addNoteBtn" style="width:auto;min-height:auto;padding:6px 14px;font-size:12px;border-radius:20px;border-width:1.5px;">+ New Note</button>
       </div>
       <div class="notes-grid" id="notesGrid">
         <div class="note-item coral">
@@ -1076,37 +635,76 @@
         </div>
       </div>
     </div>
+
   </div>
 
   <!-- BOTTOM GRID -->
   <div class="grid-bottom">
 
     <!-- PCN PANTHERS SCHEDULE -->
-    <div class="card schedule-card jade-card-left">
+    <div class="card jade-card-left">
       <div class="card-header">
         <div class="pcn-header">
           <div class="pcn-logo">🐾</div>
           <div>
             <div class="card-title" style="margin-bottom:2px;"><span class="dot jade"></span> PCN Panthers 2026 Schedule</div>
-            <div style="font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--jade-deep); font-weight:600; margin-top:2px;">Pom Captain · Senior Season</div>
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--jade-deep);font-weight:600;margin-top:2px;">Pom Captain · Senior Season</div>
           </div>
         </div>
       </div>
       <div class="schedule-list" id="scheduleList"></div>
     </div>
 
-    <!-- RIGHT COLUMN: MOOD + SAVINGS -->
-    <div style="display: flex; flex-direction: column; gap: 24px;">
+    <!-- RIGHT COLUMN -->
+    <div style="display:flex;flex-direction:column;gap:24px;">
 
-      <!-- SPOTIFY -->
-      <div class="card spotify-card">
+      <!-- SPOTIFY NOW PLAYING -->
+      <div class="card">
         <div class="card-header" style="margin-bottom:14px;">
-          <div class="card-title"><span class="dot" style="background:#1DB954;"></span> Spotify</div>
+          <div class="card-title"><span class="dot green"></span> Now Playing</div>
         </div>
-        <div class="spotify-connect">
-          <div class="spotify-icon">♪</div>
-          <p>Connect your Spotify to see what you're listening to</p>
-          <button class="spotify-connect-btn">Connect Spotify</button>
+        <div class="spotify-inner" id="spotifyInner">
+
+          <!-- NOT CONNECTED -->
+          <div class="spotify-connect" id="spotifyConnect">
+            <div class="spotify-connect-icon">🎵</div>
+            <p>Connect your Spotify account to see what's playing.</p>
+            <button class="spotify-connect-btn" onclick="spotifyConnect()">Connect Spotify</button>
+            <p style="font-size:11px;color:var(--text-soft);margin-top:-4px;">Requires a free Spotify account</p>
+          </div>
+
+          <!-- NOW PLAYING -->
+          <div class="spotify-playing" id="spotifyPlaying">
+            <div class="spotify-album-art" id="spotifyArt">
+              <span class="spotify-album-placeholder">🎵</span>
+            </div>
+            <div class="spotify-info">
+              <div class="spotify-track"  id="spotifyTrack">—</div>
+              <div class="spotify-artist" id="spotifyArtist">—</div>
+            </div>
+            <div class="spotify-progress-wrap">
+              <div class="spotify-progress-bar">
+                <div class="spotify-progress-fill" id="spotifyFill"></div>
+              </div>
+              <div class="spotify-times">
+                <span id="spotifyElapsed">0:00</span>
+                <span id="spotifyDuration">0:00</span>
+              </div>
+            </div>
+            <div class="spotify-controls">
+              <button class="sp-ctrl-btn" onclick="spotifyPrev()" title="Previous">⏮</button>
+              <button class="sp-ctrl-btn play-pause" id="spPlayPause" onclick="spotifyPlayPause()">⏸</button>
+              <button class="sp-ctrl-btn" onclick="spotifyNext()" title="Next">⏭</button>
+            </div>
+          </div>
+
+          <!-- IDLE -->
+          <div class="spotify-not-playing" id="spotifyIdle">
+            <div class="spotify-connect-icon" style="width:44px;height:44px;font-size:22px;">🎵</div>
+            <p>Nothing playing right now.</p>
+            <p style="font-size:11px;color:var(--text-soft);">Open Spotify and start a song!</p>
+          </div>
+
         </div>
       </div>
 
@@ -1114,22 +712,20 @@
       <div class="card mood-card">
         <div class="card-header" style="margin-bottom:14px;">
           <div class="card-title"><span class="dot pink"></span> Mood Check-In</div>
-          <span style="font-size:11px; color:var(--text-soft);">How are you today?</span>
+          <span style="font-size:11px;color:var(--text-soft);">How are you today?</span>
         </div>
-
         <div class="mood-row">
           <span class="mood-label">Today</span>
           <div class="mood-emojis" id="moodPicker">
-            <button class="mood-emoji" data-mood="😊" title="Happy" onclick="selectMood(this)">😊</button>
-            <button class="mood-emoji" data-mood="🥰" title="Loved" onclick="selectMood(this)">🥰</button>
-            <button class="mood-emoji" data-mood="😎" title="Confident" onclick="selectMood(this)">😎</button>
-            <button class="mood-emoji" data-mood="😌" title="Calm" onclick="selectMood(this)">😌</button>
-            <button class="mood-emoji" data-mood="😴" title="Tired" onclick="selectMood(this)">😴</button>
+            <button class="mood-emoji" data-mood="😊" title="Happy"      onclick="selectMood(this)">😊</button>
+            <button class="mood-emoji" data-mood="🥰" title="Loved"      onclick="selectMood(this)">🥰</button>
+            <button class="mood-emoji" data-mood="😎" title="Confident"  onclick="selectMood(this)">😎</button>
+            <button class="mood-emoji" data-mood="😌" title="Calm"       onclick="selectMood(this)">😌</button>
+            <button class="mood-emoji" data-mood="😴" title="Tired"      onclick="selectMood(this)">😴</button>
             <button class="mood-emoji" data-mood="😤" title="Frustrated" onclick="selectMood(this)">😤</button>
-            <button class="mood-emoji" data-mood="😢" title="Sad" onclick="selectMood(this)">😢</button>
+            <button class="mood-emoji" data-mood="😢" title="Sad"        onclick="selectMood(this)">😢</button>
           </div>
         </div>
-
         <div class="mood-history">
           <div class="mood-history-title">This Week</div>
           <div class="mood-history-row" id="moodHistory"></div>
@@ -1141,7 +737,6 @@
         <div class="card-header" style="margin-bottom:16px;">
           <div class="card-title"><span class="dot teal"></span> Savings Goals</div>
         </div>
-
         <div id="goalsContainer">
           <div class="savings-goal" data-goal="gradTrip" data-target="800">
             <div class="savings-goal-header">
@@ -1152,7 +747,6 @@
             <div class="progress-track"><div class="progress-fill coral" id="gradTripBar" style="width:40%"></div></div>
             <div class="progress-pct" id="gradTripPct">40%</div>
           </div>
-
           <div class="savings-goal" data-goal="car" data-target="2000">
             <div class="savings-goal-header">
               <span class="savings-goal-name">🚗 Car Fund</span>
@@ -1162,7 +756,6 @@
             <div class="progress-track"><div class="progress-fill jade" id="carBar" style="width:32%"></div></div>
             <div class="progress-pct" id="carPct">32%</div>
           </div>
-
           <div class="savings-goal" data-goal="wardrobe" data-target="300">
             <div class="savings-goal-header">
               <span class="savings-goal-name">👗 Senior Year Wardrobe</span>
@@ -1173,7 +766,6 @@
             <div class="progress-pct" id="wardrobePct">70%</div>
           </div>
         </div>
-
         <div class="savings-add">
           <div class="savings-input-group">
             <span class="savings-input-label">Goal</span>
@@ -1194,311 +786,306 @@
     </div>
   </div>
 
-</div>
+</div><!-- /container -->
 
 <script>
-  // ── LIVE CLOCK ──
+  // ── CLOCK ──
   function updateClock() {
     const now = new Date();
-    const h = now.getHours();
-    const m = now.getMinutes().toString().padStart(2,'0');
+    const h = now.getHours(), m = now.getMinutes();
     const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = (h % 12 || 12);
-    document.getElementById('liveTime').textContent = `${h12}:${m} ${ampm}`;
-    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    document.getElementById('liveTime').textContent = `${(h%12||12)}:${String(m).padStart(2,'0')} ${ampm}`;
+    const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     document.getElementById('liveDate').textContent = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
   }
-  setInterval(updateClock, 1000);
-  updateClock();
+  setInterval(updateClock, 1000); updateClock();
 
   // ── COUNTDOWNS ──
   const CD_DEFAULTS = [
-    { id: 'graduation', name: 'Putnam City North Graduation', date: '2027-05-23T14:00:00', emoji: '🎓' }
+    { id:'graduation', name:'Putnam City North Graduation', date:'2027-05-23T14:00:00', emoji:'🎓' }
   ];
-
   let countdowns = JSON.parse(localStorage.getItem('haileyCountdowns') || 'null') || CD_DEFAULTS;
-
-  function saveCountdowns() {
-    localStorage.setItem('haileyCountdowns', JSON.stringify(countdowns));
-  }
-
+  function saveCountdowns() { localStorage.setItem('haileyCountdowns', JSON.stringify(countdowns)); }
   function getActiveCountdown() {
     const now = new Date();
-    const upcoming = countdowns.filter(c => new Date(c.date) > now)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-    return upcoming[0] || countdowns.slice().sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    const upcoming = countdowns.filter(c => new Date(c.date) > now).sort((a,b) => new Date(a.date)-new Date(b.date));
+    return upcoming[0] || countdowns.slice().sort((a,b) => new Date(b.date)-new Date(a.date))[0];
   }
-
   function renderCountdownChips() {
     const active = getActiveCountdown();
     const container = document.getElementById('countdownChips');
     container.innerHTML = '';
-    countdowns.slice()
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .forEach(cd => {
-        const now = new Date();
-        const diff = new Date(cd.date) - now;
-        const days = Math.ceil(diff / 86400000);
-        const daysLabel = diff <= 0 ? 'passed' : `${days}d`;
-        const isActive = active && cd.id === active.id;
-        const chip = document.createElement('div');
-        chip.className = `countdown-chip${isActive ? ' active' : ''}`;
-        chip.innerHTML = `<span>${cd.emoji || '📅'} ${cd.name}</span><span class="countdown-chip-days"> · ${daysLabel}</span>${countdowns.length > 1 ? `<button class="countdown-chip-del" onclick="removeCountdown('${cd.id}',event)">✕</button>` : ''}`;
-        container.appendChild(chip);
-      });
+    countdowns.slice().sort((a,b) => new Date(a.date)-new Date(b.date)).forEach(cd => {
+      const diff = new Date(cd.date) - new Date();
+      const daysLabel = diff <= 0 ? 'passed' : `${Math.ceil(diff/86400000)}d`;
+      const isActive = active && cd.id === active.id;
+      const chip = document.createElement('div');
+      chip.className = `countdown-chip${isActive?' active':''}`;
+      chip.innerHTML = `<span>${cd.emoji||'📅'} ${cd.name}</span><span class="countdown-chip-days"> · ${daysLabel}</span>${countdowns.length>1?`<button class="countdown-chip-del" onclick="removeCountdown('${cd.id}',event)">✕</button>`:''}`;
+      container.appendChild(chip);
+    });
     if (active) document.getElementById('countdownEventName').textContent = active.name;
   }
-
   function removeCountdown(id, e) {
     e.stopPropagation();
     if (countdowns.length <= 1) return;
     countdowns = countdowns.filter(c => c.id !== id);
-    saveCountdowns();
-    renderCountdownChips();
+    saveCountdowns(); renderCountdownChips();
   }
-
   function saveNewCountdown() {
     const name = document.getElementById('cdName').value.trim();
     const date = document.getElementById('cdDate').value;
     if (!name || !date) return;
-    countdowns.push({ id: Date.now().toString(), name, date, emoji: '📅' });
-    saveCountdowns();
-    renderCountdownChips();
+    countdowns.push({ id: Date.now().toString(), name, date, emoji:'📅' });
+    saveCountdowns(); renderCountdownChips();
     document.getElementById('cdName').value = '';
     document.getElementById('cdDate').value = '';
     document.getElementById('countdownFormRow').classList.remove('open');
   }
-
   document.getElementById('addCdBtn').onclick = () => {
     document.getElementById('countdownFormRow').classList.toggle('open');
-    if (document.getElementById('countdownFormRow').classList.contains('open')) {
-      document.getElementById('cdName').focus();
-    }
+    if (document.getElementById('countdownFormRow').classList.contains('open')) document.getElementById('cdName').focus();
   };
-
   renderCountdownChips();
-
   function updateCountdown() {
-    const active = getActiveCountdown();
-    if (!active) return;
-    const target = new Date(active.date);
-    const now = new Date();
-    const diff = target - now;
-    if (diff <= 0) {
-      document.getElementById('cdDays').textContent = active.emoji || '🎉';
-      return;
-    }
-    const d = Math.floor(diff / 86400000);
-    const h = Math.floor((diff % 86400000) / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    document.getElementById('cdDays').textContent = d;
-    document.getElementById('cdHours').textContent = String(h).padStart(2,'0');
-    document.getElementById('cdMins').textContent = String(m).padStart(2,'0');
-    document.getElementById('cdSecs').textContent = String(s).padStart(2,'0');
+    const active = getActiveCountdown(); if (!active) return;
+    const diff = new Date(active.date) - new Date();
+    if (diff <= 0) { document.getElementById('cdDays').textContent = active.emoji||'🎉'; return; }
+    document.getElementById('cdDays').textContent  = Math.floor(diff/86400000);
+    document.getElementById('cdHours').textContent = String(Math.floor((diff%86400000)/3600000)).padStart(2,'0');
+    document.getElementById('cdMins').textContent  = String(Math.floor((diff%3600000)/60000)).padStart(2,'0');
+    document.getElementById('cdSecs').textContent  = String(Math.floor((diff%60000)/1000)).padStart(2,'0');
   }
-  setInterval(updateCountdown, 1000);
-  updateCountdown();
+  setInterval(updateCountdown, 1000); updateCountdown();
 
   // ── CALENDAR ──
   let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
-
   const gameDates = [
-    {y:2026, m:8, d:28}, {y:2026, m:9, d:2}, {y:2026, m:9, d:9},
-    {y:2026, m:9, d:16}, {y:2026, m:9, d:23}, {y:2026, m:9, d:30},
-    {y:2026, m:10, d:7}, {y:2026, m:10, d:14}, {y:2026, m:10, d:21},
-    {y:2026, m:10, d:28}, {y:2026, m:11, d:6},
+    {y:2026,m:8,d:28},{y:2026,m:9,d:2},{y:2026,m:9,d:9},{y:2026,m:9,d:16},
+    {y:2026,m:9,d:23},{y:2026,m:9,d:30},{y:2026,m:10,d:7},{y:2026,m:10,d:14},
+    {y:2026,m:10,d:21},{y:2026,m:10,d:28},{y:2026,m:11,d:6},
   ];
-
-  function isGameDay(y, m, d) {
-    return gameDates.some(g => g.y === y && g.m === m && g.d === d);
-  }
-
+  function isGameDay(y,m,d) { return gameDates.some(g=>g.y===y&&g.m===m&&g.d===d); }
   function buildCalendar() {
     const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     document.getElementById('calMonth').textContent = `${months[calMonth]} ${calYear}`;
-    const grid = document.getElementById('calGrid');
-    grid.innerHTML = '';
-
-    ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
-      const el = document.createElement('div');
-      el.className = 'cal-day-label';
-      el.textContent = d;
-      grid.appendChild(el);
-    });
-
-    const first = new Date(calYear, calMonth, 1).getDay();
-    const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
-    const today = new Date();
-
-    for (let i = 0; i < first; i++) {
-      const el = document.createElement('div');
-      el.className = 'cal-day empty';
-      grid.appendChild(el);
-    }
-
-    for (let d = 1; d <= daysInMonth; d++) {
-      const el = document.createElement('div');
-      el.className = 'cal-day';
-      el.textContent = d;
-      const isToday = d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
-      if (isToday) el.classList.add('today');
-      if (isGameDay(calYear, calMonth, d)) el.classList.add('has-event', 'game-day');
+    const grid = document.getElementById('calGrid'); grid.innerHTML = '';
+    ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { const el=document.createElement('div'); el.className='cal-day-label'; el.textContent=d; grid.appendChild(el); });
+    const first=new Date(calYear,calMonth,1).getDay(), days=new Date(calYear,calMonth+1,0).getDate(), today=new Date();
+    for(let i=0;i<first;i++){const el=document.createElement('div');el.className='cal-day empty';grid.appendChild(el);}
+    for(let d=1;d<=days;d++){
+      const el=document.createElement('div'); el.className='cal-day'; el.textContent=d;
+      if(d===today.getDate()&&calMonth===today.getMonth()&&calYear===today.getFullYear()) el.classList.add('today');
+      if(isGameDay(calYear,calMonth,d)) el.classList.add('has-event','game-day');
       grid.appendChild(el);
     }
   }
-
-  document.getElementById('calPrev').onclick = () => {
-    calMonth--;
-    if (calMonth < 0) { calMonth = 11; calYear--; }
-    buildCalendar();
-  };
-  document.getElementById('calNext').onclick = () => {
-    calMonth++;
-    if (calMonth > 11) { calMonth = 0; calYear++; }
-    buildCalendar();
-  };
+  document.getElementById('calPrev').onclick=()=>{calMonth--;if(calMonth<0){calMonth=11;calYear--;}buildCalendar();};
+  document.getElementById('calNext').onclick=()=>{calMonth++;if(calMonth>11){calMonth=0;calYear++;}buildCalendar();};
   buildCalendar();
 
   // ── NOTES ──
   const noteColors = ['coral','teal','jade','pink'];
   let noteColorIdx = 0;
-
   document.getElementById('addNoteBtn').onclick = () => {
-    const grid = document.getElementById('notesGrid');
-    const color = noteColors[noteColorIdx % noteColors.length];
-    noteColorIdx++;
-    const div = document.createElement('div');
-    div.className = `note-item ${color}`;
-    div.innerHTML = `
-      <button class="note-delete" onclick="deleteNote(this)">✕</button>
-      <input class="note-title-input" placeholder="Title...">
-      <textarea class="note-body-input" placeholder="Type your note here..." rows="3"></textarea>
-    `;
-    grid.appendChild(div);
-    div.querySelector('input').focus();
+    const grid=document.getElementById('notesGrid');
+    const color=noteColors[noteColorIdx++%noteColors.length];
+    const div=document.createElement('div'); div.className=`note-item ${color}`;
+    div.innerHTML=`<button class="note-delete" onclick="deleteNote(this)">✕</button><input class="note-title-input" placeholder="Title..."><textarea class="note-body-input" placeholder="Type your note here..." rows="3"></textarea>`;
+    grid.appendChild(div); div.querySelector('input').focus();
   };
+  function deleteNote(btn) { btn.closest('.note-item').remove(); }
 
-  function deleteNote(btn) {
-    btn.closest('.note-item').remove();
-  }
-
-  // ── PCN SCHEDULE ──
+  // ── SCHEDULE ──
   const schedule = [
-    { date:'Aug 28', opp:'vs. Mustang', home: true },
-    { date:'Sep 4',  opp:'@ Edmond Santa Fe', home: false },
-    { date:'Sep 11', opp:'vs. Yukon', home: true },
-    { date:'Sep 18', opp:'@ Westmoore', home: false },
-    { date:'Sep 25', opp:'vs. Southmoore', home: true },
-    { date:'Oct 2',  opp:'@ Edmond Memorial', home: false },
-    { date:'Oct 9',  opp:'vs. Deer Creek', home: true },
-    { date:'Oct 16', opp:'@ Midwest City', home: false },
-    { date:'Oct 23', opp:'vs. Putnam City', home: true },
-    { date:'Oct 30', opp:'@ Putnam City West', home: false },
-    { date:'Nov 6',  opp:'vs. Edmond North', home: true },
+    {date:'Aug 28',opp:'vs. Mustang',home:true},
+    {date:'Sep 4', opp:'@ Edmond Santa Fe',home:false},
+    {date:'Sep 11',opp:'vs. Yukon',home:true},
+    {date:'Sep 18',opp:'@ Westmoore',home:false},
+    {date:'Sep 25',opp:'vs. Southmoore',home:true},
+    {date:'Oct 2', opp:'@ Edmond Memorial',home:false},
+    {date:'Oct 9', opp:'vs. Deer Creek',home:true},
+    {date:'Oct 16',opp:'@ Midwest City',home:false},
+    {date:'Oct 23',opp:'vs. Putnam City',home:true},
+    {date:'Oct 30',opp:'@ Putnam City West',home:false},
+    {date:'Nov 6', opp:'vs. Edmond North',home:true},
   ];
-
   const todayDate = new Date();
-  const scheduleList = document.getElementById('scheduleList');
-
-  schedule.forEach((g, i) => {
+  schedule.forEach((g,i) => {
     const gameDate = new Date(`${g.date}, 2026`);
-    const isNext = gameDate >= todayDate && (i === 0 || new Date(`${schedule[i-1].date}, 2026`) < todayDate);
-
+    const isNext = gameDate >= todayDate && (i===0||new Date(`${schedule[i-1].date}, 2026`)<todayDate);
     const row = document.createElement('div');
-    row.className = `game-row ${g.home ? 'home' : 'away'}${isNext ? ' next' : ''}`;
-    row.innerHTML = `
-      <span class="game-date">${g.date}</span>
-      <span class="game-opp">${g.opp}</span>
-      ${isNext ? '<span class="game-badge next-badge">Next</span>' : ''}
-      <span class="game-badge ${g.home ? 'home' : 'away'}">${g.home ? 'Home' : 'Away'}</span>
-    `;
-    scheduleList.appendChild(row);
+    row.className = `game-row ${g.home?'home':'away'}${isNext?' next':''}`;
+    row.innerHTML = `<span class="game-date">${g.date}</span><span class="game-opp">${g.opp}</span>${isNext?'<span class="game-badge next-badge">Next</span>':''}<span class="game-badge ${g.home?'home':'away'}">${g.home?'Home':'Away'}</span>`;
+    document.getElementById('scheduleList').appendChild(row);
   });
 
-  // ── MOOD LOG ──
+  // ── MOOD ──
   const moodDays = ['S','M','T','W','T','F','S'];
   let moodData = JSON.parse(localStorage.getItem('haileyMoods') || '{}');
-
   function selectMood(btn) {
-    document.querySelectorAll('.mood-emoji').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('.mood-emoji').forEach(b=>b.classList.remove('selected'));
     btn.classList.add('selected');
-    const todayKey = new Date().toISOString().split('T')[0];
-    moodData[todayKey] = btn.dataset.mood;
+    const key=new Date().toISOString().split('T')[0];
+    moodData[key]=btn.dataset.mood;
     try { localStorage.setItem('haileyMoods', JSON.stringify(moodData)); } catch(e) {}
     renderMoodHistory();
   }
-
   function renderMoodHistory() {
-    const container = document.getElementById('moodHistory');
-    container.innerHTML = '';
-    const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().split('T')[0];
-      const dayLabel = moodDays[d.getDay()];
-      const emoji = moodData[key] || '';
-      const item = document.createElement('div');
-      item.className = 'mood-hist-item';
-      item.innerHTML = `
-        <div class="emoji-display">${emoji || '<span style="color:#ddd;font-size:12px;">·</span>'}</div>
-        <span class="day-label">${dayLabel}</span>
-      `;
+    const container=document.getElementById('moodHistory'); container.innerHTML='';
+    const now=new Date();
+    for(let i=6;i>=0;i--){
+      const d=new Date(now); d.setDate(d.getDate()-i);
+      const key=d.toISOString().split('T')[0];
+      const item=document.createElement('div'); item.className='mood-hist-item';
+      item.innerHTML=`<div class="emoji-display">${moodData[key]||'<span style="color:#ddd;font-size:12px;">·</span>'}</div><span class="day-label">${moodDays[d.getDay()]}</span>`;
       container.appendChild(item);
     }
-    const todayKey = new Date().toISOString().split('T')[0];
-    if (moodData[todayKey]) {
-      document.querySelectorAll('.mood-emoji').forEach(b => {
-        if (b.dataset.mood === moodData[todayKey]) b.classList.add('selected');
-      });
-    }
+    const todayKey=new Date().toISOString().split('T')[0];
+    if(moodData[todayKey]) document.querySelectorAll('.mood-emoji').forEach(b=>{if(b.dataset.mood===moodData[todayKey])b.classList.add('selected');});
   }
   renderMoodHistory();
 
   // ── SAVINGS ──
-  let savings = JSON.parse(localStorage.getItem('haileySavings') || JSON.stringify({
-    gradTrip: 320, car: 640, wardrobe: 210
-  }));
-  const targets = { gradTrip: 800, car: 2000, wardrobe: 300 };
-  const goalKeys = ['gradTrip', 'car', 'wardrobe'];
-
+  let savings = JSON.parse(localStorage.getItem('haileySavings') || JSON.stringify({gradTrip:320,car:640,wardrobe:210}));
+  const targets = {gradTrip:800,car:2000,wardrobe:300};
+  const goalKeys = ['gradTrip','car','wardrobe'];
   function renderSavings() {
     goalKeys.forEach(key => {
-      const amt = savings[key];
-      const target = targets[key];
-      const pct = Math.min(100, Math.round((amt / target) * 100));
-      const amtEl = document.getElementById(`${key}Amt`);
-      const barEl = document.getElementById(`${key}Bar`);
-      const pctEl = document.getElementById(`${key}Pct`);
-      if (amtEl) amtEl.textContent = `$${amt.toLocaleString()}`;
-      if (barEl) barEl.style.width = `${pct}%`;
-      if (pctEl) pctEl.textContent = `${pct}%`;
+      const amt=savings[key]||0, target=targets[key];
+      const pct=Math.min(100,Math.round((amt/target)*100));
+      const amtEl=document.getElementById(`${key}Amt`), barEl=document.getElementById(`${key}Bar`), pctEl=document.getElementById(`${key}Pct`);
+      if(amtEl) amtEl.textContent=`$${amt.toLocaleString()}`;
+      if(barEl) barEl.style.width=`${pct}%`;
+      if(pctEl) pctEl.textContent=`${pct}%`;
     });
   }
-
   function removeGoal(key) {
     document.querySelector(`.savings-goal[data-goal="${key}"]`)?.remove();
     delete savings[key];
     try { localStorage.setItem('haileySavings', JSON.stringify(savings)); } catch(e) {}
-    const opt = document.querySelector(`#goalSelect option[value="${key}"]`);
-    if (opt) opt.remove();
+    const opt=document.querySelector(`#goalSelect option[value="${key}"]`); if(opt) opt.remove();
   }
-
   function addSavings() {
-    const key = document.getElementById('goalSelect').value;
-    const amt = parseFloat(document.getElementById('savingsAmount').value);
-    if (!amt || amt <= 0) return;
-    savings[key] = (savings[key] || 0) + amt;
+    const key=document.getElementById('goalSelect').value;
+    const amt=parseFloat(document.getElementById('savingsAmount').value);
+    if(!amt||amt<=0) return;
+    savings[key]=(savings[key]||0)+amt;
     try { localStorage.setItem('haileySavings', JSON.stringify(savings)); } catch(e) {}
     renderSavings();
-    document.getElementById('savingsAmount').value = '';
-    const bar = document.getElementById(`${key}Bar`);
-    if (bar) bar.style.transition = 'width 0.8s ease';
+    document.getElementById('savingsAmount').value='';
+  }
+  renderSavings();
+
+  // ── SPOTIFY ──
+  // HOW TO ACTIVATE:
+  //   1. Deploy to Vercel
+  //   2. Go to developer.spotify.com → log in with HAILEY'S Spotify account → Create App
+  //   3. Set Redirect URI to her exact Vercel URL (e.g. https://hailey-dashboard.vercel.app/)
+  //   4. Copy the Client ID, paste it below, redeploy
+
+  const SPOTIFY_CLIENT_ID = 'YOUR_CLIENT_ID_HERE'; // ← paste Hailey's Spotify Client ID here
+  const SPOTIFY_SCOPES    = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+
+  let spotifyToken     = localStorage.getItem('haileySpotifyToken')  || null;
+  let spotifyExpiry    = parseInt(localStorage.getItem('haileySpotifyExpiry') || '0');
+  let spotifyPollTimer = null;
+
+  (function checkOAuthReturn() {
+    const hash = window.location.hash.substring(1);
+    if (!hash) return;
+    const params = Object.fromEntries(hash.split('&').map(p => p.split('=')));
+    if (params.access_token) {
+      spotifyToken  = params.access_token;
+      spotifyExpiry = Date.now() + parseInt(params.expires_in||3600)*1000;
+      try {
+        localStorage.setItem('haileySpotifyToken',  spotifyToken);
+        localStorage.setItem('haileySpotifyExpiry', String(spotifyExpiry));
+      } catch(e) {}
+      history.replaceState(null,'',window.location.pathname);
+      startSpotifyPolling();
+    }
+  })();
+
+  function spotifyConnect() {
+    if (SPOTIFY_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') {
+      alert('Deploy the dashboard to Vercel first, then add the Spotify Client ID to activate this feature!');
+      return;
+    }
+    const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
+    window.location.href = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=token&redirect_uri=${redirectUri}&scope=${encodeURIComponent(SPOTIFY_SCOPES)}&show_dialog=true`;
   }
 
-  renderSavings();
+  function showSpotifyState(state) {
+    document.getElementById('spotifyConnect').style.display = state==='connect' ? 'flex' : 'none';
+    document.getElementById('spotifyPlaying').classList.toggle('visible', state==='playing');
+    document.getElementById('spotifyIdle').classList.toggle('visible',    state==='idle');
+  }
+
+  async function fetchNowPlaying() {
+    if (!spotifyToken || Date.now() > spotifyExpiry) { showSpotifyState('connect'); return; }
+    try {
+      const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', { headers:{ Authorization:`Bearer ${spotifyToken}` }});
+      if (res.status===204||res.status===404) { showSpotifyState('idle'); return; }
+      if (res.status===401) { spotifyToken=null; showSpotifyState('connect'); return; }
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data||!data.item) { showSpotifyState('idle'); return; }
+      showSpotifyState('playing');
+      document.getElementById('spotifyTrack').textContent  = data.item.name||'—';
+      document.getElementById('spotifyArtist').textContent = data.item.artists?.map(a=>a.name).join(', ')||'—';
+      const artEl=document.getElementById('spotifyArt');
+      const img=data.item.album?.images?.[1]?.url||data.item.album?.images?.[0]?.url;
+      artEl.innerHTML = img ? `<img src="${img}" alt="Album art">` : '<span class="spotify-album-placeholder">🎵</span>';
+      const progress=data.progress_ms||0, duration=data.item.duration_ms||1;
+      document.getElementById('spotifyFill').style.width     = `${(progress/duration)*100}%`;
+      document.getElementById('spotifyElapsed').textContent  = msToTime(progress);
+      document.getElementById('spotifyDuration').textContent = msToTime(duration);
+      document.getElementById('spPlayPause').textContent = data.is_playing ? '⏸' : '▶';
+    } catch(e) {}
+  }
+
+  function msToTime(ms) {
+    const s=Math.floor(ms/1000);
+    return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  }
+
+  async function spotifyPlayPause() {
+    if (!spotifyToken) return;
+    try {
+      const res=await fetch('https://api.spotify.com/v1/me/player/currently-playing',{headers:{Authorization:`Bearer ${spotifyToken}`}});
+      if (!res.ok) return;
+      const data=await res.json();
+      const ep=data.is_playing?'https://api.spotify.com/v1/me/player/pause':'https://api.spotify.com/v1/me/player/play';
+      await fetch(ep,{method:'PUT',headers:{Authorization:`Bearer ${spotifyToken}`}});
+      setTimeout(fetchNowPlaying,400);
+    } catch(e) {}
+  }
+
+  async function spotifyNext() {
+    if (!spotifyToken) return;
+    await fetch('https://api.spotify.com/v1/me/player/next',{method:'POST',headers:{Authorization:`Bearer ${spotifyToken}`}});
+    setTimeout(fetchNowPlaying,600);
+  }
+
+  async function spotifyPrev() {
+    if (!spotifyToken) return;
+    await fetch('https://api.spotify.com/v1/me/player/previous',{method:'POST',headers:{Authorization:`Bearer ${spotifyToken}`}});
+    setTimeout(fetchNowPlaying,600);
+  }
+
+  function startSpotifyPolling() {
+    fetchNowPlaying();
+    if (spotifyPollTimer) clearInterval(spotifyPollTimer);
+    spotifyPollTimer = setInterval(fetchNowPlaying,5000);
+  }
+
+  if (spotifyToken && Date.now() < spotifyExpiry) {
+    startSpotifyPolling();
+  } else {
+    showSpotifyState('connect');
+  }
 </script>
 </body>
 </html>
