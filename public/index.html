@@ -1652,10 +1652,7 @@
       const movedNames = new Set(data.moved.map(m => m.filename));
       cbs.forEach((cb, i) => {
         if (movedNames.has(cb.dataset.filename)) {
-          const card = document.getElementById(`triage-card-${i}`);
-          card.style.opacity = '0.3';
-          card.style.textDecoration = 'line-through';
-          cb.disabled = true;
+          document.getElementById(`triage-card-${i}`).remove();
         }
       });
       const errMsg = data.errors.length ? ` · ${data.errors.length} error(s)` : '';
