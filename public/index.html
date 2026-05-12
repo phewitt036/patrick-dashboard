@@ -627,10 +627,17 @@
   }
   .run-status.running { color: var(--accent3); }
   .run-status.error { color: #ff6b6b; }
-  .triage-item { display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+  .triage-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
+  .triage-item:hover { border-color: var(--accent3); }
+  .triage-item.dismissed { opacity: 0.4; }
+  .triage-item input[type=checkbox] { margin-top: 2px; accent-color: var(--accent3); flex-shrink: 0; cursor: pointer; }
+  .triage-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .triage-filename { font-size: 12px; color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .triage-dest { font-size: 11px; color: var(--accent3); letter-spacing: 0.3px; }
   .triage-reason { font-size: 11px; color: var(--muted); }
+  .triage-apply-row { display: flex; justify-content: flex-end; margin-top: 12px; }
+  .triage-apply-btn { background: var(--accent3); color: #000; border: none; border-radius: 8px; padding: 8px 18px; font-size: 12px; font-weight: 700; cursor: pointer; letter-spacing: 0.5px; }
+  .triage-apply-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
   @keyframes spin { to { transform: rotate(360deg); } }
   .spin { display: inline-block; animation: spin 0.9s linear infinite; }
@@ -1594,12 +1601,20 @@
       } else {
         metaEl.style.display = '';
         metaEl.textContent = `${data.noteCount} note${data.noteCount !== 1 ? 's' : ''} reviewed · ${new Date().toLocaleTimeString()}`;
-        resultsEl.innerHTML = data.suggestions.map(s => `
-          <div class="triage-item">
-            <div class="triage-filename">📄 ${s.filename}</div>
-            <div class="triage-dest">→ ${s.destination}</div>
-            <div class="triage-reason">${s.reason}</div>
+        const cards = data.suggestions.map((s, i) => `
+          <div class="triage-item" id="triage-card-${i}" onclick="triageToggle(${i})">
+            <input type="checkbox" id="triage-cb-${i}" checked onclick="event.stopPropagation();triageToggle(${i})"
+              data-filename="${s.filename.replace(/"/g,'&quot;')}" data-destination="${s.destination.replace(/"/g,'&quot;')}">
+            <div class="triage-body">
+              <div class="triage-filename">📄 ${s.filename}</div>
+              <div class="triage-dest">→ ${s.destination}</div>
+              <div class="triage-reason">${s.reason}</div>
+            </div>
           </div>`).join('');
+        resultsEl.innerHTML = cards + `
+          <div class="triage-apply-row">
+            <button class="triage-apply-btn" id="triage-apply-btn" onclick="applyTriage()">Apply Approved →</button>
+          </div>`;
       }
       statusEl.className = 'run-status';
       statusEl.textContent = `✓ Triage complete`;
@@ -1609,6 +1624,50 @@
     }
     btn.disabled = false;
     btn.textContent = '▶ Run Triage';
+  }
+
+  function triageToggle(i) {
+    const cb = document.getElementById(`triage-cb-${i}`);
+    const card = document.getElementById(`triage-card-${i}`);
+    cb.checked = !cb.checked;
+    card.classList.toggle('dismissed', !cb.checked);
+  }
+
+  async function applyTriage() {
+    const cbs = document.querySelectorAll('[id^="triage-cb-"]');
+    const moves = [];
+    cbs.forEach(cb => { if (cb.checked) moves.push({ filename: cb.dataset.filename, destination: cb.dataset.destination }); });
+    if (moves.length === 0) return;
+    const btn = document.getElementById('triage-apply-btn');
+    const statusEl = document.getElementById('triage-run-status');
+    btn.disabled = true;
+    btn.textContent = 'Moving...';
+    try {
+      const res = await fetch('/api/pimax/triage/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moves })
+      });
+      const data = await res.json();
+      const movedNames = new Set(data.moved.map(m => m.filename));
+      cbs.forEach((cb, i) => {
+        if (movedNames.has(cb.dataset.filename)) {
+          const card = document.getElementById(`triage-card-${i}`);
+          card.style.opacity = '0.3';
+          card.style.textDecoration = 'line-through';
+          cb.disabled = true;
+        }
+      });
+      const errMsg = data.errors.length ? ` · ${data.errors.length} error(s)` : '';
+      statusEl.className = 'run-status';
+      statusEl.textContent = `✓ Moved ${data.moved.length} note${data.moved.length !== 1 ? 's' : ''}${errMsg}`;
+      btn.style.display = 'none';
+    } catch (e) {
+      statusEl.className = 'run-status error';
+      statusEl.textContent = `Error: ${e.message}`;
+      btn.disabled = false;
+      btn.textContent = 'Apply Approved →';
+    }
   }
 
   loadOutput('scout');

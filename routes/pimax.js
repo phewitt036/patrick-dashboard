@@ -70,6 +70,20 @@ router.post('/note', async (req, res) => {
   }
 });
 
+router.post('/triage/apply', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/triage/apply`, {
+      method: 'POST',
+      headers: hubHeaders(),
+      body: JSON.stringify(req.body)
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(502).json({ error: 'pimax unreachable' });
+  }
+});
+
 router.get('/mining', async (req, res) => {
   try {
     const r = await fetch(`${HUB()}/mining`, { headers: hubHeaders() });
