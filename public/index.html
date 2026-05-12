@@ -627,6 +627,12 @@
   }
   .run-status.running { color: var(--accent3); }
   .run-status.error { color: #ff6b6b; }
+  .pam-tabs { display: flex; gap: 6px; margin-bottom: 20px; }
+  .pam-tab { background: none; border: 1px solid var(--border); color: var(--muted); padding: 5px 14px; border-radius: 6px; font-size: 11px; cursor: pointer; letter-spacing: 0.5px; text-transform: uppercase; transition: all 0.15s; }
+  .pam-tab:hover { color: var(--text); border-color: var(--text); }
+  .pam-tab.active { border-color: var(--accent3); color: var(--accent3); }
+  .pam-subpanel { display: none; }
+  .pam-subpanel.active { display: block; }
   .triage-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
   .triage-item:hover { border-color: var(--accent3); }
   .triage-item.dismissed { opacity: 0.4; }
@@ -852,16 +858,48 @@
 
       <!-- Pam Panel -->
       <div class="agent-panel" id="panel-pam">
-        <div class="run-panel-header">
-          <div class="run-panel-info">
-            Pam reads Scout's intel and writes the Fourth & Oklahoma morning briefing.<br>
-            Runs automatically at 8:00 AM CT. You can also trigger it manually below.
-          </div>
-          <button class="run-btn" id="pam-run-btn" onclick="runAgent('pam')">▶ Run Pam Now</button>
+        <div class="pam-tabs">
+          <button class="pam-tab active" onclick="switchPamTab(event, 'sports')">📰 Sports</button>
+          <button class="pam-tab" onclick="switchPamTab(event, 'mining')">⛏ Mining</button>
+          <button class="pam-tab" onclick="switchPamTab(event, 'day')">🌤 Day Brief</button>
         </div>
-        <div class="output-meta" id="pam-output-meta">Last briefing:</div>
-        <div class="output-box" id="pam-output">Loading last briefing...</div>
-        <div class="run-status" id="pam-run-status"></div>
+
+        <div class="pam-subpanel active" id="pam-panel-sports">
+          <div class="run-panel-header">
+            <div class="run-panel-info">
+              Pam reads Scout's intel and writes the Fourth & Oklahoma morning briefing.<br>
+              Runs automatically at 8:00 AM CT. You can also trigger it manually below.
+            </div>
+            <button class="run-btn" id="pam-run-btn" onclick="runAgent('pam')">▶ Run Now</button>
+          </div>
+          <div class="output-meta" id="pam-output-meta">Last briefing:</div>
+          <div class="output-box" id="pam-output">Loading last briefing...</div>
+          <div class="run-status" id="pam-run-status"></div>
+        </div>
+
+        <div class="pam-subpanel" id="pam-panel-mining">
+          <div class="run-panel-header">
+            <div class="run-panel-info">
+              Pam reads live mining stats and writes a quick digest of both rigs and unmineable balance.
+            </div>
+            <button class="run-btn" id="pam-mining-run-btn" onclick="runAgent('pam-mining')">▶ Run Now</button>
+          </div>
+          <div class="output-meta" id="pam-mining-output-meta">Last briefing:</div>
+          <div class="output-box" id="pam-mining-output">Loading...</div>
+          <div class="run-status" id="pam-mining-run-status"></div>
+        </div>
+
+        <div class="pam-subpanel" id="pam-panel-day">
+          <div class="run-panel-header">
+            <div class="run-panel-info">
+              Pam reads outdoor conditions and fan state to give you a quick day outlook.
+            </div>
+            <button class="run-btn" id="pam-day-run-btn" onclick="runAgent('pam-day')">▶ Run Now</button>
+          </div>
+          <div class="output-meta" id="pam-day-output-meta">Last briefing:</div>
+          <div class="output-box" id="pam-day-output">Loading...</div>
+          <div class="run-status" id="pam-day-run-status"></div>
+        </div>
       </div>
       <!-- Triage Panel -->
       <div class="agent-panel" id="panel-triage">
@@ -1541,8 +1579,22 @@
   }
 
   // ── Scout / Pam ──
+  function switchPamTab(e, tab) {
+    document.querySelectorAll('.pam-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.pam-subpanel').forEach(p => p.classList.remove('active'));
+    e.currentTarget.classList.add('active');
+    document.getElementById(`pam-panel-${tab}`).classList.add('active');
+  }
+
+  const OUTPUT_ENDPOINTS = {
+    scout: '/api/pimax/intel',
+    pam: '/api/pimax/briefing',
+    'pam-mining': '/api/pimax/pam-mining',
+    'pam-day': '/api/pimax/pam-day'
+  };
+
   async function loadOutput(agent) {
-    const endpoint = agent === 'scout' ? '/api/pimax/intel' : '/api/pimax/briefing';
+    const endpoint = OUTPUT_ENDPOINTS[agent];
     const outputEl = document.getElementById(`${agent}-output`);
     const metaEl = document.getElementById(`${agent}-output-meta`);
     try {
@@ -1578,7 +1630,7 @@
       statusEl.textContent = `Error: ${e.message}`;
     }
     btn.disabled = false;
-    btn.textContent = agent === 'scout' ? '▶ Run Scout Now' : '▶ Run Pam Now';
+    btn.textContent = '▶ Run Now';
   }
 
   async function runTriage() {
@@ -1669,6 +1721,8 @@
 
   loadOutput('scout');
   loadOutput('pam');
+  loadOutput('pam-mining');
+  loadOutput('pam-day');
 
   // ── Mining ──
   function fmtHash(v) { return v >= 1000 ? (v/1000).toFixed(2)+' kH/s' : v.toFixed(1)+' H/s'; }

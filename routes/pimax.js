@@ -30,7 +30,7 @@ router.get('/briefing', async (req, res) => {
 
 router.post('/run/:agent', async (req, res) => {
   const { agent } = req.params;
-  if (!['scout', 'pam', 'triage'].includes(agent)) {
+  if (!['scout', 'pam', 'pam-mining', 'pam-day', 'triage'].includes(agent)) {
     return res.status(400).json({ error: 'Invalid agent' });
   }
   try {
@@ -77,6 +77,26 @@ router.post('/triage/apply', async (req, res) => {
       headers: hubHeaders(),
       body: JSON.stringify(req.body)
     });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(502).json({ error: 'pimax unreachable' });
+  }
+});
+
+router.get('/pam-mining', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/pam-mining`, { headers: hubHeaders() });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(502).json({ error: 'pimax unreachable' });
+  }
+});
+
+router.get('/pam-day', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/pam-day`, { headers: hubHeaders() });
     const data = await r.json();
     res.status(r.status).json(data);
   } catch (e) {
