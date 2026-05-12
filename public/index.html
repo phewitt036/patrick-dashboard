@@ -908,6 +908,7 @@
       <div class="mining-stat"><div class="mining-stat-val fan-val" id="fan-cpu">—</div><div class="mining-stat-label">CPU Temp</div></div>
       <div class="mining-stat"><div class="mining-stat-val fan-val" id="fan-rpm">—</div><div class="mining-stat-label">Fan RPM</div></div>
       <div class="mining-stat"><div class="mining-stat-val fan-val" id="fan-outdoor">—</div><div class="mining-stat-label">Outdoor</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="fan-gpio">—</div><div class="mining-stat-label">RGB Fans</div></div>
     </div>
     <div class="fan-controls" style="margin-top:10px;">
       <button class="fan-btn" id="fan-btn-quiet" onclick="setFanOverride(4, 60)">Quiet 1h</button>
@@ -1615,6 +1616,11 @@
       document.getElementById('fan-cpu').textContent = d.cpuTemp != null ? `${d.cpuTemp.toFixed(1)}°C` : '—';
       document.getElementById('fan-rpm').textContent = d.fanRpm != null ? `${d.fanRpm.toLocaleString()}` : '—';
       document.getElementById('fan-outdoor').textContent = d.outdoorF != null ? `${Math.round(d.outdoorF)}°F` : '—';
+      const gpioEl = document.getElementById('fan-gpio');
+      if (d.gpioFanOn != null) {
+        gpioEl.textContent = d.gpioFanOn ? 'On' : 'Off';
+        gpioEl.style.color = d.gpioFanOn ? '#22c55e' : 'var(--muted)';
+      }
       const ts = d.lastRun ? new Date(d.lastRun).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
       const overrideLabel = d.override ? ' · override active' : '';
       document.getElementById('fan-status').textContent = `updated ${ts}${overrideLabel}`;
