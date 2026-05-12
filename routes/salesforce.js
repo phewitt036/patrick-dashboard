@@ -93,10 +93,24 @@ router.post('/shift/start', async (req, res) => {
   if (!isoRe.test(clockIn)) return res.status(400).json({ error: 'Invalid datetime format' });
   try {
     const conn = await getConnection();
-    const result = await conn.sobject('Daily_Cash_Flow__c').create({
-      Date__c: clockIn.slice(0, 10),
-      Clock_In__c: clockIn
-    });
+    const dateStr = clockIn.slice(0, 10);
+
+    // Find the WCF covering this date
+    let wcfId = null;
+    const wcfResult = await conn.query(
+      `SELECT Id FROM Weekly_Cash_Flow__c WHERE Start_Date__c <= ${dateStr} AND End_Date__c >= ${dateStr} ORDER BY Start_Date__c DESC LIMIT 1`
+    );
+    if (wcfResult.records.length > 0) {
+      wcfId = wcfResult.records[0].Id;
+    } else {
+      const fallback = await conn.query(`SELECT Id FROM Weekly_Cash_Flow__c ORDER BY End_Date__c DESC NULLS LAST LIMIT 1`);
+      if (fallback.records.length > 0) wcfId = fallback.records[0].Id;
+    }
+
+    const fields = { Date__c: dateStr, Clock_In__c: clockIn };
+    if (wcfId) fields.Weekly_Cash_Flow__c = wcfId;
+
+    const result = await conn.sobject('Daily_Cash_Flow__c').create(fields);
     if (!result.success) throw new Error((result.errors || []).join(', ') || 'Create failed');
     res.json({ success: true, recordId: result.id });
   } catch (err) {
