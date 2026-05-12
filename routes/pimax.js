@@ -30,7 +30,7 @@ router.get('/briefing', async (req, res) => {
 
 router.post('/run/:agent', async (req, res) => {
   const { agent } = req.params;
-  if (!['scout', 'pam'].includes(agent)) {
+  if (!['scout', 'pam', 'triage'].includes(agent)) {
     return res.status(400).json({ error: 'Invalid agent' });
   }
   try {

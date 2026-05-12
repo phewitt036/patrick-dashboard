@@ -627,6 +627,10 @@
   }
   .run-status.running { color: var(--accent3); }
   .run-status.error { color: #ff6b6b; }
+  .triage-item { display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+  .triage-filename { font-size: 12px; color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .triage-dest { font-size: 11px; color: var(--accent3); letter-spacing: 0.3px; }
+  .triage-reason { font-size: 11px; color: var(--muted); }
 
   @keyframes spin { to { transform: rotate(360deg); } }
   .spin { display: inline-block; animation: spin 0.9s linear infinite; }
@@ -808,6 +812,7 @@
         <button class="agent-tab active" onclick="switchTab(event, 'claw')">🦞 Claw</button>
         <button class="agent-tab" onclick="switchTab(event, 'scout')">🔭 Scout</button>
         <button class="agent-tab" onclick="switchTab(event, 'pam')">📰 Pam</button>
+        <button class="agent-tab" onclick="switchTab(event, 'triage')">🗂 Triage</button>
       </div>
 
       <!-- Claw Chat -->
@@ -850,6 +855,19 @@
         <div class="output-meta" id="pam-output-meta">Last briefing:</div>
         <div class="output-box" id="pam-output">Loading last briefing...</div>
         <div class="run-status" id="pam-run-status"></div>
+      </div>
+      <!-- Triage Panel -->
+      <div class="agent-panel" id="panel-triage">
+        <div class="run-panel-header">
+          <div class="run-panel-info">
+            Claw reads your Obsidian inbox and suggests where each note should be filed.<br>
+            Run this whenever your inbox has piled up.
+          </div>
+          <button class="run-btn" id="triage-run-btn" onclick="runTriage()">▶ Run Triage</button>
+        </div>
+        <div class="output-meta" id="triage-output-meta" style="display:none;"></div>
+        <div id="triage-results"></div>
+        <div class="run-status" id="triage-run-status"></div>
       </div>
     </div>
   </div>
@@ -1554,6 +1572,43 @@
     }
     btn.disabled = false;
     btn.textContent = agent === 'scout' ? '▶ Run Scout Now' : '▶ Run Pam Now';
+  }
+
+  async function runTriage() {
+    const btn = document.getElementById('triage-run-btn');
+    const statusEl = document.getElementById('triage-run-status');
+    const resultsEl = document.getElementById('triage-results');
+    const metaEl = document.getElementById('triage-output-meta');
+    btn.disabled = true;
+    btn.textContent = '⏳ Running...';
+    statusEl.className = 'run-status running';
+    statusEl.innerHTML = '<span class="spin">◌</span> Claw is reading your inbox...';
+    resultsEl.innerHTML = '';
+    metaEl.style.display = 'none';
+    try {
+      const res = await fetch('/api/pimax/run/triage', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      if (data.noteCount === 0) {
+        resultsEl.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:16px 0;">Inbox is empty — nothing to triage.</div>';
+      } else {
+        metaEl.style.display = '';
+        metaEl.textContent = `${data.noteCount} note${data.noteCount !== 1 ? 's' : ''} reviewed · ${new Date().toLocaleTimeString()}`;
+        resultsEl.innerHTML = data.suggestions.map(s => `
+          <div class="triage-item">
+            <div class="triage-filename">📄 ${s.filename}</div>
+            <div class="triage-dest">→ ${s.destination}</div>
+            <div class="triage-reason">${s.reason}</div>
+          </div>`).join('');
+      }
+      statusEl.className = 'run-status';
+      statusEl.textContent = `✓ Triage complete`;
+    } catch (e) {
+      statusEl.className = 'run-status error';
+      statusEl.textContent = `Error: ${e.message}`;
+    }
+    btn.disabled = false;
+    btn.textContent = '▶ Run Triage';
   }
 
   loadOutput('scout');
