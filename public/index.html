@@ -366,6 +366,7 @@
   .mining-refresh { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 6px; font-size: 10px; cursor: pointer; letter-spacing: 1px; text-transform: uppercase; }
   .mining-refresh:hover { border-color: #f7931a; color: #f7931a; }
   .mining-rig-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; margin-top: 4px; }
+  .rig-alert { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 8px 12px; font-size: 11px; color: #ef4444; margin-bottom: 14px; letter-spacing: 0.3px; }
   .mining-uptime { color: var(--dim); font-size: 10px; letter-spacing: 0; text-transform: none; }
 
   /* Fan widget */
@@ -882,6 +883,7 @@
       <div class="mining-stat"><div class="mining-stat-val" id="pimax-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
       <div class="mining-stat"><div class="mining-stat-val" id="pimax-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
     </div>
+    <div class="rig-alert" id="pimax-alert" style="display:none;"></div>
     <div class="mining-rig-label">pihole <span class="mining-uptime" id="pihole-uptime"></span></div>
     <div class="mining-grid">
       <div class="mining-stat"><div class="mining-stat-val" id="pihole-current">—</div><div class="mining-stat-label">H/s Now</div></div>
@@ -889,6 +891,7 @@
       <div class="mining-stat"><div class="mining-stat-val" id="pihole-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
       <div class="mining-stat"><div class="mining-stat-val" id="pihole-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
     </div>
+    <div class="rig-alert" id="pihole-alert" style="display:none;"></div>
     <div class="mining-rig-label">Unmineable · DOGE</div>
     <div class="mining-grid">
       <div class="mining-stat"><div class="mining-stat-val" id="unmineable-balance" style="color:#c8a400;">—</div><div class="mining-stat-label">Balance</div></div>
@@ -1560,10 +1563,34 @@
   function fmtHash(v) { return v >= 1000 ? (v/1000).toFixed(2)+' kH/s' : v.toFixed(1)+' H/s'; }
   function fmtUp(s) { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; }
 
+  function fmtDownTime(downSince) {
+    const mins = Math.floor((Date.now() - new Date(downSince).getTime()) / 60000);
+    if (mins < 60) return `down ${mins}m`;
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return `down ${h}h ${m > 0 ? ` ${m}m` : ''}`.trim();
+  }
+
+  function fmtAgo(ts) {
+    if (!ts) return 'unknown';
+    const mins = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return `${h}h ${m > 0 ? `${m}m ` : ''}ago`.trim();
+  }
+
   function applyMinerStats(prefix, data) {
+    const alertEl = document.getElementById(`${prefix}-alert`);
     if (data.error) {
       ['current','avg1m','accepted','rejected'].forEach(k => document.getElementById(`${prefix}-${k}`).textContent = '—');
       document.getElementById(`${prefix}-uptime`).textContent = 'offline';
+      const w = data.watchdog;
+      if (w && w.downSince) {
+        const lastHr = w.lastHashrate != null ? ` · was ${fmtHash(w.lastHashrate)}` : '';
+        alertEl.textContent = `⚠ ${fmtDownTime(w.downSince)} · last seen ${fmtAgo(w.lastSeen)}${lastHr}`;
+        alertEl.style.display = '';
+      } else {
+        alertEl.style.display = 'none';
+      }
       return;
     }
     document.getElementById(`${prefix}-current`).textContent = fmtHash(data.hashrate.current);
@@ -1571,6 +1598,7 @@
     document.getElementById(`${prefix}-accepted`).textContent = data.shares.accepted.toLocaleString();
     document.getElementById(`${prefix}-rejected`).textContent = data.shares.rejected;
     document.getElementById(`${prefix}-uptime`).textContent = `up ${fmtUp(data.uptime)}`;
+    alertEl.style.display = 'none';
   }
 
   async function loadMining() {
