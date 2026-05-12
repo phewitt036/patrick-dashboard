@@ -251,6 +251,97 @@
   .shift-cancel-btn:hover { border-color: var(--muted); }
   .shift-status { font-size: 11px; color: var(--dim); }
 
+  /* Pixit Widget */
+  .pixit-widget-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 48px;
+  }
+  .pixit-top {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  @media (max-width: 600px) { .pixit-top { grid-template-columns: 1fr; } }
+  .pixit-left {
+    padding: 20px;
+    border-right: 1px solid var(--border);
+  }
+  @media (max-width: 600px) { .pixit-left { border-right: none; border-bottom: 1px solid var(--border); } }
+  .pixit-drop {
+    border: 1px dashed var(--dim);
+    border-radius: 8px;
+    padding: 32px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    background: var(--surface2);
+    transition: border-color 0.2s, background 0.2s;
+    text-align: center;
+  }
+  .pixit-drop:hover, .pixit-drop.drag-over { border-color: var(--accent3); background: rgba(0,212,170,0.04); }
+  .pixit-drop-icon { font-size: 28px; }
+  .pixit-drop-text { font-size: 12px; color: var(--muted); }
+  .pixit-drop-hint { font-size: 10px; color: var(--dim); letter-spacing: 0.5px; }
+  .pixit-right {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .pixit-field-group { display: flex; flex-direction: column; gap: 6px; }
+  .pixit-field-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .pixit-select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .pixit-select:focus { border-color: var(--accent); }
+  .pixit-btn {
+    width: 100%;
+    padding: 10px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+  }
+  .pixit-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .pixit-btn-extract:not(:disabled):hover { border-color: var(--accent3); color: var(--accent3); background: rgba(0,212,170,0.06); }
+  .pixit-btn-push:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .pixit-btn-push:not(:disabled):hover { background: rgba(108,99,255,0.1); }
+  .pixit-status { font-size: 11px; color: var(--dim); min-height: 16px; text-align: center; }
+  .pixit-status.ok { color: var(--accent3); }
+  .pixit-status.err { color: #ff6b6b; }
+  .pixit-divider { border: none; border-top: 1px solid var(--border); }
+  .pixit-results-inner { padding: 16px 20px 20px; }
+  .pixit-results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .pixit-results-title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .pixit-results-clear { font-size: 10px; color: var(--dim); cursor: pointer; letter-spacing: 0.5px; }
+  .pixit-results-clear:hover { color: var(--text); }
+  .pixit-fields-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .pixit-field-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .pixit-field-box.wide { grid-column: 1 / -1; }
+  .pixit-field-box-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .pixit-field-box-val { font-size: 14px; font-weight: 500; color: var(--text); word-break: break-word; }
+  .pixit-field-box-val.money { color: var(--accent3); }
+
   /* Mining */
   .mining-grid {
     display: grid;
@@ -276,6 +367,18 @@
   .mining-refresh:hover { border-color: #f7931a; color: #f7931a; }
   .mining-rig-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; margin-top: 4px; }
   .mining-uptime { color: var(--dim); font-size: 10px; letter-spacing: 0; text-transform: none; }
+
+  /* Fan widget */
+  .fan-mode-display { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .fan-mode-name { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; line-height: 1; }
+  .fan-mode-reason { font-size: 10px; color: var(--muted); letter-spacing: 0.5px; }
+  .fan-val { color: #007ac1 !important; }
+  .fan-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .fan-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 5px 12px; border-radius: 6px; font-size: 10px; cursor: pointer; letter-spacing: 1px; text-transform: uppercase; transition: border-color 0.2s, color 0.2s; }
+  .fan-btn:hover { border-color: #007ac1; color: #007ac1; }
+  .fan-btn-auto { border-color: #007ac133; }
+  .fan-btn-auto:hover { border-color: #007ac1; color: #007ac1; }
+  .fan-btn-active { border-color: #007ac1 !important; color: #007ac1 !important; }
 
   /* Stats */
   .stats-row {
@@ -636,6 +739,63 @@
     </div>
   </div>
 
+  <!-- Pixit -->
+  <div class="section-label collapsible" onclick="toggleSection('pixit')">
+    Pixit
+    <span class="section-toggle" id="toggle-pixit">▾</span>
+  </div>
+  <div id="section-pixit">
+    <div class="pixit-widget-card">
+
+      <div class="pixit-top">
+        <!-- Left: drop zone / preview -->
+        <div class="pixit-left">
+          <div id="pixit-drop" class="pixit-drop" onclick="document.getElementById('pixit-file-input').click()"
+            ondragover="pixitDragOver(event)" ondragleave="pixitDragLeave(event)" ondrop="pixitDrop(event)">
+            <div class="pixit-drop-icon">📷</div>
+            <div class="pixit-drop-text">Drop screenshot here</div>
+            <div class="pixit-drop-hint">or click to upload · PNG · JPG · WEBP</div>
+          </div>
+          <div id="pixit-preview-wrap" style="display:none; position:relative;">
+            <img id="pixit-preview-img" style="width:100%; height:180px; object-fit:contain; border-radius:8px; background:var(--surface2); border:1px solid var(--border); display:block;" alt="preview">
+            <button onclick="pixitClear()" style="position:absolute;top:8px;right:8px;background:var(--surface);border:1px solid var(--border);border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:var(--muted);">✕</button>
+          </div>
+          <input type="file" id="pixit-file-input" accept="image/*" style="display:none;" onchange="pixitFileSelect(event)">
+        </div>
+
+        <!-- Right: controls -->
+        <div class="pixit-right">
+          <div class="pixit-field-group">
+            <div class="pixit-field-label">Pixit Table</div>
+            <select id="pixit-tracker-select" class="pixit-select">
+              <option value="">Loading...</option>
+            </select>
+          </div>
+          <button class="pixit-btn pixit-btn-extract" id="pixit-extract-btn" onclick="pixitExtract()" disabled>
+            <span id="pixit-extract-label">⬡ Extract & Push</span>
+          </button>
+          <button class="pixit-btn pixit-btn-push" id="pixit-push-btn" onclick="pixitPush()" disabled>
+            <span id="pixit-push-label">↑ Re-push to —</span>
+          </button>
+          <div class="pixit-status" id="pixit-status"></div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="pixit-results" style="display:none;">
+        <div class="pixit-divider"></div>
+        <div class="pixit-results-inner">
+          <div class="pixit-results-header">
+            <span class="pixit-results-title">Extracted Data</span>
+            <span class="pixit-results-clear" onclick="pixitReset()">↺ clear</span>
+          </div>
+          <div id="pixit-fields-grid" class="pixit-fields-grid"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Agents -->
   <div class="section-label collapsible" onclick="toggleSection('agents')">
     Agents
@@ -717,56 +877,47 @@
   <div id="section-mining" style="display:none;">
     <div class="mining-rig-label">pimax <span class="mining-uptime" id="pimax-uptime"></span></div>
     <div class="mining-grid">
-      <div class="mining-stat">
-        <div class="mining-stat-val" id="pimax-current">—</div>
-        <div class="mining-stat-label">H/s Now</div>
-      </div>
-      <div class="mining-stat">
-        <div class="mining-stat-val" id="pimax-avg1m">—</div>
-        <div class="mining-stat-label">1m Avg</div>
-      </div>
-      <div class="mining-stat">
-        <div class="mining-stat-val" id="pimax-accepted">—</div>
-        <div class="mining-stat-label">Accepted</div>
-      </div>
-      <div class="mining-stat">
-        <div class="mining-stat-val" id="pimax-rejected">—</div>
-        <div class="mining-stat-label">Rejected</div>
-      </div>
+      <div class="mining-stat"><div class="mining-stat-val" id="pimax-current">—</div><div class="mining-stat-label">H/s Now</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="pimax-avg1m">—</div><div class="mining-stat-label">1m Avg</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="pimax-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="pimax-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
     </div>
     <div class="mining-rig-label">pihole <span class="mining-uptime" id="pihole-uptime"></span></div>
     <div class="mining-grid">
-      <div class="mining-stat">
-        <div class="mining-stat-val" id="pihole-current">—</div>
-        <div class="mining-stat-label">H/s Now</div>
-      </div>
-      <div class="mining-stat">
-        <div class="mining-stat-val" id="pihole-avg1m">—</div>
-        <div class="mining-stat-label">1m Avg</div>
-      </div>
-      <div class="mining-stat">
-        <div class="mining-stat-val" id="pihole-accepted">—</div>
-        <div class="mining-stat-label">Accepted</div>
-      </div>
-      <div class="mining-stat">
-        <div class="mining-stat-val" id="pihole-rejected">—</div>
-        <div class="mining-stat-label">Rejected</div>
-      </div>
+      <div class="mining-stat"><div class="mining-stat-val" id="pihole-current">—</div><div class="mining-stat-label">H/s Now</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="pihole-avg1m">—</div><div class="mining-stat-label">1m Avg</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="pihole-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="pihole-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
     </div>
     <div class="mining-rig-label">Unmineable · DOGE</div>
     <div class="mining-grid">
-      <div class="mining-stat">
-        <div class="mining-stat-val" id="unmineable-balance" style="color:#c8a400;">—</div>
-        <div class="mining-stat-label">Balance</div>
-      </div>
-      <div class="mining-stat">
-        <div class="mining-stat-val" id="unmineable-threshold" style="color:var(--muted);">—</div>
-        <div class="mining-stat-label">Payout At</div>
-      </div>
+      <div class="mining-stat"><div class="mining-stat-val" id="unmineable-balance" style="color:#c8a400;">—</div><div class="mining-stat-label">Balance</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="unmineable-threshold" style="color:var(--muted);">—</div><div class="mining-stat-label">Payout At</div></div>
     </div>
     <div class="mining-meta">
       <span id="mine-status">loading...</span>
       <button class="mining-refresh" onclick="loadMining()">↻ Refresh</button>
+    </div>
+
+    <div class="mining-rig-label" style="margin-top:20px;">pimax Fan</div>
+    <div class="fan-mode-display">
+      <div class="fan-mode-name" id="fan-mode-name">—</div>
+      <div class="fan-mode-reason" id="fan-mode-reason"></div>
+    </div>
+    <div class="mining-grid">
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="fan-cpu">—</div><div class="mining-stat-label">CPU Temp</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="fan-rpm">—</div><div class="mining-stat-label">Fan RPM</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="fan-outdoor">—</div><div class="mining-stat-label">Outdoor</div></div>
+    </div>
+    <div class="fan-controls" style="margin-top:10px;">
+      <button class="fan-btn" id="fan-btn-quiet" onclick="setFanOverride(4, 60)">Quiet 1h</button>
+      <button class="fan-btn" id="fan-btn-balanced" onclick="setFanOverride(3, 60)">Balanced 1h</button>
+      <button class="fan-btn" id="fan-btn-cool" onclick="setFanOverride(2, 60)">Cool 1h</button>
+      <button class="fan-btn fan-btn-auto" id="fan-btn-auto" onclick="clearFanOverride()">Auto</button>
+    </div>
+    <div class="mining-meta">
+      <span id="fan-status">loading...</span>
+      <button class="mining-refresh" onclick="loadFan()">↻ Refresh</button>
     </div>
   </div>
 
@@ -869,7 +1020,158 @@
 
 </div>
 <script>
-  // --- Clock ---
+  // ── Pixit Widget ──
+  const PIXIT_KEY = "4f527de50f8cf6a0a5d4ff602fcec416123b26de7b37f78663be3050722f0ce1";
+  const PIXIT_BASE = "https://usepixit.com";
+
+  let pixitImageBase64 = null;
+  let pixitMediaType = null;
+  let pixitExtractedFields = null;
+  let pixitTrackers = [];
+
+  async function pixitLoadTrackers() {
+    try {
+      const res = await fetch(`${PIXIT_BASE}/api/patrick/trackers`, {
+        headers: { "x-patrick-key": PIXIT_KEY }
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      pixitTrackers = data.trackers;
+      const sel = document.getElementById('pixit-tracker-select');
+      sel.innerHTML = pixitTrackers.map(t =>
+        `<option value="${t.id}">${t.name} · ${t.output}</option>`
+      ).join('');
+    } catch(e) {
+      document.getElementById('pixit-tracker-select').innerHTML = '<option>Could not load trackers</option>';
+    }
+  }
+  pixitLoadTrackers();
+
+  function pixitDragOver(e) { e.preventDefault(); document.getElementById('pixit-drop').classList.add('drag-over'); }
+  function pixitDragLeave(e) { document.getElementById('pixit-drop').classList.remove('drag-over'); }
+  function pixitDrop(e) {
+    e.preventDefault();
+    document.getElementById('pixit-drop').classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) pixitLoadImage(file);
+  }
+  function pixitFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) pixitLoadImage(file);
+  }
+  function pixitLoadImage(file) {
+    pixitMediaType = file.type;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      pixitImageBase64 = ev.target.result.split(',')[1];
+      document.getElementById('pixit-preview-img').src = ev.target.result;
+      document.getElementById('pixit-drop').style.display = 'none';
+      document.getElementById('pixit-preview-wrap').style.display = 'block';
+      document.getElementById('pixit-extract-btn').disabled = false;
+      pixitSetStatus('');
+    };
+    reader.readAsDataURL(file);
+  }
+  function pixitClear() {
+    pixitImageBase64 = null;
+    pixitMediaType = null;
+    document.getElementById('pixit-preview-wrap').style.display = 'none';
+    document.getElementById('pixit-drop').style.display = 'flex';
+    document.getElementById('pixit-file-input').value = '';
+    document.getElementById('pixit-extract-btn').disabled = true;
+    pixitSetStatus('');
+  }
+  function pixitReset() {
+    pixitClear();
+    pixitExtractedFields = null;
+    document.getElementById('pixit-push-btn').disabled = true;
+    document.getElementById('pixit-push-label').textContent = '↑ Re-push to —';
+    document.getElementById('pixit-results').style.display = 'none';
+    document.getElementById('pixit-fields-grid').innerHTML = '';
+  }
+  function pixitSetStatus(msg, type) {
+    const el = document.getElementById('pixit-status');
+    el.textContent = msg;
+    el.className = 'pixit-status' + (type ? ' ' + type : '');
+  }
+
+  async function pixitExtract() {
+    if (!pixitImageBase64) return;
+    const trackerId = document.getElementById('pixit-tracker-select').value;
+    const btn = document.getElementById('pixit-extract-btn');
+    const label = document.getElementById('pixit-extract-label');
+    btn.disabled = true;
+    label.textContent = '◌ Extracting...';
+    pixitSetStatus('Sending to Claude...');
+    document.getElementById('pixit-results').style.display = 'none';
+    try {
+      const res = await fetch(`${PIXIT_BASE}/api/patrick/extract-and-push`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-patrick-key': PIXIT_KEY },
+        body: JSON.stringify({ imageBase64: pixitImageBase64, mediaType: pixitMediaType, tracker_id: parseInt(trackerId) })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      pixitExtractedFields = data.fields;
+      pixitRenderResults(data.fields);
+      const destLabel = data.output === 'salesforce' ? 'Salesforce' : data.output === 'excel' ? 'Excel' : 'Google Sheets';
+      const recordInfo = data.id ? ` · ${data.id}` : '';
+      pixitSetStatus(`✓ Extracted & pushed to ${destLabel}${recordInfo}`, 'ok');
+      document.getElementById('pixit-push-label').textContent = `↑ Re-push to ${destLabel}`;
+      document.getElementById('pixit-push-btn').disabled = false;
+    } catch(e) {
+      pixitSetStatus(`Error: ${e.message}`, 'err');
+    }
+    label.textContent = '⬡ Extract & Push';
+    btn.disabled = false;
+  }
+
+  async function pixitPush() {
+    if (!pixitImageBase64) return;
+    const trackerId = document.getElementById('pixit-tracker-select').value;
+    const btn = document.getElementById('pixit-push-btn');
+    const label = document.getElementById('pixit-push-label');
+    btn.disabled = true;
+    label.textContent = '◌ Pushing...';
+    pixitSetStatus('Pushing...');
+    try {
+      const res = await fetch(`${PIXIT_BASE}/api/patrick/extract-and-push`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-patrick-key': PIXIT_KEY },
+        body: JSON.stringify({ imageBase64: pixitImageBase64, mediaType: pixitMediaType, tracker_id: parseInt(trackerId) })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      const destLabel = data.output === 'salesforce' ? 'Salesforce' : data.output === 'excel' ? 'Excel' : 'Google Sheets';
+      const recordInfo = data.id ? ` · ${data.id}` : '';
+      pixitSetStatus(`✓ Pushed to ${destLabel}${recordInfo}`, 'ok');
+      label.textContent = `↑ Re-push to ${destLabel}`;
+    } catch(e) {
+      pixitSetStatus(`Error: ${e.message}`, 'err');
+      label.textContent = '↑ Re-push';
+    }
+    btn.disabled = false;
+  }
+
+  function pixitRenderResults(fields) {
+    const grid = document.getElementById('pixit-fields-grid');
+    grid.innerHTML = '';
+    const moneyKeys = ['total','base_pay','tips','surge_bonus','amount','payment_total','subtotal','tax'];
+    Object.entries(fields).forEach(([key, val]) => {
+      if (val === null || val === undefined || val === '') return;
+      const isMoney = moneyKeys.includes(key);
+      const isWide = key === 'notes' || String(val).length > 30;
+      const box = document.createElement('div');
+      box.className = 'pixit-field-box' + (isWide ? ' wide' : '');
+      const label = key.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+      const displayVal = isMoney && !String(val).startsWith('$') ? `$${val}` : val;
+      box.innerHTML = `<div class="pixit-field-box-label">${label}</div><div class="pixit-field-box-val${isMoney ? ' money' : ''}">${displayVal}</div>`;
+      grid.appendChild(box);
+    });
+    document.getElementById('pixit-results').style.display = 'block';
+  }
+
+  // ── Clock ──
   function updateClock() {
     const now = new Date();
     const h = now.getHours() % 12 || 12;
@@ -883,7 +1185,7 @@
   updateClock();
   setInterval(updateClock, 1000);
 
-  // --- Collapsible sections ---
+  // ── Collapsible sections ──
   function toggleSection(id) {
     const content = document.getElementById('section-' + id);
     const toggle = document.getElementById('toggle-' + id);
@@ -895,7 +1197,7 @@
   }
 
   function initCollapsibles() {
-    const defaults = { income: true, agents: true, notes: true, mining: false, overview: false, projects: false };
+    const defaults = { income: true, pixit: true, agents: true, notes: true, mining: false, overview: false, projects: false };
     for (const [id, def] of Object.entries(defaults)) {
       const saved = localStorage.getItem('section_' + id);
       const open = saved !== null ? saved === '1' : def;
@@ -908,7 +1210,7 @@
   }
   initCollapsibles();
 
-  // --- Notes ---
+  // ── Notes ──
   const notesEl = document.getElementById('notes');
   notesEl.value = localStorage.getItem('phewitt_notes') || '';
   notesEl.addEventListener('input', () => localStorage.setItem('phewitt_notes', notesEl.value));
@@ -943,7 +1245,7 @@
     btn.disabled = false;
   }
 
-  // --- Income ---
+  // ── Income ──
   function fmt(val) {
     return '$' + parseFloat(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -1020,7 +1322,7 @@
   }
   loadIncome();
 
-  // --- Shift Logger ---
+  // ── Shift Logger ──
   function getActiveShift() {
     try { return JSON.parse(localStorage.getItem('active_shift')); } catch { return null; }
   }
@@ -1037,7 +1339,7 @@
       return;
     }
     idleEl.style.display = 'none';
-    if (formEl.style.display !== 'none') return; // leave form open if showing
+    if (formEl.style.display !== 'none') return;
     activeEl.style.display = '';
     const start = new Date(shift.startTime);
     const elapsed = Date.now() - start.getTime();
@@ -1127,16 +1429,14 @@
       } else {
         localStorage.removeItem('active_shift');
       }
-    } catch (e) {
-      // fall back to localStorage if request fails
-    }
+    } catch (e) {}
     updateShiftUI();
   }
 
   syncShiftState();
   setInterval(syncShiftState, 60000);
 
-  // --- Tab switching ---
+  // ── Tab switching ──
   function switchTab(event, tab) {
     document.querySelectorAll('.agent-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.agent-panel').forEach(p => p.classList.remove('active'));
@@ -1144,7 +1444,7 @@
     document.getElementById('panel-' + tab).classList.add('active');
   }
 
-  // --- Claw Chat ---
+  // ── Claw Chat ──
   let chatHistory = [];
 
   function addMessage(role, text) {
@@ -1211,7 +1511,7 @@
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
   }
 
-  // --- Scout / Pam ---
+  // ── Scout / Pam ──
   async function loadOutput(agent) {
     const endpoint = agent === 'scout' ? '/api/pimax/intel' : '/api/pimax/briefing';
     const outputEl = document.getElementById(`${agent}-output`);
@@ -1255,7 +1555,7 @@
   loadOutput('scout');
   loadOutput('pam');
 
-  // --- Mining ---
+  // ── Mining ──
   function fmtHash(v) { return v >= 1000 ? (v/1000).toFixed(2)+' kH/s' : v.toFixed(1)+' H/s'; }
   function fmtUp(s) { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; }
 
@@ -1277,6 +1577,12 @@
     try {
       const res = await fetch('/api/pimax/mining');
       const d = await res.json();
+      if (d.error) {
+        applyMinerStats('pimax', { error: d.error });
+        applyMinerStats('pihole', { error: d.error });
+        document.getElementById('mine-status').textContent = `pimax offline · ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+        return;
+      }
       applyMinerStats('pimax', d.pimax);
       applyMinerStats('pihole', d.pihole);
       if (d.unmineable) {
@@ -1291,6 +1597,66 @@
   }
   loadMining();
   setInterval(loadMining, 60000);
+
+  const FAN_MODE_COLORS = { 0: '#f97316', 1: '#ef4444', 2: '#3b82f6', 3: '#22c55e', 4: '#8b5cf6' };
+
+  async function loadFan() {
+    try {
+      const res = await fetch('/api/pimax/fan');
+      const d = await res.json();
+      if (!d.success || d.status === 'no run yet') {
+        document.getElementById('fan-status').textContent = 'no data yet';
+        return;
+      }
+      const color = FAN_MODE_COLORS[d.mode] ?? '#007ac1';
+      document.getElementById('fan-mode-name').textContent = d.modeName ?? '—';
+      document.getElementById('fan-mode-name').style.color = color;
+      document.getElementById('fan-mode-reason').textContent = d.reason ?? '';
+      document.getElementById('fan-cpu').textContent = d.cpuTemp != null ? `${d.cpuTemp.toFixed(1)}°C` : '—';
+      document.getElementById('fan-rpm').textContent = d.fanRpm != null ? `${d.fanRpm.toLocaleString()}` : '—';
+      document.getElementById('fan-outdoor').textContent = d.outdoorF != null ? `${Math.round(d.outdoorF)}°F` : '—';
+      const ts = d.lastRun ? new Date(d.lastRun).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
+      const overrideLabel = d.override ? ' · override active' : '';
+      document.getElementById('fan-status').textContent = `updated ${ts}${overrideLabel}`;
+      ['quiet','balanced','cool','auto'].forEach(k => document.getElementById(`fan-btn-${k}`)?.classList.remove('fan-btn-active'));
+      if (d.override) {
+        const modeMap = { 4: 'quiet', 3: 'balanced', 2: 'cool' };
+        const activeBtn = modeMap[d.mode];
+        if (activeBtn) document.getElementById(`fan-btn-${activeBtn}`)?.classList.add('fan-btn-active');
+      } else {
+        document.getElementById('fan-btn-auto')?.classList.add('fan-btn-active');
+      }
+    } catch (e) {
+      document.getElementById('fan-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  async function setFanOverride(mode, minutes) {
+    try {
+      document.getElementById('fan-status').textContent = 'setting...';
+      await fetch('/api/pimax/fan/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, minutes })
+      });
+      setTimeout(loadFan, 800);
+    } catch (e) {
+      document.getElementById('fan-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  async function clearFanOverride() {
+    try {
+      document.getElementById('fan-status').textContent = 'clearing...';
+      await fetch('/api/pimax/fan/override', { method: 'DELETE' });
+      setTimeout(loadFan, 800);
+    } catch (e) {
+      document.getElementById('fan-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  loadFan();
+  setInterval(loadFan, 60000);
 
   async function logout() {
     await fetch('/auth/logout', { method: 'POST' });

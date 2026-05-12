@@ -80,4 +80,41 @@ router.get('/mining', async (req, res) => {
   }
 });
 
+router.get('/fan', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/fan/status`, { headers: hubHeaders() });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(502).json({ error: 'pimax unreachable' });
+  }
+});
+
+router.post('/fan/override', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/fan/override`, {
+      method: 'POST',
+      headers: hubHeaders(),
+      body: JSON.stringify(req.body)
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(502).json({ error: 'pimax unreachable' });
+  }
+});
+
+router.delete('/fan/override', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/fan/override`, {
+      method: 'DELETE',
+      headers: hubHeaders()
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    res.status(502).json({ error: 'pimax unreachable' });
+  }
+});
+
 module.exports = router;
