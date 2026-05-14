@@ -842,8 +842,20 @@
         <div class="pixit-right">
           <div class="pixit-field-group">
             <div class="pixit-field-label">Pixit Table</div>
-            <select id="pixit-tracker-select" class="pixit-select">
+            <select id="pixit-tracker-select" class="pixit-select" onchange="pixitTrackerChanged()">
               <option value="">Loading...</option>
+            </select>
+          </div>
+          <div class="pixit-field-group" id="pixit-uber-level-group" style="display:none;">
+            <div class="pixit-field-label">Uber Level</div>
+            <select id="pixit-uber-level" class="pixit-select">
+              <option value="">— Select —</option>
+              <option value="UberX">UberX</option>
+              <option value="Share">Share</option>
+              <option value="Comfort">Comfort</option>
+              <option value="Comfort Electric">Comfort Electric</option>
+              <option value="VIP">VIP</option>
+              <option value="Business Comfort">Business Comfort</option>
             </select>
           </div>
           <button class="pixit-btn pixit-btn-extract" id="pixit-extract-btn" onclick="pixitExtract()" disabled>
@@ -1152,6 +1164,7 @@
   let pixitMediaType = null;
   let pixitExtractedFields = null;
   let pixitTrackers = [];
+  let pixitIdempotencyKey = null;
 
   async function pixitLoadTrackers() {
     try {
@@ -1165,11 +1178,20 @@
       sel.innerHTML = pixitTrackers.map(t =>
         `<option value="${t.id}">${t.name} · ${t.output}</option>`
       ).join('');
+      pixitTrackerChanged();
     } catch(e) {
       document.getElementById('pixit-tracker-select').innerHTML = '<option>Could not load trackers</option>';
     }
   }
   pixitLoadTrackers();
+
+  function pixitTrackerChanged() {
+    const trackerId = parseInt(document.getElementById('pixit-tracker-select').value);
+    const tracker = pixitTrackers.find(t => t.id === trackerId);
+    const showUberLevel = !!(tracker && Array.isArray(tracker.extract_fields) && tracker.extract_fields.includes('uber_level'));
+    document.getElementById('pixit-uber-level-group').style.display = showUberLevel ? '' : 'none';
+    if (!showUberLevel) document.getElementById('pixit-uber-level').value = '';
+  }
 
   function pixitDragOver(e) { e.preventDefault(); document.getElementById('pixit-drop').classList.add('drag-over'); }
   function pixitDragLeave(e) { document.getElementById('pixit-drop').classList.remove('drag-over'); }
@@ -1185,6 +1207,7 @@
   }
   function pixitLoadImage(file) {
     pixitMediaType = file.type;
+    pixitIdempotencyKey = (window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
     const reader = new FileReader();
     reader.onload = (ev) => {
       pixitImageBase64 = ev.target.result.split(',')[1];
@@ -1199,10 +1222,12 @@
   function pixitClear() {
     pixitImageBase64 = null;
     pixitMediaType = null;
+    pixitIdempotencyKey = null;
     document.getElementById('pixit-preview-wrap').style.display = 'none';
     document.getElementById('pixit-drop').style.display = 'flex';
     document.getElementById('pixit-file-input').value = '';
     document.getElementById('pixit-extract-btn').disabled = true;
+    document.getElementById('pixit-uber-level').value = '';
     pixitSetStatus('');
   }
   function pixitReset() {
@@ -1218,6 +1243,15 @@
     el.textContent = msg;
     el.className = 'pixit-status' + (type ? ' ' + type : '');
   }
+  function pixitBuildOverrides() {
+    const ov = {};
+    const uberLevelGroup = document.getElementById('pixit-uber-level-group');
+    if (uberLevelGroup && uberLevelGroup.style.display !== 'none') {
+      const v = document.getElementById('pixit-uber-level').value;
+      if (v) ov.uber_level = v;
+    }
+    return ov;
+  }
 
   async function pixitExtract() {
     if (!pixitImageBase64) return;
@@ -1232,7 +1266,7 @@
       const res = await fetch(`${PIXIT_BASE}/api/patrick/extract-and-push`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-patrick-key': PIXIT_KEY },
-        body: JSON.stringify({ imageBase64: pixitImageBase64, mediaType: pixitMediaType, tracker_id: parseInt(trackerId) })
+        body: JSON.stringify({ imageBase64: pixitImageBase64, mediaType: pixitMediaType, tracker_id: parseInt(trackerId), idempotency_key: pixitIdempotencyKey, overrides: pixitBuildOverrides() })
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
@@ -1262,7 +1296,7 @@
       const res = await fetch(`${PIXIT_BASE}/api/patrick/extract-and-push`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-patrick-key': PIXIT_KEY },
-        body: JSON.stringify({ imageBase64: pixitImageBase64, mediaType: pixitMediaType, tracker_id: parseInt(trackerId) })
+        body: JSON.stringify({ imageBase64: pixitImageBase64, mediaType: pixitMediaType, tracker_id: parseInt(trackerId), idempotency_key: pixitIdempotencyKey, overrides: pixitBuildOverrides() })
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
