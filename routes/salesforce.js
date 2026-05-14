@@ -140,4 +140,76 @@ router.post('/shift/end', async (req, res) => {
   }
 });
 
+// Weekly report — summary + daily breakdown + vs last week
+router.get('/weekly-report', async (req, res) => {
+  try {
+    const conn = await getConnection();
+
+    // Find Monday of current week
+    const today = new Date();
+    const dow = today.getDay(); // 0=Sun
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+    const mondayStr = monday.toISOString().slice(0, 10);
+
+    const [wcfRes, dailyRes, lastWeekRes] = await Promise.all([
+      conn.query(`
+        SELECT Weekly_Total_Income__c, Weekly_Total_Expenses__c, Net_Profit__c,
+               Weekly_Shift_Hours__c, Weekly_Active_Hours__c,
+               Earnings_Per_Shift_Hour__c, Earnings_Per_Active_Hour__c,
+               Weekly_Shift_Miles__c, Start_Date__c, End_Date__c
+        FROM Weekly_Cash_Flow__c
+        WHERE Start_Date__c <= ${mondayStr} AND End_Date__c >= ${mondayStr}
+        ORDER BY Start_Date__c DESC LIMIT 1
+      `),
+      conn.query(`
+        SELECT Date__c,
+               SUM(Total_Income__c) dailyIncome,
+               SUM(Total_Expenses__c) dailyExpenses,
+               SUM(Shift_Hours__c) shiftHours,
+               SUM(Active_Time_Hours__c) activeHours
+        FROM Daily_Cash_Flow__c
+        WHERE Date__c >= ${mondayStr}
+          AND Date__c <= ${new Date(monday.getTime() + 6 * 86400000).toISOString().slice(0, 10)}
+        GROUP BY Date__c
+        ORDER BY Date__c ASC
+      `),
+      conn.query(`
+        SELECT Weekly_Total_Income__c, Net_Profit__c, Earnings_Per_Shift_Hour__c, Weekly_Shift_Hours__c
+        FROM Weekly_Cash_Flow__c
+        ORDER BY Start_Date__c DESC LIMIT 2
+      `)
+    ]);
+
+    const wcf = wcfRes.records[0] || null;
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const days = dailyRes.records.map(d => {
+      const dt = new Date(d.Date__c + 'T12:00:00Z');
+      const income = d.dailyIncome || 0;
+      const hours = d.shiftHours || 0;
+      return {
+        date: d.Date__c,
+        dayName: dayNames[dt.getUTCDay()],
+        income,
+        expenses: d.dailyExpenses || 0,
+        netProfit: income - (d.dailyExpenses || 0),
+        shiftHours: hours,
+        activeHours: d.activeHours || 0,
+        ratePerShiftHour: hours > 0 ? Math.round((income / hours) * 100) / 100 : 0
+      };
+    });
+
+    const bestDay = days.reduce((best, d) => (!best || d.income > best.income) ? d : best, null);
+
+    // lastWeekRes returns most recent 2; second record is last week if this week exists
+    const lastWcf = lastWeekRes.records.length > 1 ? lastWeekRes.records[1] : null;
+
+    res.json({ week: wcf, days, bestDay, lastWeek: lastWcf });
+  } catch (err) {
+    console.error('[WeeklyReport]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

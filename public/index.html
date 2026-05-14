@@ -159,7 +159,30 @@
   .income-chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
   .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
   .chart-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .chart-subtitle { font-size: 11px; color: var(--dim); }
   .chart-wrap { position: relative; height: 120px; }
+
+  /* Weekly Report Card */
+  .wr-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 600px) { .wr-stats { grid-template-columns: repeat(2, 1fr); } }
+  .wr-stat { background: var(--surface2); border-radius: 8px; padding: 12px 14px; }
+  .wr-stat-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .wr-stat-value { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; background: linear-gradient(135deg, var(--accent3), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1; }
+  .wr-stat-sub { font-size: 10px; color: var(--dim); margin-top: 3px; }
+  .wr-best-day { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(245,166,35,0.08), rgba(245,166,35,0.03)); border: 1px solid rgba(245,166,35,0.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
+  .wr-best-day-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent4); flex-shrink: 0; }
+  .wr-best-day-value { font-size: 13px; color: #fff; }
+  .wr-days { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+  .wr-day-row { display: grid; grid-template-columns: 70px 1fr 60px 72px; align-items: center; gap: 8px; }
+  .wr-day-name { font-size: 11px; color: var(--muted); }
+  .wr-day-bar-wrap { background: var(--dim); border-radius: 3px; height: 6px; overflow: hidden; }
+  .wr-day-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent3), var(--accent)); transition: width 0.4s ease; }
+  .wr-day-val { font-size: 12px; font-weight: 600; color: #fff; text-align: right; }
+  .wr-day-rate { font-size: 10px; color: var(--muted); text-align: right; }
+  .wr-footer { font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 12px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .wr-footer-item { display: flex; gap: 5px; }
+  .wr-footer-up { color: var(--accent3); }
+  .wr-footer-down { color: #ff6b6b; }
 
   /* Shift logger */
   .shift-card {
@@ -729,6 +752,40 @@
         <div class="chart-wrap">
           <canvas id="incomeChart"></canvas>
         </div>
+      </div>
+
+      <!-- Weekly Report -->
+      <div class="income-chart-card income-full" id="weekly-report-card">
+        <div class="chart-header">
+          <span class="chart-title">Weekly Report</span>
+          <span class="chart-subtitle" id="wr-range">loading...</span>
+        </div>
+        <div class="wr-stats">
+          <div class="wr-stat">
+            <div class="wr-stat-label">Income</div>
+            <div class="wr-stat-value" id="wr-income">--</div>
+          </div>
+          <div class="wr-stat">
+            <div class="wr-stat-label">Net Profit</div>
+            <div class="wr-stat-value" id="wr-net">--</div>
+          </div>
+          <div class="wr-stat">
+            <div class="wr-stat-label">Shift Rate</div>
+            <div class="wr-stat-value" id="wr-shift-rate">--</div>
+            <div class="wr-stat-sub">/hr on clock</div>
+          </div>
+          <div class="wr-stat">
+            <div class="wr-stat-label">Active Rate</div>
+            <div class="wr-stat-value" id="wr-active-rate">--</div>
+            <div class="wr-stat-sub">/hr delivering</div>
+          </div>
+        </div>
+        <div class="wr-best-day" id="wr-best-day" style="display:none;">
+          <span class="wr-best-day-label">⭑ Best Day</span>
+          <span class="wr-best-day-value" id="wr-best-day-value"></span>
+        </div>
+        <div class="wr-days" id="wr-days"></div>
+        <div class="wr-footer" id="wr-footer"></div>
       </div>
 
       <!-- Shift Logger -->
@@ -1388,6 +1445,69 @@
     }
   }
   loadIncome();
+
+  async function loadWeeklyReport() {
+    try {
+      const data = await fetch('/api/income/weekly-report').then(r => r.json());
+      if (data.error || !data.week) return;
+
+      const el = id => document.getElementById(id);
+      const fmtMoney = n => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const fmtRate  = n => '$' + (n || 0).toFixed(2);
+
+      // Date range header
+      const fmtDate = d => { const [,m,dy] = d.split('-'); return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1]} ${parseInt(dy)}`; };
+      el('wr-range').textContent = `${fmtDate(data.week.Start_Date__c)} – ${fmtDate(data.week.End_Date__c)}`;
+
+      // Stats
+      el('wr-income').textContent      = fmtMoney(data.week.Weekly_Total_Income__c);
+      el('wr-net').textContent         = fmtMoney(data.week.Net_Profit__c);
+      el('wr-shift-rate').textContent  = fmtRate(data.week.Earnings_Per_Shift_Hour__c);
+      el('wr-active-rate').textContent = fmtRate(data.week.Earnings_Per_Active_Hour__c);
+
+      // Best day
+      if (data.bestDay) {
+        el('wr-best-day').style.display = 'flex';
+        el('wr-best-day-value').textContent =
+          `${data.bestDay.dayName} · ${fmtMoney(data.bestDay.income)} gross · ${fmtMoney(data.bestDay.netProfit)} net · ${fmtRate(data.bestDay.ratePerShiftHour)}/hr`;
+      }
+
+      // Day bars
+      if (data.days && data.days.length) {
+        const maxIncome = Math.max(...data.days.map(d => d.income), 1);
+        el('wr-days').innerHTML = data.days.map(d => {
+          const pct = Math.round((d.income / maxIncome) * 100);
+          return `
+            <div class="wr-day-row">
+              <span class="wr-day-name">${d.dayName.slice(0, 3)}</span>
+              <div class="wr-day-bar-wrap"><div class="wr-day-bar" style="width:${pct}%"></div></div>
+              <span class="wr-day-val">${fmtMoney(d.income)}</span>
+              <span class="wr-day-rate">${fmtRate(d.ratePerShiftHour)}/hr</span>
+            </div>`;
+        }).join('');
+      }
+
+      // vs last week footer
+      if (data.lastWeek) {
+        const lw = data.lastWeek;
+        const incomeDiff = data.week.Weekly_Total_Income__c - lw.Weekly_Total_Income__c;
+        const rateDiff   = data.week.Earnings_Per_Shift_Hour__c - lw.Earnings_Per_Shift_Hour__c;
+        const sign = n => n >= 0 ? '+' : '-';
+        const cls  = n => n >= 0 ? 'wr-footer-up' : 'wr-footer-down';
+        el('wr-footer').innerHTML = `
+          <span class="wr-footer-item">vs last week &nbsp;
+            <span class="${cls(incomeDiff)}">${sign(incomeDiff)}${fmtMoney(Math.abs(incomeDiff))} income</span>
+          </span>
+          <span class="wr-footer-item">
+            <span class="${cls(rateDiff)}">${sign(rateDiff)}${fmtRate(Math.abs(rateDiff))}/hr shift rate</span>
+          </span>
+          <span class="wr-footer-item" style="color:var(--dim)">${(data.week.Weekly_Shift_Miles__c || 0).toFixed(1)} mi driven</span>`;
+      }
+    } catch (e) {
+      console.error('[WeeklyReport]', e);
+    }
+  }
+  loadWeeklyReport();
 
   // ── Shift Logger ──
   function getActiveShift() {
