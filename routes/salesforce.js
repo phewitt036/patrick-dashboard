@@ -212,4 +212,101 @@ router.get('/weekly-report', async (req, res) => {
   }
 });
 
+// Daily Production Score
+// Each metric defines `worst` (where score = 1) and `best` (where score = 10).
+// Direction (higher-is-better vs lower-is-better) falls out naturally from those values:
+// for expenses, best < worst, so a low expense number scores high.
+// Score is linear between the two bounds and clamped to [1, 10].
+// Fixed thresholds, not percentile-calibrated. The midpoint of each (worst+best)/2 should match
+// what Patrick thinks of as an average day, so the score reads as "how good was this day in
+// absolute terms" rather than "how did this day compare to your recent typical."
+// Earnings/Shift Hr midpoint = $25 → average. Tune the others as real data accumulates.
+const SCORE_METRICS = [
+  { field: 'Total_Income__c',              label: 'Total Income',         worst: 100,  best: 300,  format: 'money' },
+  { field: 'Net_Profit__c',                label: 'Net Profit',           worst: 80,   best: 240,  format: 'money' },
+  { field: 'Earnings_Per_Shift_Hour__c',   label: 'Earnings / Shift Hr',  worst: 15,   best: 35,   format: 'rate'  },
+  { field: 'True_Earnings_Per_Mile__c',    label: 'True $ / Mile',        worst: 0.50, best: 1.20, format: 'rate'  }
+];
+
+function scoreMetric(v, worst, best) {
+  if (v === null || v === undefined || isNaN(v)) return 1;
+  if (best === worst) return 5; // no spread in calibration data → middle
+  const s = 1 + ((v - worst) / (best - worst)) * 9;
+  return Math.max(1, Math.min(10, Math.round(s)));
+}
+
+router.get('/score', async (req, res) => {
+  try {
+    const date = req.query.date;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+    }
+
+    const conn = await getConnection();
+
+    // Aggregate every DCF on this date — Patrick can have multiple shifts per day (morning + evening).
+    // Pull the additive base metrics; recompute the rate metrics from the summed totals so a 30-min
+    // shift doesn't get weighted equally against a 6-hour one.
+    const result = await conn.query(
+      `SELECT Name, Date__c, Day_of_Week__c, Clock_In__c, Clock_Out__c,
+              Total_Income__c, Total_Expenses__c, Shift_Hours__c,
+              Active_Time_Hours__c, Total_Shift_Miles__c
+       FROM Daily_Cash_Flow__c
+       WHERE Date__c = ${date}
+       ORDER BY Clock_In__c ASC`
+    );
+
+    if (result.totalSize === 0) return res.json({ found: false });
+
+    const records = result.records;
+    const sumOf = (field) => records.reduce((acc, r) => acc + (r[field] || 0), 0);
+
+    const totalIncome   = sumOf('Total_Income__c');
+    const totalExpenses = sumOf('Total_Expenses__c');
+    const shiftHours    = sumOf('Shift_Hours__c');
+    const activeHours   = sumOf('Active_Time_Hours__c');
+    const shiftMiles    = sumOf('Total_Shift_Miles__c');
+
+    const aggregated = {
+      Name:                       records.map(r => r.Name).join(' + '),
+      Date__c:                    records[0].Date__c,
+      Day_of_Week__c:             records[0].Day_of_Week__c,
+      Clock_In__c:                records[0].Clock_In__c,
+      Clock_Out__c:               records[records.length - 1].Clock_Out__c,
+      shiftCount:                 records.length,
+      Total_Income__c:            totalIncome,
+      Total_Expenses__c:          totalExpenses,
+      Shift_Hours__c:             shiftHours,
+      Active_Time_Hours__c:       activeHours,
+      Total_Shift_Miles__c:       shiftMiles,
+      Net_Profit__c:              totalIncome - totalExpenses,
+      Earnings_Per_Shift_Hour__c: shiftHours > 0 ? totalIncome / shiftHours : 0,
+      True_Earnings_Per_Mile__c:  shiftMiles > 0 ? totalIncome / shiftMiles : 0
+    };
+
+    const inProgress = records.some(r => !r.Clock_Out__c);
+
+    const scores = {};
+    let sum = 0;
+    for (const m of SCORE_METRICS) {
+      const s = scoreMetric(aggregated[m.field], m.worst, m.best);
+      scores[m.field] = s;
+      sum += s;
+    }
+    const composite = Math.round((sum / SCORE_METRICS.length) * 10) / 10;
+
+    res.json({
+      found: true,
+      inProgress,
+      dcf: aggregated,
+      metrics: SCORE_METRICS,
+      scores,
+      composite
+    });
+  } catch (err) {
+    console.error('[Score]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

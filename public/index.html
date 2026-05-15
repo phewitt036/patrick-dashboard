@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Patrick's Command Center</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
   :root {
@@ -183,6 +182,27 @@
   .wr-footer-item { display: flex; gap: 5px; }
   .wr-footer-up { color: var(--accent3); }
   .wr-footer-down { color: #ff6b6b; }
+
+  /* Gig Income link card on the home page */
+  .gig-link-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    background: linear-gradient(135deg, rgba(0,212,170,0.08), rgba(108,99,255,0.05));
+    border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px;
+    margin-bottom: 24px; text-decoration: none; color: var(--text);
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .gig-link-card:hover { border-color: var(--accent3); transform: translateY(-1px); }
+  .gig-link-card-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .gig-link-card-title {
+    font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700;
+    background: linear-gradient(135deg, var(--accent3), var(--accent));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .gig-link-card-arrow {
+    font-family: 'Syne', sans-serif; font-size: 28px; color: var(--accent);
+    transition: transform 0.15s ease;
+  }
+  .gig-link-card:hover .gig-link-card-arrow { transform: translateX(4px); }
 
   /* Shift logger */
   .shift-card {
@@ -705,7 +725,7 @@
   <header>
     <div class="header-left">
       <h1>Patrick's <span>Command Center</span></h1>
-      <p>Income · Agents · Notes</p>
+      <p>Agents · Notes · Mining</p>
     </div>
     <div class="live-clock">
       <span id="clock">--:-- --</span>
@@ -725,163 +745,14 @@
     <a class="qlink" href="https://www.linkedin.com" target="_blank">↗ LinkedIn</a>
   </div>
 
-  <!-- Gig Income -->
-  <div class="section-label collapsible" onclick="toggleSection('income')">
-    Gig Income
-    <span class="section-toggle" id="toggle-income">▾</span>
-  </div>
-  <div id="section-income">
-    <div class="income-grid">
-
-      <div class="income-stat">
-        <div class="income-stat-label">This Week</div>
-        <div class="income-stat-value" id="weekly-display">--</div>
-        <div class="income-stat-sub" id="weekly-sub">loading...</div>
-      </div>
-
-      <div class="income-stat">
-        <div class="income-stat-label">This Month</div>
-        <div class="income-stat-value" id="monthly-display">--</div>
-        <div class="income-stat-sub" id="monthly-sub">loading...</div>
-      </div>
-
-      <div class="income-chart-card income-full">
-        <div class="chart-header">
-          <span class="chart-title">Monthly Trend</span>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="incomeChart"></canvas>
-        </div>
-      </div>
-
-      <!-- Weekly Report -->
-      <div class="income-chart-card income-full" id="weekly-report-card">
-        <div class="chart-header">
-          <span class="chart-title">Weekly Report</span>
-          <span class="chart-subtitle" id="wr-range">loading...</span>
-        </div>
-        <div class="wr-stats">
-          <div class="wr-stat">
-            <div class="wr-stat-label">Income</div>
-            <div class="wr-stat-value" id="wr-income">--</div>
-          </div>
-          <div class="wr-stat">
-            <div class="wr-stat-label">Net Profit</div>
-            <div class="wr-stat-value" id="wr-net">--</div>
-          </div>
-          <div class="wr-stat">
-            <div class="wr-stat-label">Shift Rate</div>
-            <div class="wr-stat-value" id="wr-shift-rate">--</div>
-            <div class="wr-stat-sub">/hr on clock</div>
-          </div>
-          <div class="wr-stat">
-            <div class="wr-stat-label">Active Rate</div>
-            <div class="wr-stat-value" id="wr-active-rate">--</div>
-            <div class="wr-stat-sub">/hr delivering</div>
-          </div>
-        </div>
-        <div class="wr-best-day" id="wr-best-day" style="display:none;">
-          <span class="wr-best-day-label">⭑ Best Day</span>
-          <span class="wr-best-day-value" id="wr-best-day-value"></span>
-        </div>
-        <div class="wr-days" id="wr-days"></div>
-        <div class="wr-footer" id="wr-footer"></div>
-      </div>
-
-      <!-- Shift Logger -->
-      <div class="shift-card income-full">
-        <div class="shift-card-label">Shift Logger</div>
-
-        <div id="shift-idle">
-          <button class="shift-start-btn" onclick="startShift()">▶ Start Shift</button>
-        </div>
-
-        <div id="shift-active" style="display:none;">
-          <span id="shift-info" class="shift-info"></span>
-          <button class="shift-end-btn" onclick="showEndShiftForm()">■ End Shift</button>
-        </div>
-
-        <div id="shift-end-form" style="display:none;">
-          <div class="shift-form-row">
-            <input type="number" id="shift-miles" class="shift-input" placeholder="Total miles driven" min="0" step="0.1">
-            <button class="shift-log-btn" id="shift-log-btn" onclick="submitShift()">Log to Salesforce</button>
-            <button class="shift-cancel-btn" onclick="cancelEndShift()">Cancel</button>
-          </div>
-          <div><span id="shift-status" class="shift-status"></span></div>
-        </div>
-      </div>
-
+  <!-- Gig Income link card -->
+  <a href="/gig" class="gig-link-card">
+    <div class="gig-link-card-inner">
+      <div class="gig-link-card-label">Gig Income</div>
+      <div class="gig-link-card-title">Income · Pixit · Daily Score</div>
     </div>
-  </div>
-
-  <!-- Pixit -->
-  <div class="section-label collapsible" onclick="toggleSection('pixit')">
-    Pixit
-    <span class="section-toggle" id="toggle-pixit">▾</span>
-  </div>
-  <div id="section-pixit">
-    <div class="pixit-widget-card">
-
-      <div class="pixit-top">
-        <!-- Left: drop zone / preview -->
-        <div class="pixit-left">
-          <div id="pixit-drop" class="pixit-drop" onclick="document.getElementById('pixit-file-input').click()"
-            ondragover="pixitDragOver(event)" ondragleave="pixitDragLeave(event)" ondrop="pixitDrop(event)">
-            <div class="pixit-drop-icon">📷</div>
-            <div class="pixit-drop-text">Drop screenshot here</div>
-            <div class="pixit-drop-hint">or click to upload · PNG · JPG · WEBP</div>
-          </div>
-          <div id="pixit-preview-wrap" style="display:none; position:relative;">
-            <img id="pixit-preview-img" style="width:100%; height:180px; object-fit:contain; border-radius:8px; background:var(--surface2); border:1px solid var(--border); display:block;" alt="preview">
-            <button onclick="pixitClear()" style="position:absolute;top:8px;right:8px;background:var(--surface);border:1px solid var(--border);border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:var(--muted);">✕</button>
-          </div>
-          <input type="file" id="pixit-file-input" accept="image/*" style="display:none;" onchange="pixitFileSelect(event)">
-        </div>
-
-        <!-- Right: controls -->
-        <div class="pixit-right">
-          <div class="pixit-field-group">
-            <div class="pixit-field-label">Pixit Table</div>
-            <select id="pixit-tracker-select" class="pixit-select" onchange="pixitTrackerChanged()">
-              <option value="">Loading...</option>
-            </select>
-          </div>
-          <div class="pixit-field-group" id="pixit-uber-level-group" style="display:none;">
-            <div class="pixit-field-label">Uber Level</div>
-            <select id="pixit-uber-level" class="pixit-select">
-              <option value="">— Select —</option>
-              <option value="UberX">UberX</option>
-              <option value="Share">Share</option>
-              <option value="Comfort">Comfort</option>
-              <option value="Comfort Electric">Comfort Electric</option>
-              <option value="VIP">VIP</option>
-              <option value="Business Comfort">Business Comfort</option>
-            </select>
-          </div>
-          <button class="pixit-btn pixit-btn-extract" id="pixit-extract-btn" onclick="pixitExtract()" disabled>
-            <span id="pixit-extract-label">⬡ Extract & Push</span>
-          </button>
-          <button class="pixit-btn pixit-btn-push" id="pixit-push-btn" onclick="pixitPush()" disabled>
-            <span id="pixit-push-label">↑ Re-push to —</span>
-          </button>
-          <div class="pixit-status" id="pixit-status"></div>
-        </div>
-      </div>
-
-      <!-- Results -->
-      <div id="pixit-results" style="display:none;">
-        <div class="pixit-divider"></div>
-        <div class="pixit-results-inner">
-          <div class="pixit-results-header">
-            <span class="pixit-results-title">Extracted Data</span>
-            <span class="pixit-results-clear" onclick="pixitReset()">↺ clear</span>
-          </div>
-          <div id="pixit-fields-grid" class="pixit-fields-grid"></div>
-        </div>
-      </div>
-
-    </div>
-  </div>
+    <span class="gig-link-card-arrow">→</span>
+  </a>
 
   <!-- Agents -->
   <div class="section-label collapsible" onclick="toggleSection('agents')">
@@ -1156,179 +1027,6 @@
 
 </div>
 <script>
-  // ── Pixit Widget ──
-  const PIXIT_KEY = "4f527de50f8cf6a0a5d4ff602fcec416123b26de7b37f78663be3050722f0ce1";
-  const PIXIT_BASE = "https://usepixit.com";
-
-  let pixitImageBase64 = null;
-  let pixitMediaType = null;
-  let pixitExtractedFields = null;
-  let pixitTrackers = [];
-  let pixitIdempotencyKey = null;
-
-  async function pixitLoadTrackers() {
-    try {
-      const res = await fetch(`${PIXIT_BASE}/api/patrick/trackers`, {
-        headers: { "x-patrick-key": PIXIT_KEY }
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      pixitTrackers = data.trackers;
-      const sel = document.getElementById('pixit-tracker-select');
-      sel.innerHTML = pixitTrackers.map(t =>
-        `<option value="${t.id}">${t.name} · ${t.output}</option>`
-      ).join('');
-      pixitTrackerChanged();
-    } catch(e) {
-      document.getElementById('pixit-tracker-select').innerHTML = '<option>Could not load trackers</option>';
-    }
-  }
-  pixitLoadTrackers();
-
-  function pixitTrackerChanged() {
-    const trackerId = parseInt(document.getElementById('pixit-tracker-select').value);
-    const tracker = pixitTrackers.find(t => t.id === trackerId);
-    const showUberLevel = !!(tracker && Array.isArray(tracker.extract_fields) && tracker.extract_fields.includes('uber_level'));
-    document.getElementById('pixit-uber-level-group').style.display = showUberLevel ? '' : 'none';
-    if (!showUberLevel) document.getElementById('pixit-uber-level').value = '';
-  }
-
-  function pixitDragOver(e) { e.preventDefault(); document.getElementById('pixit-drop').classList.add('drag-over'); }
-  function pixitDragLeave(e) { document.getElementById('pixit-drop').classList.remove('drag-over'); }
-  function pixitDrop(e) {
-    e.preventDefault();
-    document.getElementById('pixit-drop').classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) pixitLoadImage(file);
-  }
-  function pixitFileSelect(e) {
-    const file = e.target.files[0];
-    if (file) pixitLoadImage(file);
-  }
-  function pixitLoadImage(file) {
-    pixitMediaType = file.type;
-    pixitIdempotencyKey = (window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      pixitImageBase64 = ev.target.result.split(',')[1];
-      document.getElementById('pixit-preview-img').src = ev.target.result;
-      document.getElementById('pixit-drop').style.display = 'none';
-      document.getElementById('pixit-preview-wrap').style.display = 'block';
-      document.getElementById('pixit-extract-btn').disabled = false;
-      pixitSetStatus('');
-    };
-    reader.readAsDataURL(file);
-  }
-  function pixitClear() {
-    pixitImageBase64 = null;
-    pixitMediaType = null;
-    pixitIdempotencyKey = null;
-    document.getElementById('pixit-preview-wrap').style.display = 'none';
-    document.getElementById('pixit-drop').style.display = 'flex';
-    document.getElementById('pixit-file-input').value = '';
-    document.getElementById('pixit-extract-btn').disabled = true;
-    document.getElementById('pixit-uber-level').value = '';
-    pixitSetStatus('');
-  }
-  function pixitReset() {
-    pixitClear();
-    pixitExtractedFields = null;
-    document.getElementById('pixit-push-btn').disabled = true;
-    document.getElementById('pixit-push-label').textContent = '↑ Re-push to —';
-    document.getElementById('pixit-results').style.display = 'none';
-    document.getElementById('pixit-fields-grid').innerHTML = '';
-  }
-  function pixitSetStatus(msg, type) {
-    const el = document.getElementById('pixit-status');
-    el.textContent = msg;
-    el.className = 'pixit-status' + (type ? ' ' + type : '');
-  }
-  function pixitBuildOverrides() {
-    const ov = {};
-    const uberLevelGroup = document.getElementById('pixit-uber-level-group');
-    if (uberLevelGroup && uberLevelGroup.style.display !== 'none') {
-      const v = document.getElementById('pixit-uber-level').value;
-      if (v) ov.uber_level = v;
-    }
-    return ov;
-  }
-
-  async function pixitExtract() {
-    if (!pixitImageBase64) return;
-    const trackerId = document.getElementById('pixit-tracker-select').value;
-    const btn = document.getElementById('pixit-extract-btn');
-    const label = document.getElementById('pixit-extract-label');
-    btn.disabled = true;
-    label.textContent = '◌ Extracting...';
-    pixitSetStatus('Sending to Claude...');
-    document.getElementById('pixit-results').style.display = 'none';
-    try {
-      const res = await fetch(`${PIXIT_BASE}/api/patrick/extract-and-push`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-patrick-key': PIXIT_KEY },
-        body: JSON.stringify({ imageBase64: pixitImageBase64, mediaType: pixitMediaType, tracker_id: parseInt(trackerId), idempotency_key: pixitIdempotencyKey, overrides: pixitBuildOverrides() })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      pixitExtractedFields = data.fields;
-      pixitRenderResults(data.fields);
-      const destLabel = data.output === 'salesforce' ? 'Salesforce' : data.output === 'excel' ? 'Excel' : 'Google Sheets';
-      const recordInfo = data.id ? ` · ${data.id}` : '';
-      pixitSetStatus(`✓ Extracted & pushed to ${destLabel}${recordInfo}`, 'ok');
-      document.getElementById('pixit-push-label').textContent = `↑ Re-push to ${destLabel}`;
-      document.getElementById('pixit-push-btn').disabled = false;
-    } catch(e) {
-      pixitSetStatus(`Error: ${e.message}`, 'err');
-    }
-    label.textContent = '⬡ Extract & Push';
-    btn.disabled = false;
-  }
-
-  async function pixitPush() {
-    if (!pixitImageBase64) return;
-    const trackerId = document.getElementById('pixit-tracker-select').value;
-    const btn = document.getElementById('pixit-push-btn');
-    const label = document.getElementById('pixit-push-label');
-    btn.disabled = true;
-    label.textContent = '◌ Pushing...';
-    pixitSetStatus('Pushing...');
-    try {
-      const res = await fetch(`${PIXIT_BASE}/api/patrick/extract-and-push`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-patrick-key': PIXIT_KEY },
-        body: JSON.stringify({ imageBase64: pixitImageBase64, mediaType: pixitMediaType, tracker_id: parseInt(trackerId), idempotency_key: pixitIdempotencyKey, overrides: pixitBuildOverrides() })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      const destLabel = data.output === 'salesforce' ? 'Salesforce' : data.output === 'excel' ? 'Excel' : 'Google Sheets';
-      const recordInfo = data.id ? ` · ${data.id}` : '';
-      pixitSetStatus(`✓ Pushed to ${destLabel}${recordInfo}`, 'ok');
-      label.textContent = `↑ Re-push to ${destLabel}`;
-    } catch(e) {
-      pixitSetStatus(`Error: ${e.message}`, 'err');
-      label.textContent = '↑ Re-push';
-    }
-    btn.disabled = false;
-  }
-
-  function pixitRenderResults(fields) {
-    const grid = document.getElementById('pixit-fields-grid');
-    grid.innerHTML = '';
-    const moneyKeys = ['total','base_pay','tips','surge_bonus','amount','payment_total','subtotal','tax'];
-    Object.entries(fields).forEach(([key, val]) => {
-      if (val === null || val === undefined || val === '') return;
-      const isMoney = moneyKeys.includes(key);
-      const isWide = key === 'notes' || String(val).length > 30;
-      const box = document.createElement('div');
-      box.className = 'pixit-field-box' + (isWide ? ' wide' : '');
-      const label = key.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
-      const displayVal = isMoney && !String(val).startsWith('$') ? `$${val}` : val;
-      box.innerHTML = `<div class="pixit-field-box-label">${label}</div><div class="pixit-field-box-val${isMoney ? ' money' : ''}">${displayVal}</div>`;
-      grid.appendChild(box);
-    });
-    document.getElementById('pixit-results').style.display = 'block';
-  }
-
   // ── Clock ──
   function updateClock() {
     const now = new Date();
@@ -1355,7 +1053,7 @@
   }
 
   function initCollapsibles() {
-    const defaults = { income: true, pixit: true, agents: true, notes: true, mining: false, overview: false, projects: false };
+    const defaults = { agents: true, notes: true, mining: false, overview: false, projects: false };
     for (const [id, def] of Object.entries(defaults)) {
       const saved = localStorage.getItem('section_' + id);
       const open = saved !== null ? saved === '1' : def;
@@ -1402,260 +1100,6 @@
     }
     btn.disabled = false;
   }
-
-  // ── Income ──
-  function fmt(val) {
-    return '$' + parseFloat(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-
-  let incomeChart = null;
-
-  function renderTrendChart(labels, values) {
-    if (incomeChart) incomeChart.destroy();
-    const ctx = document.getElementById('incomeChart').getContext('2d');
-    const grad = ctx.createLinearGradient(0, 0, 0, 120);
-    grad.addColorStop(0, 'rgba(0,212,170,0.3)');
-    grad.addColorStop(1, 'rgba(0,212,170,0)');
-    incomeChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          data: values,
-          borderColor: '#00d4aa',
-          borderWidth: 2,
-          backgroundColor: grad,
-          fill: true,
-          tension: 0.4,
-          pointBackgroundColor: '#00d4aa',
-          pointRadius: 4,
-          pointHoverRadius: 6,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: '#1a1a24',
-            borderColor: '#2a2a3a',
-            borderWidth: 1,
-            titleColor: '#6b6b80',
-            bodyColor: '#e8e8f0',
-            callbacks: { label: c => ' $' + c.parsed.y.toLocaleString('en-US', { minimumFractionDigits: 2 }) }
-          }
-        },
-        scales: {
-          x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#6b6b80', font: { family: 'JetBrains Mono', size: 10 } } },
-          y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#6b6b80', font: { family: 'JetBrains Mono', size: 10 }, callback: v => '$' + v.toLocaleString() } }
-        }
-      }
-    });
-  }
-
-  async function loadIncome() {
-    try {
-      const [weekly, monthly, trend] = await Promise.all([
-        fetch('/api/income/weekly').then(r => r.json()),
-        fetch('/api/income/monthly').then(r => r.json()),
-        fetch('/api/income/trend').then(r => r.json())
-      ]);
-      document.getElementById('weekly-display').textContent = fmt(weekly.total);
-      document.getElementById('weekly-sub').textContent = 'live from salesforce';
-      document.getElementById('monthly-display').textContent = fmt(monthly.total);
-      document.getElementById('monthly-sub').textContent = 'live from salesforce';
-      if (trend.trend && trend.trend.length) {
-        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        const labels = trend.trend.map(t => `${monthNames[t.mo - 1]} '${String(t.yr).slice(2)}`);
-        renderTrendChart(labels, trend.trend.map(t => t.total));
-      } else {
-        renderTrendChart(['No data yet'], [0]);
-      }
-    } catch (err) {
-      document.getElementById('weekly-sub').textContent = 'unavailable';
-      document.getElementById('monthly-sub').textContent = 'unavailable';
-      renderTrendChart(['No data'], [0]);
-    }
-  }
-  loadIncome();
-
-  async function loadWeeklyReport() {
-    try {
-      const data = await fetch('/api/income/weekly-report').then(r => r.json());
-      if (data.error || !data.week) return;
-
-      const el = id => document.getElementById(id);
-      const fmtMoney = n => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const fmtRate  = n => '$' + (n || 0).toFixed(2);
-
-      // Date range header
-      const fmtDate = d => { const [,m,dy] = d.split('-'); return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1]} ${parseInt(dy)}`; };
-      el('wr-range').textContent = `${fmtDate(data.week.Start_Date__c)} – ${fmtDate(data.week.End_Date__c)}`;
-
-      // Stats
-      el('wr-income').textContent      = fmtMoney(data.week.Weekly_Total_Income__c);
-      el('wr-net').textContent         = fmtMoney(data.week.Net_Profit__c);
-      el('wr-shift-rate').textContent  = fmtRate(data.week.Earnings_Per_Shift_Hour__c);
-      el('wr-active-rate').textContent = fmtRate(data.week.Earnings_Per_Active_Hour__c);
-
-      // Best day
-      if (data.bestDay) {
-        el('wr-best-day').style.display = 'flex';
-        el('wr-best-day-value').textContent =
-          `${data.bestDay.dayName} · ${fmtMoney(data.bestDay.income)} gross · ${fmtMoney(data.bestDay.netProfit)} net · ${fmtRate(data.bestDay.ratePerShiftHour)}/hr`;
-      }
-
-      // Day bars
-      if (data.days && data.days.length) {
-        const maxIncome = Math.max(...data.days.map(d => d.income), 1);
-        el('wr-days').innerHTML = data.days.map(d => {
-          const pct = Math.round((d.income / maxIncome) * 100);
-          return `
-            <div class="wr-day-row">
-              <span class="wr-day-name">${d.dayName.slice(0, 3)}</span>
-              <div class="wr-day-bar-wrap"><div class="wr-day-bar" style="width:${pct}%"></div></div>
-              <span class="wr-day-val">${fmtMoney(d.income)}</span>
-              <span class="wr-day-rate">${fmtRate(d.ratePerShiftHour)}/hr</span>
-            </div>`;
-        }).join('');
-      }
-
-      // vs last week footer
-      if (data.lastWeek) {
-        const lw = data.lastWeek;
-        const incomeDiff = data.week.Weekly_Total_Income__c - lw.Weekly_Total_Income__c;
-        const rateDiff   = data.week.Earnings_Per_Shift_Hour__c - lw.Earnings_Per_Shift_Hour__c;
-        const sign = n => n >= 0 ? '+' : '-';
-        const cls  = n => n >= 0 ? 'wr-footer-up' : 'wr-footer-down';
-        el('wr-footer').innerHTML = `
-          <span class="wr-footer-item">vs last week &nbsp;
-            <span class="${cls(incomeDiff)}">${sign(incomeDiff)}${fmtMoney(Math.abs(incomeDiff))} income</span>
-          </span>
-          <span class="wr-footer-item">
-            <span class="${cls(rateDiff)}">${sign(rateDiff)}${fmtRate(Math.abs(rateDiff))}/hr shift rate</span>
-          </span>
-          <span class="wr-footer-item" style="color:var(--dim)">${(data.week.Weekly_Shift_Miles__c || 0).toFixed(1)} mi driven</span>`;
-      }
-    } catch (e) {
-      console.error('[WeeklyReport]', e);
-    }
-  }
-  loadWeeklyReport();
-
-  // ── Shift Logger ──
-  function getActiveShift() {
-    try { return JSON.parse(localStorage.getItem('active_shift')); } catch { return null; }
-  }
-
-  function updateShiftUI() {
-    const shift = getActiveShift();
-    const idleEl = document.getElementById('shift-idle');
-    const activeEl = document.getElementById('shift-active');
-    const formEl = document.getElementById('shift-end-form');
-    if (!shift) {
-      idleEl.style.display = '';
-      activeEl.style.display = 'none';
-      formEl.style.display = 'none';
-      return;
-    }
-    idleEl.style.display = 'none';
-    if (formEl.style.display !== 'none') return;
-    activeEl.style.display = '';
-    const start = new Date(shift.startTime);
-    const elapsed = Date.now() - start.getTime();
-    const h = Math.floor(elapsed / 3600000);
-    const m = Math.floor((elapsed % 3600000) / 60000);
-    const elapsedStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
-    const startStr = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    document.getElementById('shift-info').textContent = `Started ${startStr} · ${elapsedStr} elapsed`;
-  }
-
-  async function startShift() {
-    const startTime = new Date().toISOString();
-    const btn = document.querySelector('.shift-start-btn');
-    btn.disabled = true;
-    btn.textContent = 'Starting...';
-    try {
-      const res = await fetch('/api/income/shift/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clockIn: startTime })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      localStorage.setItem('active_shift', JSON.stringify({ startTime, dcfId: data.recordId }));
-      updateShiftUI();
-    } catch (e) {
-      btn.disabled = false;
-      btn.textContent = '▶ Start Shift';
-      document.getElementById('shift-status').textContent = `Error: ${e.message}`;
-      document.getElementById('shift-status').style.color = '#ff6b6b';
-    }
-  }
-
-  function showEndShiftForm() {
-    document.getElementById('shift-active').style.display = 'none';
-    document.getElementById('shift-end-form').style.display = '';
-    document.getElementById('shift-miles').focus();
-  }
-
-  function cancelEndShift() {
-    document.getElementById('shift-end-form').style.display = 'none';
-    document.getElementById('shift-active').style.display = '';
-  }
-
-  async function submitShift() {
-    const shift = getActiveShift();
-    if (!shift) return;
-    const miles = parseFloat(document.getElementById('shift-miles').value);
-    if (isNaN(miles) || miles < 0) {
-      document.getElementById('shift-status').textContent = 'Enter valid miles.';
-      return;
-    }
-    const btn = document.getElementById('shift-log-btn');
-    const statusEl = document.getElementById('shift-status');
-    btn.disabled = true;
-    statusEl.style.color = 'var(--dim)';
-    statusEl.textContent = 'Logging...';
-    try {
-      const res = await fetch('/api/income/shift/end', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recordId: shift.dcfId, clockOut: new Date().toISOString(), miles })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      localStorage.removeItem('active_shift');
-      document.getElementById('shift-end-form').style.display = 'none';
-      document.getElementById('shift-idle').style.display = '';
-      document.getElementById('shift-miles').value = '';
-      statusEl.style.color = 'var(--accent3)';
-      statusEl.textContent = `Logged · ${data.recordId}`;
-      setTimeout(() => { statusEl.textContent = ''; }, 6000);
-      loadIncome();
-    } catch (e) {
-      statusEl.style.color = '#ff6b6b';
-      statusEl.textContent = `Error: ${e.message}`;
-      btn.disabled = false;
-    }
-  }
-
-  async function syncShiftState() {
-    try {
-      const res = await fetch('/api/income/shift/active');
-      const data = await res.json();
-      if (data.active) {
-        localStorage.setItem('active_shift', JSON.stringify({ startTime: data.clockIn, dcfId: data.recordId }));
-      } else {
-        localStorage.removeItem('active_shift');
-      }
-    } catch (e) {}
-    updateShiftUI();
-  }
-
-  syncShiftState();
-  setInterval(syncShiftState, 60000);
 
   // ── Tab switching ──
   function switchTab(event, tab) {
