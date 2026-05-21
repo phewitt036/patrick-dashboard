@@ -49,11 +49,83 @@ router.post('/chat', async (req, res) => {
       headers: hubHeaders(),
       body: JSON.stringify(req.body)
     });
-    const data = await r.json();
-    res.status(r.status).json(data);
+    const ct = r.headers.get('content-type') || '';
+    if (ct.includes('text/event-stream')) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+      const { Readable } = require('stream');
+      const nodeStream = Readable.fromWeb(r.body);
+      nodeStream.pipe(res);
+      nodeStream.on('error', () => res.end());
+    } else {
+      res.status(r.status).json(await r.json());
+    }
   } catch (e) {
     res.status(502).json({ error: 'pimax unreachable' });
   }
+});
+
+// Claw v2 — conversations
+router.get('/claw/conversations', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/chat/conversations`, { headers: hubHeaders() });
+    res.status(r.status).json(await r.json());
+  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
+});
+
+router.delete('/claw/conversations/:id', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/chat/conversations/${req.params.id}`, { method: 'DELETE', headers: hubHeaders() });
+    res.status(r.status).json(await r.json());
+  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
+});
+
+router.get('/claw/conversations/:id/messages', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/chat/conversations/${req.params.id}/messages`, { headers: hubHeaders() });
+    res.status(r.status).json(await r.json());
+  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
+});
+
+// Claw v2 — attachments (base64 JSON body)
+router.post('/claw/attachments/upload', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/chat/attachments/upload`, {
+      method: 'POST',
+      headers: hubHeaders(),
+      body: JSON.stringify(req.body)
+    });
+    res.status(r.status).json(await r.json());
+  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
+});
+
+// Claw v2 — knowledge files
+router.get('/claw/knowledge', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/chat/knowledge`, { headers: hubHeaders() });
+    res.status(r.status).json(await r.json());
+  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
+});
+
+router.post('/claw/knowledge', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/chat/knowledge`, {
+      method: 'POST',
+      headers: hubHeaders(),
+      body: JSON.stringify(req.body)
+    });
+    res.status(r.status).json(await r.json());
+  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
+});
+
+router.delete('/claw/knowledge/:name', async (req, res) => {
+  try {
+    const r = await fetch(`${HUB()}/chat/knowledge/${encodeURIComponent(req.params.name)}`, { method: 'DELETE', headers: hubHeaders() });
+    res.status(r.status).json(await r.json());
+  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
 });
 
 router.post('/note', async (req, res) => {

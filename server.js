@@ -32,6 +32,8 @@ app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'publi
 app.get('/index.html', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/gig', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'gig.html')));
 app.get('/gig.html', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'gig.html')));
+app.get('/claw', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'claw.html')));
+app.get('/claw.html', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'claw.html')));
 
 // Static files (login.html, setup.html, assets — no auth)
 app.use(express.static(path.join(__dirname, 'public')));
