@@ -769,17 +769,15 @@
       </div>
 
       <!-- Claw Chat -->
-      <div class="agent-panel active" id="panel-claw">
-        <div class="chat-window" id="chat-window">
-          <div class="chat-empty" id="chat-empty">
-            Say something to Claw.<br>
-            <span style="color: var(--dim); font-size: 10px;">Powered by Claude Sonnet · pimax</span>
-          </div>
+      <div class="agent-panel active" id="panel-claw" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px;">
+        <div style="font-size:48px">🦞</div>
+        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:3px;background:linear-gradient(135deg,var(--accent3),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">CLAW</div>
+        <div style="color:var(--muted);font-size:12px;text-align:center;max-width:300px;line-height:1.6;">
+          Persistent chat history · Multi-model · File attachments · Tools
         </div>
-        <div class="chat-input-row">
-          <textarea class="chat-input" id="chat-input" placeholder="Message Claw..." rows="1" onkeydown="chatKeydown(event)"></textarea>
-          <button class="chat-send" id="chat-send" onclick="sendChat()">Send →</button>
-        </div>
+        <a href="/claw" style="display:inline-block;padding:10px 24px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-family:'JetBrains Mono',monospace;transition:opacity 0.15s;" onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">
+          Open Claw ↗
+        </a>
       </div>
 
       <!-- Scout Panel -->
@@ -895,6 +893,14 @@
       <div class="mining-stat"><div class="mining-stat-val" id="pihole-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
     </div>
     <div class="rig-alert" id="pihole-alert" style="display:none;"></div>
+    <div class="mining-rig-label">X8 Mini <span class="mining-uptime" id="x8-uptime"></span></div>
+    <div class="mining-grid">
+      <div class="mining-stat"><div class="mining-stat-val" id="x8-current">—</div><div class="mining-stat-label">H/s Now</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="x8-avg1m">—</div><div class="mining-stat-label">1m Avg</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="x8-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="x8-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
+    </div>
+    <div class="rig-alert" id="x8-alert" style="display:none;"></div>
     <div class="mining-rig-label">Unmineable · DOGE</div>
     <div class="mining-grid">
       <div class="mining-stat"><div class="mining-stat-val" id="unmineable-balance" style="color:#c8a400;">—</div><div class="mining-stat-label">Balance</div></div>
@@ -1372,16 +1378,18 @@
       if (d.error) {
         applyMinerStats('pimax', { error: d.error });
         applyMinerStats('pihole', { error: d.error });
+        applyMinerStats('x8', { error: d.error });
         document.getElementById('mine-status').textContent = `pimax offline · ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
         return;
       }
       applyMinerStats('pimax', d.pimax);
       applyMinerStats('pihole', d.pihole);
+      applyMinerStats('x8', d.x8);
       if (d.unmineable) {
         document.getElementById('unmineable-balance').textContent = parseFloat(d.unmineable.balance).toFixed(4) + ' DOGE';
         document.getElementById('unmineable-threshold').textContent = d.unmineable.threshold + ' DOGE';
       }
-      const total = (d.pimax.hashrate?.current ?? 0) + (d.pihole.hashrate?.current ?? 0);
+      const total = (d.pimax.hashrate?.current ?? 0) + (d.pihole.hashrate?.current ?? 0) + (d.x8?.hashrate?.current ?? 0);
       document.getElementById('mine-status').textContent = `${fmtHash(total)} combined · rx/0 · ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
     } catch (e) {
       document.getElementById('mine-status').textContent = `error: ${e.message}`;
