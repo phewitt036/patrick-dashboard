@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claw</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0a0a0f;
+    --surface:  #111118;
+    --surface2: #1a1a24;
+    --border:   #2a2a3a;
+    --accent:   #6c63ff;
+    --accent3:  #00d4aa;
+    --accent4:  #f5a623;
+    --text:     #e8e8f0;
+    --muted:    #6b6b80;
+    --dim:      #3a3a50;
+    --red:      #ff4d6d;
+  }
+
+  html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+
+  /* ── Layout ── */
+  .layout { display: flex; height: 100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 240px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-header {
+    padding: 16px 14px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sidebar-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 800;
+    background: linear-gradient(135deg, var(--accent3), var(--accent));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    letter-spacing: 2px;
+  }
+  .back-btn {
+    font-size: 11px; color: var(--muted); text-decoration: none;
+    padding: 4px 8px; border: 1px solid var(--border); border-radius: 5px;
+    transition: all 0.15s;
+  }
+  .back-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  .new-chat-btn {
+    margin: 10px; padding: 8px 12px;
+    background: var(--accent); border: none; border-radius: 7px;
+    color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .new-chat-btn:hover { opacity: 0.85; }
+
+  .conv-list { flex: 1; overflow-y: auto; padding: 4px 6px 12px; }
+  .conv-group-label {
+    font-size: 9px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted); padding: 10px 8px 4px;
+  }
+  .conv-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 8px; border-radius: 6px; cursor: pointer;
+    transition: background 0.1s; border: 1px solid transparent;
+    color: var(--muted); font-size: 12px;
+  }
+  .conv-item:hover { background: var(--surface2); color: var(--text); }
+  .conv-item.active { background: var(--dim); border-color: var(--border); color: var(--text); }
+  .conv-item-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv-item-del {
+    display: none; width: 16px; height: 16px; flex-shrink: 0;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--muted); font-size: 11px; border-radius: 3px;
+    align-items: center; justify-content: center; padding: 0;
+  }
+  .conv-item:hover .conv-item-del { display: flex; }
+  .conv-item-del:hover { background: var(--red); color: #fff; }
+
+  /* ── Main ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    background: var(--surface); flex-shrink: 0;
+  }
+  .conv-title {
+    font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 600;
+    color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .model-select {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    padding: 5px 8px; border-radius: 6px; cursor: pointer; outline: none;
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b6b80'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center; padding-right: 22px;
+  }
+  .model-select:focus { border-color: var(--accent); }
+  .model-badge {
+    font-size: 9px; padding: 2px 6px; border-radius: 3px;
+    background: var(--dim); color: var(--muted); letter-spacing: 1px; text-transform: uppercase;
+  }
+  .model-badge.gemini { background: rgba(0,212,170,0.15); color: var(--accent3); }
+  .model-badge.claude { background: rgba(108,99,255,0.15); color: var(--accent); }
+  .model-badge.local  { background: rgba(245,166,35,0.15);  color: var(--accent4); }
+
+  /* ── Messages ── */
+  .messages {
+    flex: 1; overflow-y: auto; padding: 20px 24px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .msg { display: flex; gap: 10px; max-width: 800px; }
+  .msg.user { flex-direction: row-reverse; align-self: flex-end; }
+  .msg.ai   { align-self: flex-start; }
+
+  .avatar {
+    width: 28px; height: 28px; flex-shrink: 0; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; font-family: 'Syne', sans-serif;
+  }
+  .msg.user .avatar { background: var(--accent); color: #fff; }
+  .msg.ai   .avatar { background: var(--accent3); color: #000; font-size: 14px; }
+
+  .bubble-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .bubble {
+    padding: 10px 14px; border-radius: 10px;
+    line-height: 1.6; word-break: break-word;
+  }
+  .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+  .msg.ai   .bubble {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-bottom-left-radius: 3px;
+  }
+  .msg.ai .bubble h1, .msg.ai .bubble h2, .msg.ai .bubble h3 {
+    font-family: 'Syne', sans-serif; margin: 12px 0 6px; color: var(--accent3);
+  }
+  .msg.ai .bubble p { margin-bottom: 8px; }
+  .msg.ai .bubble p:last-child { margin-bottom: 0; }
+  .msg.ai .bubble ul, .msg.ai .bubble ol { padding-left: 18px; margin-bottom: 8px; }
+  .msg.ai .bubble li { margin-bottom: 3px; }
+  .msg.ai .bubble code { background: var(--dim); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+  .msg.ai .bubble pre { background: var(--dim); padding: 10px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+  .msg.ai .bubble pre code { background: none; padding: 0; }
+  .msg.ai .bubble strong { color: var(--accent3); }
+
+  .tool-result {
+    font-size: 10px; color: var(--muted);
+    padding: 3px 8px; background: var(--surface);
+    border: 1px solid var(--dim); border-radius: 4px; align-self: flex-start;
+    letter-spacing: 0.5px;
+  }
+
+  .attach-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .attach-chip {
+    font-size: 10px; padding: 2px 7px; border-radius: 4px;
+    background: rgba(255,255,255,0.1); color: var(--text);
+    border: 1px solid rgba(255,255,255,0.15);
+    overflow: hidden; max-width: 140px; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .msg.ai .attach-chip { background: var(--dim); border-color: var(--border); }
+
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    color: var(--muted);
+  }
+  .empty-claw { font-size: 48px; line-height: 1; }
+  .empty-label { font-family: 'Syne', sans-serif; font-size: 18px; color: var(--dim); letter-spacing: 3px; }
+  .empty-sub { font-size: 11px; color: var(--muted); }
+
+  .thinking { display: flex; gap: 4px; padding: 4px 0; }
+  .thinking span {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent3);
+    animation: blink 1.2s infinite;
+  }
+  .thinking span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+
+  /* ── Input ── */
+  .input-area {
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .attach-tray { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .tray-chip {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 3px 8px; border-radius: 5px;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+  }
+  .tray-chip-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tray-chip-rm {
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: 11px; padding: 0; line-height: 1;
+  }
+  .tray-chip-rm:hover { color: var(--red); }
+
+  .input-row { display: flex; gap: 8px; align-items: flex-end; }
+  .attach-btn {
+    width: 34px; height: 34px; flex-shrink: 0;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--muted); font-size: 16px; cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .attach-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .chat-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    padding: 8px 12px; border-radius: 7px; resize: none; outline: none;
+    line-height: 1.5; min-height: 34px; max-height: 140px;
+    transition: border-color 0.15s;
+  }
+  .chat-input:focus { border-color: var(--accent); }
+  .chat-input::placeholder { color: var(--muted); }
+  .send-btn {
+    padding: 8px 16px; height: 34px; flex-shrink: 0;
+    background: var(--accent); border: none; border-radius: 7px;
+    color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    cursor: pointer; transition: opacity 0.15s; white-space: nowrap;
+  }
+  .send-btn:hover:not(:disabled) { opacity: 0.85; }
+  .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ── Knowledge section ── */
+  .knowledge-section {
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    max-height: 180px;
+    display: flex; flex-direction: column;
+  }
+  .knowledge-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 8px 2px;
+  }
+  .knowledge-add {
+    width: 20px; height: 20px; flex-shrink: 0;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--muted); font-size: 14px; cursor: pointer; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .knowledge-add:hover { border-color: var(--accent3); color: var(--accent3); }
+  .knowledge-list { overflow-y: auto; padding: 0 6px 8px; }
+  .knowledge-item {
+    display: flex; align-items: center; gap: 4px;
+    padding: 5px 8px; border-radius: 5px;
+    font-size: 11px; color: var(--muted);
+    transition: background 0.1s;
+  }
+  .knowledge-item:hover { background: var(--surface2); color: var(--text); }
+  .knowledge-item-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .knowledge-item .conv-item-del { display: none; }
+  .knowledge-item:hover .conv-item-del { display: flex; }
+
+  /* ── Mobile ── */
+  .hamburger {
+    display: none;
+    width: 32px; height: 32px; flex-shrink: 0;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--muted); font-size: 16px; cursor: pointer;
+    align-items: center; justify-content: center;
+  }
+  .hamburger:hover { border-color: var(--accent); color: var(--accent); }
+  .sidebar-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65); z-index: 49;
+  }
+  .sidebar-overlay.open { display: block; }
+
+  @media (max-width: 639px) {
+    .hamburger { display: flex; }
+    .sidebar {
+      position: fixed; left: -270px; top: 0; bottom: 0; height: 100dvh;
+      width: 260px; z-index: 50;
+      transition: left 0.25s ease;
+    }
+    .sidebar.open { left: 0; }
+    .messages { padding: 12px 14px; }
+    .topbar { padding: 8px 12px; gap: 8px; }
+    .conv-title { font-size: 13px; }
+    .model-select { font-size: 10px; padding: 4px 22px 4px 6px; }
+    .model-badge { display: none; }
+    .input-area { padding: 8px 10px 12px; }
+    .send-btn { padding: 8px 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">CLAW</span>
+      <a class="back-btn" href="/">← Dashboard</a>
+    </div>
+    <button class="new-chat-btn" onclick="newConversation()">+ New conversation</button>
+    <div class="conv-list" id="convList"></div>
+    <!-- Knowledge files -->
+    <div class="knowledge-section">
+      <div class="knowledge-header">
+        <span class="conv-group-label" style="padding:0">KNOWLEDGE</span>
+        <button class="knowledge-add" onclick="triggerKnowledge()" title="Upload file">+</button>
+      </div>
+      <div class="knowledge-list" id="knowledgeList"></div>
+      <input type="file" id="knowledgeInput" style="display:none"
+        accept=".md,.txt,.pdf,.html,.csv,.json"
+        onchange="onKnowledgeSelect(event)">
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <button class="hamburger" onclick="toggleSidebar()" title="Menu">☰</button>
+      <div class="conv-title" id="convTitle">Select or start a conversation</div>
+      <select class="model-select" id="modelSelect" onchange="onModelChange()">
+        <option value="gemini-2.5-flash">Gemini Flash</option>
+        <option value="claude-haiku-4-5-20251001">Claude Haiku</option>
+        <option value="claude-sonnet-4-6">Claude Sonnet</option>
+        <option value="ollama">Local · Gemma 8B</option>
+        <option value="local:gemma4:26b">Local · Gemma 4 26B</option>
+        <option value="local:qwen3:14b">Local · Qwen3 14B</option>
+        <option value="local:qwen3.6:35b">Local · Qwen 3.6 35B</option>
+      </select>
+      <span class="model-badge" id="modelBadge">GEMINI</span>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-claw">🦞</div>
+        <div class="empty-label">CLAW</div>
+        <div class="empty-sub">Select a conversation or start a new one</div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="attach-tray" id="attachTray"></div>
+      <div class="input-row">
+        <button class="attach-btn" onclick="triggerAttach()" title="Attach file">📎</button>
+        <input type="file" id="fileInput" style="display:none"
+          accept=".pdf,.txt,.md,.html,.csv,.json,.jpg,.jpeg,.png,.gif,.webp"
+          onchange="onFileSelect(event)">
+        <textarea class="chat-input" id="chatInput" placeholder="Message Claw…" rows="1"
+          onkeydown="onKeyDown(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+marked.setOptions({ breaks: true, gfm: true });
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let conversations = [];
+let currentConvId = null;
+let isStreaming   = false;
+let pendingAtts   = []; // [{id, filename, is_image}]
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+const savedModel = localStorage.getItem('claw_model');
+if (savedModel) document.getElementById('modelSelect').value = savedModel;
+loadConversations();
+loadKnowledge();
+updateModelBadge();
+
+// ── Conversations ──────────────────────────────────────────────────────────────
+async function loadConversations() {
+  try {
+    const r = await fetch('/api/pimax/claw/conversations');
+    conversations = await r.json();
+    renderSidebar();
+  } catch { /* silent */ }
+}
+
+function renderSidebar() {
+  const el  = document.getElementById('convList');
+  if (!conversations.length) {
+    el.innerHTML = '<div style="padding:12px 8px;color:var(--muted);font-size:11px">No conversations yet</div>';
+    return;
+  }
+  const now  = new Date();
+  const today  = now.toDateString();
+  const yday   = new Date(now); yday.setDate(yday.getDate() - 1);
+  const ydayStr = yday.toDateString();
+  const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+  const groups = { Today: [], Yesterday: [], 'Last week': [], Older: [] };
+  for (const c of conversations) {
+    const d = new Date(c.updated_at);
+    if (d.toDateString() === today) groups['Today'].push(c);
+    else if (d.toDateString() === ydayStr) groups['Yesterday'].push(c);
+    else if (d >= weekAgo) groups['Last week'].push(c);
+    else groups['Older'].push(c);
+  }
+  let html = '';
+  for (const [label, items] of Object.entries(groups)) {
+    if (!items.length) continue;
+    html += `<div class="conv-group-label">${label}</div>`;
+    for (const c of items) {
+      const active = c.id === currentConvId ? ' active' : '';
+      html += `<div class="conv-item${active}" onclick="loadConversation(${c.id})" data-id="${c.id}">
+        <span class="conv-item-text">${esc(c.title)}</span>
+        <button class="conv-item-del" onclick="deleteConv(event,${c.id})" title="Delete">✕</button>
+      </div>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+async function loadConversation(id) {
+  currentConvId = id;
+  const conv = conversations.find(c => c.id === id);
+  if (conv) {
+    document.getElementById('convTitle').textContent = conv.title;
+    if (!localStorage.getItem('claw_model')) document.getElementById('modelSelect').value = conv.model || 'gemini-2.5-flash';
+    updateModelBadge();
+  }
+  renderSidebar();
+  try {
+    const r    = await fetch(`/api/pimax/claw/conversations/${id}/messages`);
+    const msgs = await r.json();
+    const el   = document.getElementById('messages');
+    el.innerHTML = '';
+    if (!msgs.length) { el.innerHTML = emptyHTML(); return; }
+    for (const m of msgs) renderMessage(m.role === 'ai' ? 'ai' : 'user', m.content, m.attachments || []);
+    el.scrollTop = el.scrollHeight;
+  } catch { /* silent */ }
+}
+
+async function deleteConv(e, id) {
+  e.stopPropagation();
+  await fetch(`/api/pimax/claw/conversations/${id}`, { method: 'DELETE' });
+  conversations = conversations.filter(c => c.id !== id);
+  if (currentConvId === id) {
+    currentConvId = null;
+    document.getElementById('messages').innerHTML = emptyHTML();
+    document.getElementById('convTitle').textContent = 'Select or start a conversation';
+  }
+  renderSidebar();
+}
+
+function newConversation() {
+  currentConvId = null;
+  document.getElementById('messages').innerHTML = emptyHTML();
+  document.getElementById('convTitle').textContent = 'New conversation';
+  document.getElementById('chatInput').focus();
+  renderSidebar();
+}
+
+// ── Model ──────────────────────────────────────────────────────────────────────
+function onModelChange() { localStorage.setItem('claw_model', document.getElementById('modelSelect').value); updateModelBadge(); }
+
+function updateModelBadge() {
+  const model = document.getElementById('modelSelect').value;
+  const badge = document.getElementById('modelBadge');
+  if (model.startsWith('gemini-'))                    { badge.textContent = 'GEMINI'; badge.className = 'model-badge gemini'; }
+  else if (model.startsWith('claude-'))               { badge.textContent = 'CLAUDE'; badge.className = 'model-badge claude'; }
+  else                                                { badge.textContent = 'LOCAL';  badge.className = 'model-badge local';  }
+}
+
+// ── Attachments ────────────────────────────────────────────────────────────────
+function triggerAttach() { document.getElementById('fileInput').click(); }
+
+async function onFileSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  const b64 = await toBase64(file);
+  try {
+    const r = await fetch('/api/pimax/claw/attachments/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: file.name, data: b64.split(',')[1], contentType: file.type })
+    });
+    const d = await r.json();
+    pendingAtts.push({ id: d.id, filename: d.filename, is_image: d.is_image });
+    renderAttachTray();
+  } catch (e) { alert('Upload failed: ' + e.message); }
+}
+
+function toBase64(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload  = () => res(reader.result);
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderAttachTray() {
+  const tray = document.getElementById('attachTray');
+  tray.innerHTML = pendingAtts.map((a, i) => `
+    <div class="tray-chip">
+      <span>${a.is_image ? '🖼' : '📄'}</span>
+      <span class="tray-chip-name">${esc(a.filename)}</span>
+      <button class="tray-chip-rm" onclick="removeAtt(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function removeAtt(i) {
+  pendingAtts.splice(i, 1);
+  renderAttachTray();
+}
+
+// ── Send ───────────────────────────────────────────────────────────────────────
+function onKeyDown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text  = input.value.trim();
+  if ((!text && !pendingAtts.length) || isStreaming) return;
+
+  input.value = '';
+  autoResize(input);
+  isStreaming = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  const attachIds = pendingAtts.map(a => a.id);
+  const atts      = [...pendingAtts];
+  pendingAtts = [];
+  renderAttachTray();
+
+  // Remove empty state
+  const empty = document.getElementById('emptyState');
+  if (empty) empty.remove();
+
+  renderMessage('user', text, atts.map(a => ({ filename: a.filename, is_image: a.is_image })));
+  const thinkEl = addThinking();
+
+  const model = document.getElementById('modelSelect').value;
+
+  try {
+    const r = await fetch('/api/pimax/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation_id: currentConvId,
+        message: text,
+        model,
+        attachment_ids: attachIds
+      })
+    });
+
+    const ct = r.headers.get('content-type') || '';
+
+    if (ct.includes('text/event-stream')) {
+      // ── Streaming path (local models) ────────────────────────────────────────
+      thinkEl.remove();
+      const streamBubble = addStreamBubble();
+      const reader  = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '', fullText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const d = JSON.parse(line.slice(6));
+            if (d.token) {
+              fullText += d.token;
+              updateStreamBubble(streamBubble, fullText);
+            }
+            if (d.tool_use) {
+              addStreamToolChip(streamBubble, d.tool_use.name);
+            }
+            if (d.done) {
+              finalizeStreamBubble(streamBubble, fullText);
+              if (!currentConvId) {
+                currentConvId = d.conversation_id;
+                setTimeout(loadConversations, 2000);
+              } else {
+                setTimeout(loadConversations, 2000);
+              }
+            }
+            if (d.error) throw new Error(d.error);
+          } catch (parseErr) { /* malformed SSE line */ }
+        }
+      }
+    } else {
+      // ── Non-streaming path (Gemini / Claude) ─────────────────────────────────
+      const d = await r.json();
+      thinkEl.remove();
+      if (!d.success) throw new Error(d.error || 'Unknown error');
+      if (!currentConvId) {
+        currentConvId = d.conversation_id;
+        setTimeout(loadConversations, 2000);
+      }
+      const conv = conversations.find(c => c.id === currentConvId);
+      if (conv) conv.updated_at = new Date().toISOString();
+      renderMessage('ai', d.reply, [], d.tool_results || []);
+      document.getElementById('convTitle').textContent =
+        conversations.find(c => c.id === currentConvId)?.title || 'New conversation';
+      renderSidebar();
+    }
+  } catch (e) {
+    thinkEl.remove();
+    renderMessage('ai', `⚠ ${e.message}`);
+  }
+
+  isStreaming = false;
+  document.getElementById('sendBtn').disabled = false;
+}
+
+// ── Streaming bubble helpers ───────────────────────────────────────────────────
+function addStreamBubble() {
+  const el  = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.innerHTML = `
+    <div class="avatar">🦞</div>
+    <div class="bubble-wrap">
+      <div class="bubble stream-bubble"></div>
+    </div>
+  `;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+function addStreamToolChip(div, name) {
+  const wrap = div.querySelector('.bubble-wrap');
+  const chip = document.createElement('div');
+  chip.className = 'tool-result';
+  chip.textContent = `🔧 ${name}`;
+  wrap.insertBefore(chip, wrap.firstChild);
+  const el = document.getElementById('messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateStreamBubble(div, text) {
+  const bubble = div.querySelector('.stream-bubble');
+  // Show plain text while streaming so partial markdown doesn't break layout
+  bubble.textContent = text;
+  const el = document.getElementById('messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function finalizeStreamBubble(div, text) {
+  const bubble = div.querySelector('.stream-bubble');
+  bubble.innerHTML = marked.parse(text || '');
+  const el = document.getElementById('messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function renderMessage(role, text, attachments = [], toolResults = []) {
+  const el  = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  const avatar = role === 'user'
+    ? '<div class="avatar">P</div>'
+    : '<div class="avatar">🦞</div>';
+
+  const attachHTML = attachments.length
+    ? `<div class="attach-chips">${attachments.map(a => `<span class="attach-chip">${a.filename || a.is_image ? '🖼 ' : '📄 '}${esc(a.filename || '')}</span>`).join('')}</div>`
+    : '';
+
+  const toolHTML = toolResults.map(t =>
+    `<div class="tool-result">🔧 ${esc(t.name)}</div>`
+  ).join('');
+
+  const content = role === 'ai'
+    ? marked.parse(text || '')
+    : `<p>${esc(text)}</p>`;
+
+  div.innerHTML = `
+    ${avatar}
+    <div class="bubble-wrap">
+      ${attachHTML}
+      <div class="bubble">${content}</div>
+      ${toolHTML}
+    </div>
+  `;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function addThinking() {
+  const el  = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.innerHTML = `
+    <div class="avatar">🦞</div>
+    <div class="bubble-wrap">
+      <div class="bubble"><div class="thinking"><span></span><span></span><span></span></div></div>
+    </div>
+  `;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+function emptyHTML() {
+  return `<div class="empty-state" id="emptyState">
+    <div class="empty-claw">🦞</div>
+    <div class="empty-label">CLAW</div>
+    <div class="empty-sub">Select a conversation or start a new one</div>
+  </div>`;
+}
+
+// ── Knowledge files ────────────────────────────────────────────────────────────
+let knowledgeFiles = [];
+
+async function loadKnowledge() {
+  try {
+    const r = await fetch('/api/pimax/claw/knowledge');
+    knowledgeFiles = await r.json();
+    renderKnowledge();
+  } catch { /* silent */ }
+}
+
+function renderKnowledge() {
+  const el = document.getElementById('knowledgeList');
+  if (!knowledgeFiles.length) {
+    el.innerHTML = '<div style="padding:2px 8px 6px;color:var(--muted);font-size:10px">No files yet</div>';
+    return;
+  }
+  el.innerHTML = knowledgeFiles.map(f => `
+    <div class="knowledge-item">
+      <span class="knowledge-item-text" title="${esc(f.name)}">📄 ${esc(f.name)}</span>
+      <button class="conv-item-del" onclick="deleteKnowledge('${esc(f.name)}')" title="Delete">✕</button>
+    </div>
+  `).join('');
+}
+
+function triggerKnowledge() { document.getElementById('knowledgeInput').click(); }
+
+async function onKnowledgeSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  const b64 = await toBase64(file);
+  try {
+    const r = await fetch('/api/pimax/claw/knowledge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: file.name, data: b64.split(',')[1] })
+    });
+    if (r.ok) await loadKnowledge();
+    else alert('Upload failed');
+  } catch (err) { alert('Upload failed: ' + err.message); }
+}
+
+async function deleteKnowledge(name) {
+  await fetch(`/api/pimax/claw/knowledge/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  await loadKnowledge();
+}
+
+// ── Mobile sidebar ─────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('open');
+}
+
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
