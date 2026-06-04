@@ -1259,7 +1259,10 @@
   async function loadWeeklyReport() {
     try {
       const data = await fetch('/api/income/weekly-report').then(r => r.json());
-      if (data.error || !data.week) return;
+      if (data.error || !data.week) {
+        document.getElementById('wr-range').textContent = data.error ? 'error loading' : 'no data yet this week';
+        return;
+      }
 
       const el = id => document.getElementById(id);
       const fmtMoney = n => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

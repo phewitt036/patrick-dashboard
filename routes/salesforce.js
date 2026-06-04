@@ -145,11 +145,12 @@ router.get('/weekly-report', async (req, res) => {
   try {
     const conn = await getConnection();
 
-    // Find Monday of current week
-    const today = new Date();
-    const dow = today.getDay(); // 0=Sun
+    // Find Monday of current week using Central Time (server runs UTC)
+    const todayCT = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
+    const today = new Date(todayCT + 'T12:00:00Z');
+    const dow = today.getUTCDay(); // 0=Sun
     const monday = new Date(today);
-    monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+    monday.setUTCDate(today.getUTCDate() - (dow === 0 ? 6 : dow - 1));
     const mondayStr = monday.toISOString().slice(0, 10);
 
     const [wcfRes, dailyRes, lastWeekRes] = await Promise.all([
@@ -170,7 +171,7 @@ router.get('/weekly-report', async (req, res) => {
                SUM(Active_Time_Hours__c) activeHours
         FROM Daily_Cash_Flow__c
         WHERE Date__c >= ${mondayStr}
-          AND Date__c <= ${new Date(monday.getTime() + 6 * 86400000).toISOString().slice(0, 10)}
+          AND Date__c <= ${new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + 6)).toISOString().slice(0, 10)}
         GROUP BY Date__c
         ORDER BY Date__c ASC
       `),
