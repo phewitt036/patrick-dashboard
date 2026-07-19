@@ -883,6 +883,7 @@
       <div class="mining-stat"><div class="mining-stat-val" id="pimax-avg1m">—</div><div class="mining-stat-label">1m Avg</div></div>
       <div class="mining-stat"><div class="mining-stat-val" id="pimax-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
       <div class="mining-stat"><div class="mining-stat-val" id="pimax-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="pimax-temp">—</div><div class="mining-stat-label">CPU Temp</div></div>
     </div>
     <div class="rig-alert" id="pimax-alert" style="display:none;"></div>
     <div class="mining-rig-label">pihole <span class="mining-uptime" id="pihole-uptime"></span></div>
@@ -891,6 +892,7 @@
       <div class="mining-stat"><div class="mining-stat-val" id="pihole-avg1m">—</div><div class="mining-stat-label">1m Avg</div></div>
       <div class="mining-stat"><div class="mining-stat-val" id="pihole-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
       <div class="mining-stat"><div class="mining-stat-val" id="pihole-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="pihole-temp">—</div><div class="mining-stat-label">CPU Temp</div></div>
     </div>
     <div class="rig-alert" id="pihole-alert" style="display:none;"></div>
     <div class="mining-rig-label">X8 Mini <span class="mining-uptime" id="x8-uptime"></span></div>
@@ -899,6 +901,7 @@
       <div class="mining-stat"><div class="mining-stat-val" id="x8-avg1m">—</div><div class="mining-stat-label">1m Avg</div></div>
       <div class="mining-stat"><div class="mining-stat-val" id="x8-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
       <div class="mining-stat"><div class="mining-stat-val" id="x8-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="x8-temp">—</div><div class="mining-stat-label">CPU Temp</div></div>
     </div>
     <div class="rig-alert" id="x8-alert" style="display:none;"></div>
     <div class="mining-rig-label">Unmineable · DOGE</div>
@@ -931,6 +934,21 @@
     <div class="mining-meta">
       <span id="fan-status">loading...</span>
       <button class="mining-refresh" onclick="loadFan()">↻ Refresh</button>
+    </div>
+
+    <div class="mining-rig-label" style="margin-top:20px;">pihole Ice Tower</div>
+    <div class="mining-grid">
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="pihole-ice-temp">—</div><div class="mining-stat-label">CPU Temp</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="pihole-ice-mode">—</div><div class="mining-stat-label">Mode</div></div>
+    </div>
+    <div class="fan-controls" style="margin-top:10px;">
+      <button class="fan-btn" id="ice-btn-on" onclick="setPiholeFan('on')">Force On</button>
+      <button class="fan-btn fan-btn-auto" id="ice-btn-auto" onclick="setPiholeFan('auto')">Auto</button>
+      <button class="fan-btn" id="ice-btn-off" onclick="setPiholeFan('off')">Force Off</button>
+    </div>
+    <div class="mining-meta">
+      <span id="pihole-ice-status">loading...</span>
+      <button class="mining-refresh" onclick="loadPiholeFan()">↻ Refresh</button>
     </div>
   </div>
 
@@ -1352,6 +1370,7 @@
     if (data.error) {
       ['current','avg1m','accepted','rejected'].forEach(k => document.getElementById(`${prefix}-${k}`).textContent = '—');
       document.getElementById(`${prefix}-uptime`).textContent = 'offline';
+      document.getElementById(`${prefix}-temp`).textContent = data.temp != null ? `${data.temp.toFixed(1)}°C` : '—';
       const w = data.watchdog;
       if (w && w.downSince) {
         const lastHr = w.lastHashrate != null ? ` · was ${fmtHash(w.lastHashrate)}` : '';
@@ -1367,6 +1386,7 @@
     document.getElementById(`${prefix}-accepted`).textContent = data.shares.accepted.toLocaleString();
     document.getElementById(`${prefix}-rejected`).textContent = data.shares.rejected;
     document.getElementById(`${prefix}-uptime`).textContent = `up ${fmtUp(data.uptime)}`;
+    document.getElementById(`${prefix}-temp`).textContent = data.temp != null ? `${data.temp.toFixed(1)}°C` : '—';
     alertEl.style.display = 'none';
   }
 
@@ -1462,6 +1482,39 @@
 
   loadFan();
   setInterval(loadFan, 60000);
+
+  async function loadPiholeFan() {
+    try {
+      const res = await fetch('/api/pimax/fan/pihole');
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error);
+      document.getElementById('pihole-ice-temp').textContent = d.temp != null ? `${d.temp.toFixed(1)}°C` : '—';
+      const modeEl = document.getElementById('pihole-ice-mode');
+      modeEl.textContent = d.mode === 'auto' ? 'Auto' : d.mode === 'on' ? 'On' : 'Off';
+      modeEl.style.color = d.mode === 'on' ? '#f7931a' : d.mode === 'off' ? 'var(--muted)' : '#007ac1';
+      ['on','auto','off'].forEach(m => document.getElementById(`ice-btn-${m}`).style.opacity = d.mode === m ? '1' : '0.4');
+      document.getElementById('pihole-ice-status').textContent = `updated ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+    } catch (e) {
+      document.getElementById('pihole-ice-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  async function setPiholeFan(mode) {
+    document.getElementById('pihole-ice-status').textContent = 'setting...';
+    try {
+      await fetch('/api/pimax/fan/pihole', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+      setTimeout(loadPiholeFan, 600);
+    } catch (e) {
+      document.getElementById('pihole-ice-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  loadPiholeFan();
+  setInterval(loadPiholeFan, 60000);
 
   async function logout() {
     await fetch('/auth/logout', { method: 'POST' });

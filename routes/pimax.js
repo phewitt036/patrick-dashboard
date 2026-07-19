@@ -8,39 +8,29 @@ function hubHeaders() {
   return { 'Content-Type': 'application/json', 'x-api-key': KEY() };
 }
 
-router.get('/intel', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/intel`, { headers: hubHeaders() });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
+function proxy(hubPath, method = 'GET') {
+  return async (req, res) => {
+    const path = typeof hubPath === 'function' ? hubPath(req) : hubPath;
+    try {
+      const opts = { method, headers: hubHeaders() };
+      if (method === 'POST') opts.body = JSON.stringify(req.body);
+      const r = await fetch(`${HUB()}${path}`, opts);
+      res.status(r.status).json(await r.json());
+    } catch (e) {
+      res.status(502).json({ error: 'pimax unreachable' });
+    }
+  };
+}
 
-router.get('/briefing', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/briefing`, { headers: hubHeaders() });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
+router.get('/intel', proxy('/intel'));
+router.get('/briefing', proxy('/briefing'));
 
-router.post('/run/:agent', async (req, res) => {
-  const { agent } = req.params;
-  if (!['scout', 'pam', 'pam-mining', 'pam-day', 'triage'].includes(agent)) {
+router.post('/run/:agent', (req, res, next) => {
+  if (!['scout', 'pam', 'pam-mining', 'pam-day', 'triage'].includes(req.params.agent)) {
     return res.status(400).json({ error: 'Invalid agent' });
   }
-  try {
-    const r = await fetch(`${HUB()}/run/${agent}`, { method: 'POST', headers: hubHeaders() });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
+  next();
+}, proxy(req => `/run/${req.params.agent}`, 'POST'));
 
 router.post('/chat', async (req, res) => {
   try {
@@ -69,158 +59,29 @@ router.post('/chat', async (req, res) => {
 });
 
 // Claw v2 — conversations
-router.get('/claw/conversations', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/chat/conversations`, { headers: hubHeaders() });
-    res.status(r.status).json(await r.json());
-  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
-});
-
-router.delete('/claw/conversations/:id', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/chat/conversations/${req.params.id}`, { method: 'DELETE', headers: hubHeaders() });
-    res.status(r.status).json(await r.json());
-  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
-});
-
-router.get('/claw/conversations/:id/messages', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/chat/conversations/${req.params.id}/messages`, { headers: hubHeaders() });
-    res.status(r.status).json(await r.json());
-  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
-});
+router.get('/claw/conversations', proxy('/chat/conversations'));
+router.delete('/claw/conversations/:id', proxy(req => `/chat/conversations/${req.params.id}`, 'DELETE'));
+router.get('/claw/conversations/:id/messages', proxy(req => `/chat/conversations/${req.params.id}/messages`));
 
 // Claw v2 — attachments (base64 JSON body)
-router.post('/claw/attachments/upload', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/chat/attachments/upload`, {
-      method: 'POST',
-      headers: hubHeaders(),
-      body: JSON.stringify(req.body)
-    });
-    res.status(r.status).json(await r.json());
-  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
-});
+router.post('/claw/attachments/upload', proxy('/chat/attachments/upload', 'POST'));
 
 // Claw v2 — knowledge files
-router.get('/claw/knowledge', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/chat/knowledge`, { headers: hubHeaders() });
-    res.status(r.status).json(await r.json());
-  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
-});
+router.get('/claw/knowledge', proxy('/chat/knowledge'));
+router.post('/claw/knowledge', proxy('/chat/knowledge', 'POST'));
+router.delete('/claw/knowledge/:name', proxy(req => `/chat/knowledge/${encodeURIComponent(req.params.name)}`, 'DELETE'));
 
-router.post('/claw/knowledge', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/chat/knowledge`, {
-      method: 'POST',
-      headers: hubHeaders(),
-      body: JSON.stringify(req.body)
-    });
-    res.status(r.status).json(await r.json());
-  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
-});
+router.post('/note', proxy('/note', 'POST'));
+router.post('/triage/apply', proxy('/triage/apply', 'POST'));
 
-router.delete('/claw/knowledge/:name', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/chat/knowledge/${encodeURIComponent(req.params.name)}`, { method: 'DELETE', headers: hubHeaders() });
-    res.status(r.status).json(await r.json());
-  } catch (e) { res.status(502).json({ error: 'pimax unreachable' }); }
-});
+router.get('/pam-mining', proxy('/pam-mining'));
+router.get('/pam-day', proxy('/pam-day'));
+router.get('/mining', proxy('/mining'));
 
-router.post('/note', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/note`, {
-      method: 'POST',
-      headers: hubHeaders(),
-      body: JSON.stringify(req.body)
-    });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
-
-router.post('/triage/apply', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/triage/apply`, {
-      method: 'POST',
-      headers: hubHeaders(),
-      body: JSON.stringify(req.body)
-    });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
-
-router.get('/pam-mining', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/pam-mining`, { headers: hubHeaders() });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
-
-router.get('/pam-day', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/pam-day`, { headers: hubHeaders() });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
-
-router.get('/mining', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/mining`, { headers: hubHeaders() });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
-
-router.get('/fan', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/fan/status`, { headers: hubHeaders() });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
-
-router.post('/fan/override', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/fan/override`, {
-      method: 'POST',
-      headers: hubHeaders(),
-      body: JSON.stringify(req.body)
-    });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
-
-router.delete('/fan/override', async (req, res) => {
-  try {
-    const r = await fetch(`${HUB()}/fan/override`, {
-      method: 'DELETE',
-      headers: hubHeaders()
-    });
-    const data = await r.json();
-    res.status(r.status).json(data);
-  } catch (e) {
-    res.status(502).json({ error: 'pimax unreachable' });
-  }
-});
+router.get('/fan', proxy('/fan/status'));
+router.post('/fan/override', proxy('/fan/override', 'POST'));
+router.delete('/fan/override', proxy('/fan/override', 'DELETE'));
+router.get('/fan/pihole', proxy('/fan/pihole'));
+router.post('/fan/pihole', proxy('/fan/pihole', 'POST'));
 
 module.exports = router;
