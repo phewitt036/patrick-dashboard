@@ -3,10 +3,35 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const app = express();
+
+app.set('trust proxy', 1);
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'"]
+    }
+  }
+}));
 
 app.use(express.json());
 app.use(cookieParser());
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 function requireAuth(req, res, next) {
   const token = req.cookies?.session;
@@ -25,7 +50,7 @@ function requireAuth(req, res, next) {
 }
 
 // Public auth routes
-app.use('/auth', require('./routes/auth'));
+app.use('/auth', authLimiter, require('./routes/auth'));
 
 // Protected dashboard
 app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
