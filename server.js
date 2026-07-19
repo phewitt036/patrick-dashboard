@@ -40,7 +40,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Protected API routes
 app.use('/api/income', requireAuth, require('./routes/salesforce'));
-app.use('/api/agent', require('./routes/agents'));
 app.use('/api/pimax', requireAuth, require('./routes/pimax'));
 
 const PORT = process.env.PORT || 3000;
