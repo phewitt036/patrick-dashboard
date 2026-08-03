@@ -27,7 +27,7 @@
   html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; }
 
   /* ── Layout ── */
-  .layout { display: flex; height: 100vh; }
+  .layout { display: flex; height: 100vh; height: 100dvh; }
 
   /* ── Sidebar ── */
   .sidebar {
@@ -191,6 +191,7 @@
 
   /* ── Input ── */
   .input-area {
+    flex-shrink: 0;
     padding: 12px 16px 16px;
     border-top: 1px solid var(--border);
     background: var(--surface);
@@ -425,6 +426,7 @@ function renderSidebar() {
 
 async function loadConversation(id) {
   currentConvId = id;
+  closeSidebar();
   const conv = conversations.find(c => c.id === id);
   if (conv) {
     document.getElementById('convTitle').textContent = conv.title;
