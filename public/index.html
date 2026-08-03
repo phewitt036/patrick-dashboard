@@ -412,6 +412,27 @@
   .rig-alert { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 8px 12px; font-size: 11px; color: #ef4444; margin-bottom: 14px; letter-spacing: 0.3px; }
   .mining-uptime { color: var(--dim); font-size: 10px; letter-spacing: 0; text-transform: none; }
 
+  /* Nodes */
+  .node-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .node-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .node-name { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; letter-spacing: 1px; color: var(--text); }
+  .node-desc { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+  .node-badge { margin-left: auto; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; border: 1px solid transparent; }
+  .node-badge.up { color: var(--accent3); border-color: rgba(0,212,170,0.35); background: rgba(0,212,170,0.08); }
+  .node-badge.down { color: #ef4444; border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.08); }
+  .gauge-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  @media (max-width: 600px) { .gauge-row { grid-template-columns: repeat(2, 1fr); } }
+  .gauge { text-align: center; }
+  .gauge-svg { width: 100%; max-width: 104px; display: block; margin: 0 auto; }
+  .gauge-track { fill: none; stroke: var(--surface2); stroke-width: 9; stroke-linecap: round; }
+  .gauge-fill { fill: none; stroke: var(--accent3); stroke-width: 9; stroke-linecap: round; transition: stroke-dasharray .6s ease, stroke .6s ease; }
+  .gauge-val { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800; color: var(--text); margin-top: -9px; line-height: 1; }
+  .gauge-sub { font-size: 9px; color: var(--dim); margin-top: 3px; }
+  .gauge-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-top: 5px; }
+  .node-mining { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .node-mining .mine-hash { color: #f7931a; font-weight: 600; }
+  .node-mining .mine-idle { color: var(--dim); }
+
   /* Fan widget */
   .fan-mode-display { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
   .fan-mode-name { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; line-height: 1; }
@@ -871,39 +892,13 @@
     </div>
   </div>
 
-  <!-- Mining -->
-  <div class="section-label collapsible" onclick="toggleSection('mining')">
-    Mining
-    <span class="section-toggle" id="toggle-mining">▸</span>
+  <!-- Nodes -->
+  <div class="section-label collapsible" onclick="toggleSection('nodes')">
+    Nodes
+    <span class="section-toggle" id="toggle-nodes">▾</span>
   </div>
-  <div id="section-mining" style="display:none;">
-    <div class="mining-rig-label">pimax <span class="mining-uptime" id="pimax-uptime"></span></div>
-    <div class="mining-grid">
-      <div class="mining-stat"><div class="mining-stat-val" id="pimax-current">—</div><div class="mining-stat-label">H/s Now</div></div>
-      <div class="mining-stat"><div class="mining-stat-val" id="pimax-avg1m">—</div><div class="mining-stat-label">1m Avg</div></div>
-      <div class="mining-stat"><div class="mining-stat-val" id="pimax-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
-      <div class="mining-stat"><div class="mining-stat-val" id="pimax-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
-      <div class="mining-stat"><div class="mining-stat-val fan-val" id="pimax-temp">—</div><div class="mining-stat-label">CPU Temp</div></div>
-    </div>
-    <div class="rig-alert" id="pimax-alert" style="display:none;"></div>
-    <div class="mining-rig-label">pihole <span class="mining-uptime" id="pihole-uptime"></span></div>
-    <div class="mining-grid">
-      <div class="mining-stat"><div class="mining-stat-val" id="pihole-current">—</div><div class="mining-stat-label">H/s Now</div></div>
-      <div class="mining-stat"><div class="mining-stat-val" id="pihole-avg1m">—</div><div class="mining-stat-label">1m Avg</div></div>
-      <div class="mining-stat"><div class="mining-stat-val" id="pihole-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
-      <div class="mining-stat"><div class="mining-stat-val" id="pihole-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
-      <div class="mining-stat"><div class="mining-stat-val fan-val" id="pihole-temp">—</div><div class="mining-stat-label">CPU Temp</div></div>
-    </div>
-    <div class="rig-alert" id="pihole-alert" style="display:none;"></div>
-    <div class="mining-rig-label">X8 Mini <span class="mining-uptime" id="x8-uptime"></span></div>
-    <div class="mining-grid">
-      <div class="mining-stat"><div class="mining-stat-val" id="x8-current">—</div><div class="mining-stat-label">H/s Now</div></div>
-      <div class="mining-stat"><div class="mining-stat-val" id="x8-avg1m">—</div><div class="mining-stat-label">1m Avg</div></div>
-      <div class="mining-stat"><div class="mining-stat-val" id="x8-accepted">—</div><div class="mining-stat-label">Accepted</div></div>
-      <div class="mining-stat"><div class="mining-stat-val" id="x8-rejected">—</div><div class="mining-stat-label">Rejected</div></div>
-      <div class="mining-stat"><div class="mining-stat-val fan-val" id="x8-temp">—</div><div class="mining-stat-label">CPU Temp</div></div>
-    </div>
-    <div class="rig-alert" id="x8-alert" style="display:none;"></div>
+  <div id="section-nodes">
+    <div id="node-cards"></div>
     <div class="mining-rig-label">Unmineable · DOGE</div>
     <div class="mining-grid">
       <div class="mining-stat"><div class="mining-stat-val" id="unmineable-balance" style="color:#c8a400;">—</div><div class="mining-stat-label">Balance</div></div>
@@ -911,7 +906,7 @@
     </div>
     <div class="mining-meta">
       <span id="mine-status">loading...</span>
-      <button class="mining-refresh" onclick="loadMining()">↻ Refresh</button>
+      <button class="mining-refresh" onclick="loadNodes()">↻ Refresh</button>
     </div>
 
     <div class="mining-rig-label" style="margin-top:20px;">pimax Fan</div>
@@ -1077,7 +1072,7 @@
   }
 
   function initCollapsibles() {
-    const defaults = { agents: true, notes: true, mining: false, overview: false, projects: false };
+    const defaults = { agents: true, notes: true, nodes: true, overview: false, projects: false };
     for (const [id, def] of Object.entries(defaults)) {
       const saved = localStorage.getItem('section_' + id);
       const open = saved !== null ? saved === '1' : def;
@@ -1365,58 +1360,135 @@
     return `${h}h ${m > 0 ? `${m}m ` : ''}ago`.trim();
   }
 
-  function applyMinerStats(prefix, data) {
-    const alertEl = document.getElementById(`${prefix}-alert`);
-    if (data.error) {
-      ['current','avg1m','accepted','rejected'].forEach(k => document.getElementById(`${prefix}-${k}`).textContent = '—');
-      document.getElementById(`${prefix}-uptime`).textContent = 'offline';
-      document.getElementById(`${prefix}-temp`).textContent = data.temp != null ? `${data.temp.toFixed(1)}°C` : '—';
-      const w = data.watchdog;
+  const NODE_META = {
+    pimax:  { desc: 'Raspberry Pi 5 · Pironman', tempMax: 85 },
+    pihole: { desc: 'Raspberry Pi 4 · ICE Tower', tempMax: 85 },
+    x8:     { desc: 'Mini PC · Ubuntu', tempMax: 95 }
+  };
+
+  // Semicircle of radius 42 centred at (50,56); the fill is the same path revealed
+  // by stroke-dasharray, which is why every gauge shares one arc length.
+  const ARC_D = 'M8 56 A 42 42 0 0 1 92 56';
+  const ARC_LEN = Math.PI * 42;
+
+  function gaugeColor(pct) {
+    if (pct >= 85) return '#ef4444';
+    if (pct >= 60) return 'var(--accent4)';
+    return 'var(--accent3)';
+  }
+
+  function gaugeHtml(id, label) {
+    return `<div class="gauge">
+      <svg class="gauge-svg" viewBox="0 0 100 62">
+        <path class="gauge-track" d="${ARC_D}"></path>
+        <path class="gauge-fill" id="${id}-arc" d="${ARC_D}" stroke-dasharray="0 ${ARC_LEN}"></path>
+      </svg>
+      <div class="gauge-val" id="${id}-val">—</div>
+      <div class="gauge-sub" id="${id}-sub"></div>
+      <div class="gauge-label">${label}</div>
+    </div>`;
+  }
+
+  function setGauge(id, pct, text, sub) {
+    const arc = document.getElementById(`${id}-arc`);
+    const p = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+    arc.setAttribute('stroke-dasharray', `${(p / 100) * ARC_LEN} ${ARC_LEN}`);
+    arc.style.stroke = gaugeColor(p);
+    document.getElementById(`${id}-val`).textContent = text;
+    document.getElementById(`${id}-sub`).textContent = sub || '';
+  }
+
+  function fmtGB(bytes) {
+    const gb = bytes / 1e9;
+    return gb >= 100 ? `${Math.round(gb)}G` : `${gb.toFixed(1)}G`;
+  }
+
+  document.getElementById('node-cards').innerHTML = Object.keys(NODE_META).map(key => `
+    <div class="node-card">
+      <div class="node-head">
+        <span class="node-name">${key}</span>
+        <span class="node-desc">${NODE_META[key].desc}</span>
+        <span class="node-badge" id="${key}-badge">—</span>
+      </div>
+      <div class="gauge-row">
+        ${gaugeHtml(`${key}-cpu`, 'CPU')}
+        ${gaugeHtml(`${key}-ram`, 'RAM')}
+        ${gaugeHtml(`${key}-disk`, 'Disk')}
+        ${gaugeHtml(`${key}-temp`, 'Temp')}
+      </div>
+      <div class="node-mining"><span id="${key}-mine">—</span><span id="${key}-up"></span></div>
+      <div class="rig-alert" id="${key}-alert" style="display:none;"></div>
+    </div>`).join('');
+
+  function applyNode(key, node, miner) {
+    const badge = document.getElementById(`${key}-badge`);
+    const alertEl = document.getElementById(`${key}-alert`);
+    const w = node && node.watchdog;
+
+    if (!node || !node.online) {
+      badge.textContent = 'offline';
+      badge.className = 'node-badge down';
+      ['cpu','ram','disk','temp'].forEach(g => setGauge(`${key}-${g}`, 0, '—', ''));
+      document.getElementById(`${key}-mine`).innerHTML = '<span class="mine-idle">no data</span>';
+      document.getElementById(`${key}-up`).textContent = '';
       if (w && w.downSince) {
-        const lastHr = w.lastHashrate != null ? ` · was ${fmtHash(w.lastHashrate)}` : '';
-        alertEl.textContent = `⚠ ${fmtDownTime(w.downSince)} · last seen ${fmtAgo(w.lastSeen)}${lastHr}`;
+        alertEl.textContent = `⚠ ${fmtDownTime(w.downSince)} · last seen ${fmtAgo(w.lastSeen)}`;
         alertEl.style.display = '';
-      } else {
-        alertEl.style.display = 'none';
       }
       return;
     }
-    document.getElementById(`${prefix}-current`).textContent = fmtHash(data.hashrate.current);
-    document.getElementById(`${prefix}-avg1m`).textContent = fmtHash(data.hashrate.avg1m);
-    document.getElementById(`${prefix}-accepted`).textContent = data.shares.accepted.toLocaleString();
-    document.getElementById(`${prefix}-rejected`).textContent = data.shares.rejected;
-    document.getElementById(`${prefix}-uptime`).textContent = `up ${fmtUp(data.uptime)}`;
-    document.getElementById(`${prefix}-temp`).textContent = data.temp != null ? `${data.temp.toFixed(1)}°C` : '—';
+
+    badge.textContent = 'online';
+    badge.className = 'node-badge up';
     alertEl.style.display = 'none';
+
+    const memUsed = node.memTotal - node.memAvail;
+    const tempMax = NODE_META[key].tempMax;
+
+    setGauge(`${key}-cpu`, node.cpu, `${Math.round(node.cpu)}%`, `${node.cores} cores`);
+    setGauge(`${key}-ram`, (memUsed / node.memTotal) * 100, `${Math.round((memUsed / node.memTotal) * 100)}%`, `${fmtGB(node.memAvail)} free`);
+    setGauge(`${key}-disk`, (node.diskUsed / node.diskTotal) * 100, `${Math.round((node.diskUsed / node.diskTotal) * 100)}%`, `${fmtGB(node.diskTotal - node.diskUsed)} free`);
+    setGauge(`${key}-temp`, node.temp == null ? 0 : (node.temp / tempMax) * 100, node.temp == null ? '—' : `${node.temp.toFixed(1)}°`, `of ${tempMax}°C`);
+
+    document.getElementById(`${key}-up`).textContent = `up ${fmtUp(node.uptime)}`;
+    const mineEl = document.getElementById(`${key}-mine`);
+    if (miner && miner.hashrate) {
+      const shares = miner.shares ? ` · ${miner.shares.accepted.toLocaleString()} accepted` : '';
+      mineEl.innerHTML = `⛏ <span class="mine-hash">${fmtHash(miner.hashrate.current)}</span>${shares}`;
+    } else {
+      mineEl.innerHTML = '<span class="mine-idle">not mining</span>';
+    }
   }
 
-  async function loadMining() {
+  async function loadNodes() {
     document.getElementById('mine-status').textContent = 'loading...';
     try {
-      const res = await fetch('/api/pimax/mining');
-      const d = await res.json();
-      if (d.error) {
-        applyMinerStats('pimax', { error: d.error });
-        applyMinerStats('pihole', { error: d.error });
-        applyMinerStats('x8', { error: d.error });
-        document.getElementById('mine-status').textContent = `pimax offline · ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
-        return;
+      const [nodesRes, miningRes] = await Promise.all([
+        fetch('/api/pimax/nodes'),
+        fetch('/api/pimax/mining')
+      ]);
+      const nodes = await nodesRes.json();
+      const mining = await miningRes.json();
+
+      let total = 0;
+      for (const key of Object.keys(NODE_META)) {
+        const miner = mining && !mining.error && mining[key] && mining[key].hashrate ? mining[key] : null;
+        applyNode(key, nodes[key], miner);
+        if (miner) total += miner.hashrate.current ?? 0;
       }
-      applyMinerStats('pimax', d.pimax);
-      applyMinerStats('pihole', d.pihole);
-      applyMinerStats('x8', d.x8);
-      if (d.unmineable) {
-        document.getElementById('unmineable-balance').textContent = parseFloat(d.unmineable.balance).toFixed(4) + ' DOGE';
-        document.getElementById('unmineable-threshold').textContent = d.unmineable.threshold + ' DOGE';
+
+      if (mining && mining.unmineable) {
+        document.getElementById('unmineable-balance').textContent = parseFloat(mining.unmineable.balance).toFixed(4) + ' DOGE';
+        document.getElementById('unmineable-threshold').textContent = mining.unmineable.threshold + ' DOGE';
       }
-      const total = (d.pimax.hashrate?.current ?? 0) + (d.pihole.hashrate?.current ?? 0) + (d.x8?.hashrate?.current ?? 0);
-      document.getElementById('mine-status').textContent = `${fmtHash(total)} combined · rx/0 · ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+      const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      document.getElementById('mine-status').textContent = `${fmtHash(total)} combined · ${time}`;
     } catch (e) {
       document.getElementById('mine-status').textContent = `error: ${e.message}`;
     }
   }
-  loadMining();
-  setInterval(loadMining, 60000);
+  loadNodes();
+  setInterval(loadNodes, 60000);
 
   const FAN_MODE_COLORS = { 0: '#f97316', 1: '#ef4444', 2: '#3b82f6', 3: '#22c55e', 4: '#8b5cf6' };
 

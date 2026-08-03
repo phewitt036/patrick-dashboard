@@ -77,6 +77,7 @@ router.post('/triage/apply', proxy('/triage/apply', 'POST'));
 router.get('/pam-mining', proxy('/pam-mining'));
 router.get('/pam-day', proxy('/pam-day'));
 router.get('/mining', proxy('/mining'));
+router.get('/nodes', proxy('/nodes'));
 
 router.get('/fan', proxy('/fan/status'));
 router.post('/fan/override', proxy('/fan/override', 'POST'));
