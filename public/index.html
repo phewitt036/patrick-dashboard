@@ -1360,10 +1360,13 @@
     return `${h}h ${m > 0 ? `${m}m ` : ''}ago`.trim();
   }
 
+  // tempWarn/tempCrit are per-node rather than a fraction of tempMax: x8 idles in the low
+  // 80s on a warm afternoon, which as a share of its 95C ceiling would pin the gauge red
+  // every day and drown out the reading that actually matters.
   const NODE_META = {
-    pimax:  { desc: 'Raspberry Pi 5 · Pironman', tempMax: 85 },
-    pihole: { desc: 'Raspberry Pi 4 · ICE Tower', tempMax: 85 },
-    x8:     { desc: 'Mini PC · Ubuntu', tempMax: 95 }
+    pimax:  { desc: 'Raspberry Pi 5 · Pironman', tempMax: 85, tempWarn: 70, tempCrit: 80 },
+    pihole: { desc: 'Raspberry Pi 4 · ICE Tower', tempMax: 85, tempWarn: 70, tempCrit: 80 },
+    x8:     { desc: 'Mini PC · Ubuntu', tempMax: 95, tempWarn: 88, tempCrit: 93 }
   };
 
   // Semicircle of radius 42 centred at (50,56); the fill is the same path revealed
@@ -1389,11 +1392,18 @@
     </div>`;
   }
 
-  function setGauge(id, pct, text, sub) {
+  function tempColor(t, meta) {
+    if (t == null) return 'var(--accent3)';
+    if (t >= meta.tempCrit) return '#ef4444';
+    if (t >= meta.tempWarn) return 'var(--accent4)';
+    return 'var(--accent3)';
+  }
+
+  function setGauge(id, pct, text, sub, color) {
     const arc = document.getElementById(`${id}-arc`);
     const p = pct == null ? 0 : Math.max(0, Math.min(100, pct));
     arc.setAttribute('stroke-dasharray', `${(p / 100) * ARC_LEN} ${ARC_LEN}`);
-    arc.style.stroke = gaugeColor(p);
+    arc.style.stroke = color || gaugeColor(p);
     document.getElementById(`${id}-val`).textContent = text;
     document.getElementById(`${id}-sub`).textContent = sub || '';
   }
@@ -1443,12 +1453,13 @@
     alertEl.style.display = 'none';
 
     const memUsed = node.memTotal - node.memAvail;
-    const tempMax = NODE_META[key].tempMax;
+    const meta = NODE_META[key];
+    const tempMax = meta.tempMax;
 
     setGauge(`${key}-cpu`, node.cpu, `${Math.round(node.cpu)}%`, `${node.cores} cores`);
     setGauge(`${key}-ram`, (memUsed / node.memTotal) * 100, `${Math.round((memUsed / node.memTotal) * 100)}%`, `${fmtGB(node.memAvail)} free`);
     setGauge(`${key}-disk`, (node.diskUsed / node.diskTotal) * 100, `${Math.round((node.diskUsed / node.diskTotal) * 100)}%`, `${fmtGB(node.diskTotal - node.diskUsed)} free`);
-    setGauge(`${key}-temp`, node.temp == null ? 0 : (node.temp / tempMax) * 100, node.temp == null ? '—' : `${node.temp.toFixed(1)}°`, `of ${tempMax}°C`);
+    setGauge(`${key}-temp`, node.temp == null ? 0 : (node.temp / tempMax) * 100, node.temp == null ? '—' : `${node.temp.toFixed(1)}°`, `of ${tempMax}°C`, tempColor(node.temp, meta));
 
     document.getElementById(`${key}-up`).textContent = `up ${fmtUp(node.uptime)}`;
     const mineEl = document.getElementById(`${key}-mine`);
