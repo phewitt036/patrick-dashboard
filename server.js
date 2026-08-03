@@ -23,8 +23,14 @@ app.use(helmet({
   }
 }));
 
-app.use(express.json());
 app.use(cookieParser());
+
+// Screenshot uploads are base64 in the JSON body, so this route needs a much larger
+// limit than the rest of the app. Mounted ahead of the global parser so raising it
+// here does not raise it everywhere.
+app.use('/api/pixit', requireAuth, express.json({ limit: '15mb' }), require('./routes/pixit'));
+
+app.use(express.json());
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

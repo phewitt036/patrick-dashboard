@@ -968,8 +968,9 @@
 </div>
 <script>
   // ── Pixit Widget ──
-  const PIXIT_KEY = "4f527de50f8cf6a0a5d4ff602fcec416123b26de7b37f78663be3050722f0ce1";
-  const PIXIT_BASE = "https://usepixit.com";
+  // Same-origin: the server attaches the Pixit API key. It must never appear in this
+  // file, which ships to the browser and lives in a public repo.
+  const PIXIT_BASE = "/api/pixit";
 
   let pixitImageBase64 = null;
   let pixitMediaType = null;
@@ -979,9 +980,7 @@
 
   async function pixitLoadTrackers() {
     try {
-      const res = await fetch(`${PIXIT_BASE}/api/patrick/trackers`, {
-        headers: { "x-patrick-key": PIXIT_KEY }
-      });
+      const res = await fetch(`${PIXIT_BASE}/trackers`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       pixitTrackers = data.trackers;
@@ -1074,9 +1073,9 @@
     pixitSetStatus('Sending to Claude...');
     document.getElementById('pixit-results').style.display = 'none';
     try {
-      const res = await fetch(`${PIXIT_BASE}/api/patrick/extract-and-push`, {
+      const res = await fetch(`${PIXIT_BASE}/extract-and-push`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-patrick-key': PIXIT_KEY },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: pixitImageBase64, mediaType: pixitMediaType, tracker_id: parseInt(trackerId), idempotency_key: pixitIdempotencyKey, overrides: pixitBuildOverrides() })
       });
       const data = await res.json();
@@ -1104,9 +1103,9 @@
     label.textContent = '◌ Pushing...';
     pixitSetStatus('Pushing...');
     try {
-      const res = await fetch(`${PIXIT_BASE}/api/patrick/extract-and-push`, {
+      const res = await fetch(`${PIXIT_BASE}/extract-and-push`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-patrick-key': PIXIT_KEY },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: pixitImageBase64, mediaType: pixitMediaType, tracker_id: parseInt(trackerId), idempotency_key: pixitIdempotencyKey, overrides: pixitBuildOverrides() })
       });
       const data = await res.json();
