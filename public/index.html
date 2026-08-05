@@ -924,6 +924,7 @@
       <button class="fan-btn" id="fan-btn-quiet" onclick="setFanOverride(4, 60)">Quiet 1h</button>
       <button class="fan-btn" id="fan-btn-balanced" onclick="setFanOverride(3, 60)">Balanced 1h</button>
       <button class="fan-btn" id="fan-btn-cool" onclick="setFanOverride(2, 60)">Cool 1h</button>
+      <button class="fan-btn" id="fan-btn-performance" onclick="setFanOverride(1, 60)">Performance 1h</button>
       <button class="fan-btn fan-btn-auto" id="fan-btn-auto" onclick="clearFanOverride()">Auto</button>
     </div>
     <div class="mining-meta">
@@ -1526,9 +1527,9 @@
       const ts = d.lastRun ? new Date(d.lastRun).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
       const overrideLabel = d.override ? ' · override active' : '';
       document.getElementById('fan-status').textContent = `updated ${ts}${overrideLabel}`;
-      ['quiet','balanced','cool','auto'].forEach(k => document.getElementById(`fan-btn-${k}`)?.classList.remove('fan-btn-active'));
+      ['quiet','balanced','cool','performance','auto'].forEach(k => document.getElementById(`fan-btn-${k}`)?.classList.remove('fan-btn-active'));
       if (d.override) {
-        const modeMap = { 4: 'quiet', 3: 'balanced', 2: 'cool' };
+        const modeMap = { 4: 'quiet', 3: 'balanced', 2: 'cool', 1: 'performance' };
         const activeBtn = modeMap[d.mode];
         if (activeBtn) document.getElementById(`fan-btn-${activeBtn}`)?.classList.add('fan-btn-active');
       } else {
