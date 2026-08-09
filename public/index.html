@@ -1361,13 +1361,15 @@
     return `${h}h ${m > 0 ? `${m}m ` : ''}ago`.trim();
   }
 
-  // tempWarn/tempCrit are per-node rather than a fraction of tempMax: x8 idles in the low
-  // 80s on a warm afternoon, which as a share of its 95C ceiling would pin the gauge red
-  // every day and drown out the reading that actually matters.
+  // tempWarn/tempCrit are per-node rather than a fraction of tempMax, because the nodes do not
+  // share a temperature scale. x8's figure is now the SoC voltage-regulator sensor read via the
+  // AMD driver, not Tctl: Memory Integrity blocks the kernel driver Tctl needs. It reads cooler
+  // than Tctl did, and mining no longer heats the box, so its old 88/93 thresholds would never
+  // trip. Measured on the new sensor: 42C idle, 70C at sustained 100% CPU.
   const NODE_META = {
     pimax:  { desc: 'Raspberry Pi 5 · Pironman', tempMax: 85, tempWarn: 70, tempCrit: 80 },
     pihole: { desc: 'Raspberry Pi 4 · ICE Tower', tempMax: 85, tempWarn: 70, tempCrit: 80 },
-    x8:     { desc: 'Mini PC · Ubuntu', tempMax: 95, tempWarn: 88, tempCrit: 93 }
+    x8:     { desc: 'Mini PC · Windows 11', tempMax: 90, tempWarn: 78, tempCrit: 85 }
   };
 
   // Semicircle of radius 42 centred at (50,56); the fill is the same path revealed
