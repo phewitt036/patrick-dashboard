@@ -26,7 +26,7 @@ router.get('/intel', proxy('/intel'));
 router.get('/briefing', proxy('/briefing'));
 
 router.post('/run/:agent', (req, res, next) => {
-  if (!['scout', 'pam', 'pam-mining', 'pam-day', 'triage'].includes(req.params.agent)) {
+  if (!['scout', 'pam', 'pam-day', 'triage'].includes(req.params.agent)) {
     return res.status(400).json({ error: 'Invalid agent' });
   }
   next();
@@ -74,7 +74,6 @@ router.delete('/claw/knowledge/:name', proxy(req => `/chat/knowledge/${encodeURI
 router.post('/note', proxy('/note', 'POST'));
 router.post('/triage/apply', proxy('/triage/apply', 'POST'));
 
-router.get('/pam-mining', proxy('/pam-mining'));
 router.get('/pam-day', proxy('/pam-day'));
 router.get('/mining', proxy('/mining'));
 router.get('/nodes', proxy('/nodes'));
