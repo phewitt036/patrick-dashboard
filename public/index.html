@@ -430,8 +430,6 @@
   .gauge-sub { font-size: 9px; color: var(--dim); margin-top: 3px; }
   .gauge-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-top: 5px; }
   .node-mining { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .node-mining .mine-hash { color: #f7931a; font-weight: 600; }
-  .node-mining .mine-idle { color: var(--dim); }
 
   /* Fan widget */
   .fan-mode-display { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
@@ -887,11 +885,6 @@
   </div>
   <div id="section-nodes">
     <div id="node-cards"></div>
-    <div class="mining-rig-label">Unmineable · DOGE</div>
-    <div class="mining-grid">
-      <div class="mining-stat"><div class="mining-stat-val" id="unmineable-balance" style="color:#c8a400;">—</div><div class="mining-stat-label">Balance</div></div>
-      <div class="mining-stat"><div class="mining-stat-val" id="unmineable-threshold" style="color:var(--muted);">—</div><div class="mining-stat-label">Payout At</div></div>
-    </div>
     <div class="mining-meta">
       <span id="mine-status">loading...</span>
       <button class="mining-refresh" onclick="loadNodes()">↻ Refresh</button>
@@ -1329,7 +1322,6 @@
   loadOutput('pam-day');
 
   // ── Mining ──
-  function fmtHash(v) { return v >= 1000 ? (v/1000).toFixed(2)+' kH/s' : v.toFixed(1)+' H/s'; }
   function fmtUp(s) { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; }
 
   function fmtDownTime(downSince) {
@@ -1415,11 +1407,11 @@
         ${gaugeHtml(`${key}-disk`, 'Disk')}
         ${gaugeHtml(`${key}-temp`, 'Temp')}
       </div>
-      <div class="node-mining"><span id="${key}-mine">—</span><span id="${key}-up"></span></div>
+      <div class="node-mining"><span id="${key}-up"></span></div>
       <div class="rig-alert" id="${key}-alert" style="display:none;"></div>
     </div>`).join('');
 
-  function applyNode(key, node, miner) {
+  function applyNode(key, node) {
     const badge = document.getElementById(`${key}-badge`);
     const alertEl = document.getElementById(`${key}-alert`);
     const w = node && node.watchdog;
@@ -1428,7 +1420,6 @@
       badge.textContent = 'offline';
       badge.className = 'node-badge down';
       ['cpu','ram','disk','temp'].forEach(g => setGauge(`${key}-${g}`, 0, '—', ''));
-      document.getElementById(`${key}-mine`).innerHTML = '<span class="mine-idle">no data</span>';
       document.getElementById(`${key}-up`).textContent = '';
       if (w && w.downSince) {
         alertEl.textContent = `⚠ ${fmtDownTime(w.downSince)} · last seen ${fmtAgo(w.lastSeen)}`;
@@ -1451,38 +1442,22 @@
     setGauge(`${key}-temp`, node.temp == null ? 0 : (node.temp / tempMax) * 100, node.temp == null ? '—' : `${node.temp.toFixed(1)}°`, `of ${tempMax}°C`, tempColor(node.temp, meta));
 
     document.getElementById(`${key}-up`).textContent = `up ${fmtUp(node.uptime)}`;
-    const mineEl = document.getElementById(`${key}-mine`);
-    if (miner && miner.hashrate) {
-      const shares = miner.shares ? ` · ${miner.shares.accepted.toLocaleString()} accepted` : '';
-      mineEl.innerHTML = `⛏ <span class="mine-hash">${fmtHash(miner.hashrate.current)}</span>${shares}`;
-    } else {
-      mineEl.innerHTML = '<span class="mine-idle">not mining</span>';
-    }
   }
 
   async function loadNodes() {
     document.getElementById('mine-status').textContent = 'loading...';
     try {
-      const [nodesRes, miningRes] = await Promise.all([
-        fetch('/api/pimax/nodes'),
-        fetch('/api/pimax/mining')
-      ]);
-      const nodes = await nodesRes.json();
-      const mining = await miningRes.json();
+      const nodes = await (await fetch('/api/pimax/nodes')).json();
 
-      let total = 0;
+      let up = 0;
       for (const key of Object.keys(NODE_META)) {
-        const miner = mining && !mining.error && mining[key] && mining[key].hashrate ? mining[key] : null;
-        applyNode(key, nodes[key], miner);
-        if (miner) total += miner.hashrate.current ?? 0;
+        applyNode(key, nodes[key]);
+        if (nodes[key] && nodes[key].online) up++;
       }
 
-      if (mining && mining.unmineable) {
-        document.getElementById('unmineable-balance').textContent = parseFloat(mining.unmineable.balance).toFixed(4) + ' DOGE';
-        document.getElementById('unmineable-threshold').textContent = mining.unmineable.threshold + ' DOGE';
-      }
+      const total = Object.keys(NODE_META).length;
       const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-      document.getElementById('mine-status').textContent = `${fmtHash(total)} combined · ${time}`;
+      document.getElementById('mine-status').textContent = `${up}/${total} nodes online · ${time}`;
     } catch (e) {
       document.getElementById('mine-status').textContent = `error: ${e.message}`;
     }

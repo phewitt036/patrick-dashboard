@@ -75,7 +75,6 @@ router.post('/note', proxy('/note', 'POST'));
 router.post('/triage/apply', proxy('/triage/apply', 'POST'));
 
 router.get('/pam-day', proxy('/pam-day'));
-router.get('/mining', proxy('/mining'));
 router.get('/nodes', proxy('/nodes'));
 
 router.get('/fan', proxy('/fan/status'));
