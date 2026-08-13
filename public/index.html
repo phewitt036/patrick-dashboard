@@ -1347,6 +1347,11 @@
   const NODE_META = {
     pimax:  { desc: 'Raspberry Pi 5 · Pironman', tempMax: 85, tempWarn: 70, tempCrit: 80 },
     pihole: { desc: 'Raspberry Pi 4 · ICE Tower', tempMax: 85, tempWarn: 70, tempCrit: 80 },
+    // bee's figure is x86_pkg_temp, the real Intel package sensor (zone 0 on that box is an
+    // ACPI stub stuck near 28C). The N100 throttles at 105C, so its scale runs higher than
+    // the Pis'. Measured 35C idle. Its Disk gauge is the Proxmox root LV, not the thin pool
+    // the VMs live in — pool usage is watched by backup-watch.sh on bee instead.
+    bee:    { desc: 'Mini PC · Proxmox VE', tempMax: 100, tempWarn: 80, tempCrit: 90 },
     x8:     { desc: 'Mini PC · Windows 11', tempMax: 90, tempWarn: 78, tempCrit: 85 }
   };
 
