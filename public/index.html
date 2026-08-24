@@ -932,8 +932,9 @@
     <div class="mining-grid">
       <div class="mining-stat"><div class="mining-stat-val" id="mining-switch">—</div><div class="mining-stat-label">Switch</div></div>
       <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-total">—</div><div class="mining-stat-label">Total H/s</div></div>
-      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-doge">—</div><div class="mining-stat-label">DOGE mined, all time</div></div>
-      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-pending">—</div><div class="mining-stat-label">Pending, next payout</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-doge">—</div><div class="mining-stat-label" id="mining-doge-label">DOGE mined, all time</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-pending">—</div><div class="mining-stat-label" id="mining-pending-label">Pending, next payout</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-price">—</div><div class="mining-stat-label" id="mining-price-label">DOGE price</div></div>
     </div>
     <!-- One tile per node, built from what agent-hub reports, so a new rig needs no
          change here. -->
@@ -1654,10 +1655,26 @@
       // balance on its own — that figure is only what is owed since the last payout, and
       // it drops back to ~0 every time the 30 threshold trips.
       const dg = d.doge;
+      const usd = n => n != null ? `$${n.toFixed(2)}` : '';
+
       document.getElementById('mining-doge').textContent =
         dg && dg.lifetime != null ? dg.lifetime.toFixed(2) : '—';
+      document.getElementById('mining-doge-label').textContent =
+        dg && dg.lifetimeUsd != null ? `DOGE all time · ${usd(dg.lifetimeUsd)}` : 'DOGE mined, all time';
+
       document.getElementById('mining-pending').textContent =
         dg && dg.pending != null ? `${dg.pending.toFixed(2)} / ${dg.threshold}` : '—';
+      document.getElementById('mining-pending-label').textContent =
+        dg && dg.pendingUsd != null ? `Pending payout · ${usd(dg.pendingUsd)}` : 'Pending, next payout';
+
+      // Sub-cent coin, so 4 decimals — $0.09 would hide every move that matters.
+      document.getElementById('mining-price').textContent =
+        dg && dg.usd != null ? `$${dg.usd.toFixed(4)}` : '—';
+      const chg = dg && dg.usdChange24h != null ? dg.usdChange24h : null;
+      document.getElementById('mining-price-label').textContent =
+        chg != null ? `DOGE price · ${chg >= 0 ? '+' : ''}${chg.toFixed(1)}% 24h` : 'DOGE price';
+      document.getElementById('mining-price').style.color =
+        chg == null ? '' : (chg >= 0 ? '#2e9e5b' : '#c0392b');
 
       document.getElementById('mining-btn-on').classList.toggle('fan-btn-active', on);
       document.getElementById('mining-btn-off').classList.toggle('fan-btn-active', !on);
