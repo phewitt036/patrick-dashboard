@@ -927,6 +927,22 @@
       <span id="pihole-ice-status">loading...</span>
       <button class="mining-refresh" onclick="loadPiholeFan()">↻ Refresh</button>
     </div>
+
+    <div class="mining-rig-label" style="margin-top:20px;">Mining</div>
+    <div class="mining-grid">
+      <div class="mining-stat"><div class="mining-stat-val" id="mining-switch">—</div><div class="mining-stat-label">Switch</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-x8">—</div><div class="mining-stat-label">x8 · 23:00–06:45</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-bee">—</div><div class="mining-stat-label">bee · 00:00–08:00</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-total">—</div><div class="mining-stat-label">Total H/s</div></div>
+    </div>
+    <div class="fan-controls" style="margin-top:10px;">
+      <button class="fan-btn" id="mining-btn-on" onclick="setMining(true)">Turn On</button>
+      <button class="fan-btn fan-btn-auto" id="mining-btn-off" onclick="setMining(false)">Turn Off</button>
+    </div>
+    <div class="mining-meta">
+      <span id="mining-status">loading...</span>
+      <button class="mining-refresh" onclick="loadMining()">↻ Refresh</button>
+    </div>
   </div>
 
   <!-- Overview -->
@@ -1567,6 +1583,72 @@
 
   loadPiholeFan();
   setInterval(loadPiholeFan, 60000);
+
+  // Mining switch.
+  //
+  // The button is a request, not a command. x8 and bee poll agent-hub every five
+  // minutes and act on what they find, so this will read "on" for a few minutes
+  // before either rig is actually mining — and "off" for a few minutes after. The
+  // per-node figures are what each rig last said about ITSELF, which is why a rig
+  // that has stopped checking in reads "stale" rather than quietly reading "idle".
+  const MINING_STALE_MS = 20 * 60 * 1000;
+
+  function miningNodeText(n) {
+    if (!n) return '—';
+    if (Date.now() - new Date(n.at).getTime() > MINING_STALE_MS) return 'stale';
+    if (!n.mining) return n.windowOpen ? 'idle' : 'closed';
+    return n.hashrate != null ? `${Math.round(n.hashrate)}` : 'on';
+  }
+
+  async function loadMining() {
+    try {
+      const res = await fetch('/api/pimax/mining');
+      const d = await res.json();
+      if (!d.success) {
+        document.getElementById('mining-status').textContent = 'no data yet';
+        return;
+      }
+      const nodes = d.nodes || {};
+      const on = !!d.enabled;
+
+      document.getElementById('mining-switch').textContent = on ? 'ON' : 'OFF';
+      document.getElementById('mining-switch').style.color = on ? '#007ac1' : '';
+      document.getElementById('mining-x8').textContent = miningNodeText(nodes.x8);
+      document.getElementById('mining-bee').textContent = miningNodeText(nodes.bee);
+
+      const total = Object.values(nodes)
+        .filter(n => n.mining && n.hashrate != null && Date.now() - new Date(n.at).getTime() <= MINING_STALE_MS)
+        .reduce((a, n) => a + n.hashrate, 0);
+      document.getElementById('mining-total').textContent = total ? Math.round(total).toLocaleString() : '—';
+
+      document.getElementById('mining-btn-on').classList.toggle('fan-btn-active', on);
+      document.getElementById('mining-btn-off').classList.toggle('fan-btn-active', !on);
+
+      const when = d.changedAt ? new Date(d.changedAt).toLocaleString() : 'never';
+      document.getElementById('mining-status').textContent =
+        on ? (d.windowOpen ? `mining — switched on ${when}` : `on, waiting for the window — since ${when}`)
+           : `off since ${when}`;
+    } catch (e) {
+      document.getElementById('mining-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  async function setMining(enabled) {
+    document.getElementById('mining-status').textContent = 'setting...';
+    try {
+      await fetch('/api/pimax/mining', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+      });
+      setTimeout(loadMining, 600);
+    } catch (e) {
+      document.getElementById('mining-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  loadMining();
+  setInterval(loadMining, 60000);
 
   async function logout() {
     await fetch('/auth/logout', { method: 'POST' });
