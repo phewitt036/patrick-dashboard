@@ -931,10 +931,13 @@
     <div class="mining-rig-label" style="margin-top:20px;">Mining</div>
     <div class="mining-grid">
       <div class="mining-stat"><div class="mining-stat-val" id="mining-switch">—</div><div class="mining-stat-label">Switch</div></div>
-      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-x8">—</div><div class="mining-stat-label">x8 · 23:00–06:45</div></div>
-      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-bee">—</div><div class="mining-stat-label">bee · 00:00–08:00</div></div>
       <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-total">—</div><div class="mining-stat-label">Total H/s</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-doge">—</div><div class="mining-stat-label">DOGE mined, all time</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="mining-pending">—</div><div class="mining-stat-label">Pending, next payout</div></div>
     </div>
+    <!-- One tile per node, built from what agent-hub reports, so a new rig needs no
+         change here. -->
+    <div class="mining-grid" id="mining-nodes" style="margin-top:8px;"></div>
     <div class="fan-controls" style="margin-top:10px;">
       <button class="fan-btn" id="mining-btn-on" onclick="setMining(true)">Turn On</button>
       <button class="fan-btn fan-btn-auto" id="mining-btn-off" onclick="setMining(false)">Turn Off</button>
@@ -1593,11 +1596,38 @@
   // that has stopped checking in reads "stale" rather than quietly reading "idle".
   const MINING_STALE_MS = 20 * 60 * 1000;
 
+  // x8 is ~96% of the hashrate, so it leads; the rest follow in descending size. Any
+  // node agent-hub reports but this list does not name still shows, on the end.
+  const MINING_NODE_ORDER = ['x8', 'bee', 'pimax', 'pihole'];
+
+  function miningNodeFresh(n) {
+    return n && Date.now() - new Date(n.at).getTime() <= MINING_STALE_MS;
+  }
+
   function miningNodeText(n) {
     if (!n) return '—';
-    if (Date.now() - new Date(n.at).getTime() > MINING_STALE_MS) return 'stale';
+    if (!miningNodeFresh(n)) return 'stale';
     if (!n.mining) return n.windowOpen ? 'idle' : 'closed';
-    return n.hashrate != null ? `${Math.round(n.hashrate)}` : 'on';
+    return n.hashrate != null ? `${Math.round(n.hashrate).toLocaleString()}` : 'on';
+  }
+
+  function miningWindowText(w) {
+    if (!w) return '';
+    const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    return ` · ${hhmm(w.start)}–${hhmm(w.end)}`;
+  }
+
+  function renderMiningNodes(nodes) {
+    const names = Object.keys(nodes).sort((a, b) => {
+      const ia = MINING_NODE_ORDER.indexOf(a), ib = MINING_NODE_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+    });
+    document.getElementById('mining-nodes').innerHTML = names.map(name => {
+      const n = nodes[name];
+      const cls = n.mining && miningNodeFresh(n) ? 'mining-stat-val fan-val' : 'mining-stat-val';
+      return `<div class="mining-stat"><div class="${cls}">${miningNodeText(n)}</div>` +
+             `<div class="mining-stat-label">${name}${miningWindowText(n.window)}</div></div>`;
+    }).join('');
   }
 
   async function loadMining() {
@@ -1613,13 +1643,21 @@
 
       document.getElementById('mining-switch').textContent = on ? 'ON' : 'OFF';
       document.getElementById('mining-switch').style.color = on ? '#007ac1' : '';
-      document.getElementById('mining-x8').textContent = miningNodeText(nodes.x8);
-      document.getElementById('mining-bee').textContent = miningNodeText(nodes.bee);
+      renderMiningNodes(nodes);
 
       const total = Object.values(nodes)
-        .filter(n => n.mining && n.hashrate != null && Date.now() - new Date(n.at).getTime() <= MINING_STALE_MS)
+        .filter(n => n.mining && n.hashrate != null && miningNodeFresh(n))
         .reduce((a, n) => a + n.hashrate, 0);
       document.getElementById('mining-total').textContent = total ? Math.round(total).toLocaleString() : '—';
+
+      // "All time" is the on-chain total plus whatever is still pending, NOT unmineable's
+      // balance on its own — that figure is only what is owed since the last payout, and
+      // it drops back to ~0 every time the 30 threshold trips.
+      const dg = d.doge;
+      document.getElementById('mining-doge').textContent =
+        dg && dg.lifetime != null ? dg.lifetime.toFixed(2) : '—';
+      document.getElementById('mining-pending').textContent =
+        dg && dg.pending != null ? `${dg.pending.toFixed(2)} / ${dg.threshold}` : '—';
 
       document.getElementById('mining-btn-on').classList.toggle('fan-btn-active', on);
       document.getElementById('mining-btn-off').classList.toggle('fan-btn-active', !on);
