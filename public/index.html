@@ -1597,6 +1597,34 @@
   // that has stopped checking in reads "stale" rather than quietly reading "idle".
   const MINING_STALE_MS = 20 * 60 * 1000;
 
+  // Freshness state. Kept outside loadMining so a separate, faster timer can age the label
+  // even when a fetch fails — a panel that silently stops updating should say so, not sit
+  // there looking plausible.
+  let miningLastFetch = 0;
+  let miningSummary   = 'loading...';
+  let miningSwitchAge = '';
+
+  function miningAgeText(ms) {
+    const s = Math.round(ms / 1000);
+    if (s < 15)  return 'just now';
+    if (s < 90)  return `${s}s ago`;
+    const m = Math.round(s / 60);
+    if (m < 60)  return `${m}m ago`;
+    return `${Math.round(m / 60)}h ago`;
+  }
+
+  function renderMiningStatus() {
+    const el = document.getElementById('mining-status');
+    if (!el) return;
+    if (!miningLastFetch) { el.textContent = miningSummary; return; }
+    const age = Date.now() - miningLastFetch;
+    const parts = [`updated ${miningAgeText(age)}`, miningSummary];
+    if (miningSwitchAge) parts.push(miningSwitchAge);
+    el.textContent = parts.join(' · ');
+    // The panel polls every 60s, so anything past ~3 minutes means refreshing has stopped.
+    el.style.color = age > 3 * 60 * 1000 ? '#c0392b' : '';
+  }
+
   // x8 is ~96% of the hashrate, so it leads; the rest follow in descending size. Any
   // node agent-hub reports but this list does not name still shows, on the end.
   const MINING_NODE_ORDER = ['x8', 'bee', 'pimax', 'pihole'];
@@ -1636,7 +1664,8 @@
       const res = await fetch('/api/pimax/mining');
       const d = await res.json();
       if (!d.success) {
-        document.getElementById('mining-status').textContent = 'no data yet';
+        miningSummary = 'no data yet';
+        renderMiningStatus();
         return;
       }
       const nodes = d.nodes || {};
@@ -1679,12 +1708,26 @@
       document.getElementById('mining-btn-on').classList.toggle('fan-btn-active', on);
       document.getElementById('mining-btn-off').classList.toggle('fan-btn-active', !on);
 
-      const when = d.changedAt ? new Date(d.changedAt).toLocaleString() : 'never';
-      document.getElementById('mining-status').textContent =
-        on ? (d.windowOpen ? `mining — switched on ${when}` : `on, waiting for the window — since ${when}`)
-           : `off since ${when}`;
+      // Remember what to say and WHEN it was fetched, so the age can tick between polls.
+      // The only timestamp here used to be changedAt — when the switch was last flipped —
+      // which never moves once mining is left on, and read exactly like a "last updated"
+      // that had frozen days ago. Freshness and switch-age are different facts; show both.
+      const mining = Object.values(nodes).filter(n => n.mining && miningNodeFresh(n)).length;
+      miningLastFetch = Date.now();
+      miningSummary = on
+        ? (mining ? `${mining} of ${Object.keys(nodes).length} rigs mining`
+                  : (d.windowOpen ? 'on, no rig reporting yet' : 'on, waiting for the window'))
+        : 'switched off';
+      miningSwitchAge = d.changedAt
+        ? `switch ${on ? 'on' : 'off'} since ${new Date(d.changedAt).toLocaleDateString()}`
+        : '';
+      renderMiningStatus();
     } catch (e) {
-      document.getElementById('mining-status').textContent = `error: ${e.message}`;
+      // Deliberately does NOT touch miningLastFetch: the age has to keep climbing and go red,
+      // because "the last good data is now 40 minutes old" is the thing worth knowing. Showing
+      // only "error:" would replace a stale-data warning with a message that looks transient.
+      miningSummary = `fetch failed (${e.message})`;
+      renderMiningStatus();
     }
   }
 
@@ -1704,6 +1747,9 @@
 
   loadMining();
   setInterval(loadMining, 60000);
+  // Ages the "updated" label between polls, so a fetch that has quietly stopped shows up as a
+  // climbing, then red, timestamp instead of a panel that looks fine and is hours stale.
+  setInterval(renderMiningStatus, 10000);
 
   async function logout() {
     await fetch('/auth/logout', { method: 'POST' });
