@@ -942,6 +942,8 @@
     <div class="fan-controls" style="margin-top:10px;">
       <button class="fan-btn" id="mining-btn-on" onclick="setMining(true)">Turn On</button>
       <button class="fan-btn fan-btn-auto" id="mining-btn-off" onclick="setMining(false)">Turn Off</button>
+      <button class="fan-btn" id="mining-btn-now" onclick="forceMining()">Mine Now</button>
+      <button class="fan-btn fan-btn-auto" id="mining-btn-sched" onclick="clearForceMining()">Back to Schedule</button>
     </div>
     <div class="mining-meta">
       <span id="mining-status">loading...</span>
@@ -1714,10 +1716,21 @@
       // that had frozen days ago. Freshness and switch-age are different facts; show both.
       const mining = Object.values(nodes).filter(n => n.mining && miningNodeFresh(n)).length;
       miningLastFetch = Date.now();
+      // An active override changes what "waiting for the window" means, so say so explicitly —
+      // otherwise pressing Mine Now outside the window looks like it did nothing for five
+      // minutes, which is how long the rigs take to pick it up.
+      const forcedUntil = d.force ? new Date(d.force.until) : null;
+      const forceNote = forcedUntil
+        ? `mine-now until ${forcedUntil.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+        : '';
       miningSummary = on
         ? (mining ? `${mining} of ${Object.keys(nodes).length} rigs mining`
-                  : (d.windowOpen ? 'on, no rig reporting yet' : 'on, waiting for the window'))
+                  : (d.windowOpen || forcedUntil ? 'on, rigs starting up' : 'on, waiting for the window'))
         : 'switched off';
+      if (forceNote) miningSummary += ` · ${forceNote}`;
+
+      document.getElementById('mining-btn-now').classList.toggle('fan-btn-active', !!forcedUntil);
+      document.getElementById('mining-btn-sched').classList.toggle('fan-btn-active', !forcedUntil);
       miningSwitchAge = d.changedAt
         ? `switch ${on ? 'on' : 'off'} since ${new Date(d.changedAt).toLocaleDateString()}`
         : '';
@@ -1739,6 +1752,34 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled })
       });
+      setTimeout(loadMining, 600);
+    } catch (e) {
+      document.getElementById('mining-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  // Mine outside the schedule — for an idle afternoon, say. An empty body means "until the
+  // window opens", so this always hands back to the schedule on its own and never needs
+  // remembering. agent-hub still refuses to run x8 and pimax during the 06:45-08:00 briefing
+  // block, whatever this asks for.
+  async function forceMining() {
+    document.getElementById('mining-status').textContent = 'starting...';
+    try {
+      await fetch('/api/pimax/mining/force', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      setTimeout(loadMining, 600);
+    } catch (e) {
+      document.getElementById('mining-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  async function clearForceMining() {
+    document.getElementById('mining-status').textContent = 'stopping...';
+    try {
+      await fetch('/api/pimax/mining/force', { method: 'DELETE' });
       setTimeout(loadMining, 600);
     } catch (e) {
       document.getElementById('mining-status').textContent = `error: ${e.message}`;

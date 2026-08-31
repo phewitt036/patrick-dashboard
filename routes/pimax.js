@@ -89,4 +89,9 @@ router.post('/fan/pihole', proxy('/fan/pihole', 'POST'));
 router.get('/mining', proxy('/mining'));
 router.post('/mining', proxy('/mining/enabled', 'POST'));
 
+// "Mine now" — run outside the schedule for a bounded time. Sending no body means "until the
+// window opens", so the override always hands over to the schedule rather than needing undoing.
+router.post('/mining/force', proxy('/mining/force', 'POST'));
+router.delete('/mining/force', proxy('/mining/force', 'DELETE'));
+
 module.exports = router;
