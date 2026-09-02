@@ -916,6 +916,7 @@
     <div class="mining-rig-label" style="margin-top:20px;">pihole Ice Tower</div>
     <div class="mining-grid">
       <div class="mining-stat"><div class="mining-stat-val fan-val" id="pihole-ice-temp">—</div><div class="mining-stat-label">CPU Temp</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="pihole-ice-fan">—</div><div class="mining-stat-label">Fan</div></div>
       <div class="mining-stat"><div class="mining-stat-val" id="pihole-ice-mode">—</div><div class="mining-stat-label">Mode</div></div>
     </div>
     <div class="fan-controls" style="margin-top:10px;">
@@ -1563,6 +1564,20 @@
       const d = await res.json();
       if (!d.success) throw new Error(d.error);
       document.getElementById('pihole-ice-temp').textContent = d.temp != null ? `${d.temp.toFixed(1)}°C` : '—';
+
+      // Whether the Ice Tower is actually spinning, read off GPIO 18 — the pin fan_control.py
+      // drives. Mode says what it was *told*; this says what it is *doing*, and on auto with
+      // 45°C on / 38°C off hysteresis those differ most of the time. There is no RPM here on
+      // purpose: it is a two-wire fan with no tachometer, unlike pimax's.
+      const iceFanEl = document.getElementById('pihole-ice-fan');
+      if (d.fanOn != null) {
+        iceFanEl.textContent = d.fanOn ? 'On' : 'Off';
+        iceFanEl.style.color = d.fanOn ? '#22c55e' : 'var(--muted)';
+      } else {
+        iceFanEl.textContent = '—';
+        iceFanEl.style.color = '';
+      }
+
       const modeEl = document.getElementById('pihole-ice-mode');
       modeEl.textContent = d.mode === 'auto' ? 'Auto' : d.mode === 'on' ? 'On' : 'Off';
       modeEl.style.color = d.mode === 'on' ? '#f7931a' : d.mode === 'off' ? 'var(--muted)' : '#007ac1';
