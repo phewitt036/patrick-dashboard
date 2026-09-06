@@ -1351,7 +1351,7 @@
     const mins = Math.floor((Date.now() - new Date(downSince).getTime()) / 60000);
     if (mins < 60) return `down ${mins}m`;
     const h = Math.floor(mins / 60), m = mins % 60;
-    return `down ${h}h ${m > 0 ? ` ${m}m` : ''}`.trim();
+    return `down ${h}h${m > 0 ? ` ${m}m` : ''}`;
   }
 
   function fmtAgo(ts) {
@@ -1472,10 +1472,37 @@
     document.getElementById(`${key}-up`).textContent = `up ${fmtUp(node.uptime)}`;
   }
 
+  // Freshness state for the Nodes panel, kept outside loadNodes so a separate, faster timer
+  // can age the label even when a fetch fails. The gauges keep showing the last good reading;
+  // the climbing age is what says how far out of date they are.
+  let nodesLastFetch = 0;
+  let nodesSummary   = 'loading...';
+  let nodesError     = '';
+
+  function renderNodesStatus() {
+    const el = document.getElementById('mine-status');
+    if (!el) return;
+    if (!nodesLastFetch) { el.textContent = nodesError || nodesSummary; return; }
+    const parts = [`updated ${miningAgeText(Date.now() - nodesLastFetch)}`, nodesSummary];
+    if (nodesError) parts.push(nodesError);
+    el.textContent = parts.join(' · ');
+    // The panel polls every 60s, so anything past ~3 minutes means refreshing has stopped.
+    el.style.color = nodesError || Date.now() - nodesLastFetch > 3 * 60 * 1000 ? '#c0392b' : '';
+  }
+
   async function loadNodes() {
-    document.getElementById('mine-status').textContent = 'loading...';
     try {
-      const nodes = await (await fetch('/api/pimax/nodes')).json();
+      const res = await fetch('/api/pimax/nodes');
+      const nodes = await res.json().catch(() => null);
+
+      // A hub we cannot reach is not four rigs that went down. /api/pimax/nodes answers 502
+      // with {error} when agent-hub is unreachable, and 401 once the session expires; both
+      // parse as JSON, and feeding either to applyNode used to paint every rig "offline" —
+      // sending you to look at hardware that was never down. Treat it as what it is: the
+      // stats are unreachable, and the gauges are standing still.
+      if (!res.ok || !nodes || nodes.error) {
+        throw new Error((nodes && nodes.error) || `HTTP ${res.status}`);
+      }
 
       let up = 0;
       for (const key of Object.keys(NODE_META)) {
@@ -1484,14 +1511,20 @@
       }
 
       const total = Object.keys(NODE_META).length;
-      const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-      document.getElementById('mine-status').textContent = `${up}/${total} nodes online · ${time}`;
+      nodesLastFetch = Date.now();
+      nodesError = '';
+      nodesSummary = `${up}/${total} nodes online`;
+      renderNodesStatus();
     } catch (e) {
-      document.getElementById('mine-status').textContent = `error: ${e.message}`;
+      // Deliberately does NOT touch nodesLastFetch: how old the last good reading is now
+      // matters more than the error itself, which on its own reads as merely transient.
+      nodesError = `stats unreachable (${e.message})`;
+      renderNodesStatus();
     }
   }
   loadNodes();
   setInterval(loadNodes, 60000);
+  setInterval(renderNodesStatus, 15000);
 
   const FAN_MODE_COLORS = { 0: '#f97316', 1: '#ef4444', 2: '#3b82f6', 3: '#22c55e', 4: '#8b5cf6' };
 
