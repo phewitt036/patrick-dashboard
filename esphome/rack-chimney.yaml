@@ -1,0 +1,147 @@
+# Rack chimney — the two 120mm ARGB fans in the MOJO rack frame.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+#  POWER. Read this before plugging anything in.
+#
+#  The fans need TWO different voltages and they are NOT interchangeable:
+#
+#    12V  -> the fan motors only. Comes from the black 12V brick, through the
+#            1-to-3 splitter, into the screw terminals, into the fans' wide
+#            4-slot plugs.
+#    5V   -> the ESP32 controller board only. Comes from a separate 5V brick.
+#
+#  The controller does NOT step voltage down. Whatever you feed its barrel jack
+#  is what comes out of its LED terminals. Feed it 12V and the 12V lands on the
+#  fans' LED rings, which are 5V parts. They die instantly and do not come back.
+#
+#  The two bricks' GROUND wires must be joined together (a lever nut is the easy
+#  way). Without that, the controller and the fans have no common reference and
+#  the PWM speed signal is meaningless — fans run full tilt or not at all.
+# ─────────────────────────────────────────────────────────────────────────────
+
+substitutions:
+  name: rack-chimney
+  friendly_name: Rack Chimney
+
+  # Pin choices. See esphome/README.md for which screw terminal each one is.
+  #
+  # GPIO12 is deliberately unused. It is a "strapping" pin: if it is held high
+  # at the moment the board powers on, the ESP32 configures its flash chip for
+  # the wrong voltage and never boots. A PC fan pulls its own PWM wire high
+  # internally, so a fan plugged into GPIO12 would do exactly that. GPIO4 and
+  # GPIO13 have no such behaviour, which is why the two fans live there.
+  led_pin: GPIO16
+  intake_pwm_pin: GPIO4     # bottom fan, blowing up into the rack
+  exhaust_pwm_pin: GPIO13   # top fan, blowing up and out
+  tach_pin: GPIO2           # bottom fan's speed-report wire
+
+  # Total LEDs across BOTH fans. Count the lit segments around the hub of one
+  # fan and double it. If the far end of the second fan stays dark, this number
+  # is too low; if the colours stop short of the end, it is too high.
+  led_count: "24"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret rack_chimney_api_key
+
+ota:
+  - platform: esphome
+    password: !secret rack_chimney_ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # If the wifi drops, the board still needs to be reachable to fix it, so it
+  # puts up its own network rather than sitting there dark.
+  ap:
+    ssid: "Rack Chimney Fallback"
+
+captive_portal:
+
+# 4-pin PC fans expect a 25 kHz square wave on their speed wire. That frequency
+# is not arbitrary — anywhere below about 20 kHz is inside human hearing and the
+# fan sings. The whole point of this build is that it lives under a desk.
+output:
+  - platform: ledc
+    id: intake_pwm
+    pin: ${intake_pwm_pin}
+    frequency: 25000Hz
+    # An ARCTIC will not start from a standstill at a very low duty cycle; it
+    # buzzes and stalls. 20% is roughly where it reliably catches. "Off" is
+    # still genuinely off, hence zero_means_zero.
+    min_power: 0.20
+    zero_means_zero: true
+  - platform: ledc
+    id: exhaust_pwm
+    pin: ${exhaust_pwm_pin}
+    frequency: 25000Hz
+    min_power: 0.20
+    zero_means_zero: true
+
+fan:
+  - platform: speed
+    id: intake_fan
+    output: intake_pwm
+    name: "Intake"
+    speed_count: 100
+  - platform: speed
+    id: exhaust_fan
+    output: exhaust_pwm
+    name: "Exhaust"
+    speed_count: 100
+
+light:
+  # One light entity covers both fans: the ARGB splitter wires the two rings in
+  # series, so as far as the controller is concerned it is a single strip that
+  # happens to be bent around two hubs.
+  - platform: esp32_rmt_led_strip
+    id: rack_ring
+    name: "Ring"
+    pin: ${led_pin}
+    num_leds: ${led_count}
+    chipset: WS2812
+    rgb_order: GRB
+    default_transition_length: 800ms
+    effects:
+      - addressable_rainbow:
+          name: Rainbow
+      - pulse:
+          name: Alert
+          transition_length: 300ms
+          update_interval: 600ms
+
+sensor:
+  - platform: pulse_counter
+    id: intake_rpm
+    name: "Intake RPM"
+    pin:
+      number: ${tach_pin}
+      mode:
+        input: true
+        # The fan reports speed by shorting this wire to ground twice a turn. It
+        # never drives the wire high, so the ESP32 has to hold it high itself.
+        pullup: true
+    unit_of_measurement: RPM
+    accuracy_decimals: 0
+    update_interval: 10s
+    filters:
+      # pulse_counter reports pulses per minute; two pulses per revolution.
+      - multiply: 0.5
+
+  - platform: uptime
+    name: "Uptime"
+
+  - platform: wifi_signal
+    name: "Wifi Signal"
+    update_interval: 60s

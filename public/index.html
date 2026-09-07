@@ -442,6 +442,10 @@
   .fan-btn-auto { border-color: #007ac133; }
   .fan-btn-auto:hover { border-color: #007ac1; color: #007ac1; }
   .fan-btn-active { border-color: #007ac1 !important; color: #007ac1 !important; }
+  /* The ring swatch is the one place the dashboard shows a colour it does not choose:
+     it mirrors whatever the LEDs in the rack are actually lit up as. */
+  .rack-swatch { width: 11px; height: 11px; border-radius: 50%; display: inline-block; background: currentColor; box-shadow: 0 0 10px currentColor; align-self: center; }
+  .rack-pending { opacity: 0.45; }
 
   /* Stats */
   .stats-row {
@@ -911,6 +915,36 @@
     <div class="mining-meta">
       <span id="fan-status">loading...</span>
       <button class="mining-refresh" onclick="loadFan()">↻ Refresh</button>
+    </div>
+
+    <div class="mining-rig-label" style="margin-top:20px;">Rack Chimney</div>
+    <div class="fan-mode-display">
+      <div class="fan-mode-name" id="rack-mode-name">—</div>
+      <span class="rack-swatch" id="rack-swatch" style="color: var(--border);"></span>
+      <div class="fan-mode-reason" id="rack-mode-reason"></div>
+    </div>
+    <div class="mining-grid">
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="rack-intake">—</div><div class="mining-stat-label">Intake</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="rack-exhaust">—</div><div class="mining-stat-label">Exhaust</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="rack-rpm">—</div><div class="mining-stat-label">Intake RPM</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="rack-hottest">—</div><div class="mining-stat-label">Hottest Node</div></div>
+    </div>
+    <div class="fan-controls" style="margin-top:10px;">
+      <button class="fan-btn" id="rack-btn-quiet" onclick="setRackOverride(4, 60)">Quiet 1h</button>
+      <button class="fan-btn" id="rack-btn-balanced" onclick="setRackOverride(3, 60)">Balanced 1h</button>
+      <button class="fan-btn" id="rack-btn-cool" onclick="setRackOverride(2, 60)">Cool 1h</button>
+      <button class="fan-btn" id="rack-btn-performance" onclick="setRackOverride(1, 60)">Performance 1h</button>
+      <button class="fan-btn fan-btn-auto" id="rack-btn-auto" onclick="clearRackOverride()">Auto</button>
+    </div>
+    <div class="fan-controls">
+      <button class="fan-btn" id="rack-light-fleet" onclick="setRackLights('fleet')">Fleet Status</button>
+      <button class="fan-btn" id="rack-light-rainbow" onclick="setRackLights('rainbow')">Rainbow</button>
+      <button class="fan-btn" id="rack-light-solid" onclick="setRackLights('solid')">Solid</button>
+      <button class="fan-btn fan-btn-auto" id="rack-light-off" onclick="setRackLights('off')">Lights Off</button>
+    </div>
+    <div class="mining-meta">
+      <span id="rack-status">loading...</span>
+      <button class="mining-refresh" onclick="loadRack()">↻ Refresh</button>
     </div>
 
     <div class="mining-rig-label" style="margin-top:20px;">pihole Ice Tower</div>
@@ -1554,6 +1588,134 @@
 
   loadFan();
   setInterval(loadFan, 60000);
+
+  // Rack chimney.
+  //
+  // Unlike the pimax fan, which is a HAT the Pi reads directly, these two fans hang off
+  // an ESP32 that has to be powered and on the wifi before anything can answer. So "no
+  // reply" is an ordinary state here, not a fault: the tile goes quiet and says what it
+  // is waiting for rather than flashing a red error at a rack that is simply unplugged.
+  const RACK_MODE_BTNS = { 4: 'quiet', 3: 'balanced', 2: 'cool', 1: 'performance' };
+  const RACK_LIGHT_BTNS = ['fleet', 'rainbow', 'solid', 'off'];
+  const RACK_STATS = ['rack-intake', 'rack-exhaust', 'rack-rpm', 'rack-hottest'];
+
+  function rackPending(msg) {
+    const name = document.getElementById('rack-mode-name');
+    name.textContent = '—';
+    name.style.color = 'var(--muted)';
+    document.getElementById('rack-mode-reason').textContent = '';
+    RACK_STATS.forEach(id => {
+      const el = document.getElementById(id);
+      el.textContent = '—';
+      el.style.color = '';
+    });
+    const sw = document.getElementById('rack-swatch');
+    sw.style.color = 'var(--border)';
+    sw.style.background = '';
+    [...Object.values(RACK_MODE_BTNS), 'auto'].forEach(k => document.getElementById(`rack-btn-${k}`)?.classList.remove('fan-btn-active'));
+    RACK_LIGHT_BTNS.forEach(k => document.getElementById(`rack-light-${k}`)?.classList.remove('fan-btn-active'));
+    document.getElementById('rack-status').textContent = msg;
+  }
+
+  async function loadRack() {
+    try {
+      const res = await fetch('/api/pimax/rack');
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.success) return rackPending(d.error || 'waiting on controller');
+      if (d.online === false) return rackPending('controller offline');
+
+      const color = FAN_MODE_COLORS[d.mode] ?? '#007ac1';
+      const name = document.getElementById('rack-mode-name');
+      name.textContent = d.modeName ?? '—';
+      name.style.color = color;
+      document.getElementById('rack-mode-reason').textContent = d.reason ?? '';
+
+      document.getElementById('rack-intake').textContent = d.intakePct != null ? `${Math.round(d.intakePct)}%` : '—';
+      document.getElementById('rack-exhaust').textContent = d.exhaustPct != null ? `${Math.round(d.exhaustPct)}%` : '—';
+      document.getElementById('rack-rpm').textContent = d.intakeRpm != null ? d.intakeRpm.toLocaleString() : '—';
+
+      // Only the intake fan's tach is wired, so one RPM figure covers both. The exhaust
+      // is trusted to be doing what it was told, which is fine — it is the intake that
+      // has a filter in front of it and can therefore clog.
+      const hot = document.getElementById('rack-hottest');
+      if (d.hottestNode) {
+        hot.textContent = d.hottestTemp != null ? `${d.hottestNode} ${d.hottestTemp.toFixed(1)}°` : d.hottestNode;
+        hot.style.color = tempColor(d.hottestTemp, NODE_META[d.hottestNode] ?? { tempWarn: 70, tempCrit: 80 });
+      } else {
+        hot.textContent = '—';
+        hot.style.color = '';
+      }
+
+      // The swatch mirrors the rack rather than deciding for it, so it takes the colour
+      // agent-hub says it pushed. Rainbow has no single colour to show, hence the wheel.
+      const lights = d.lights ?? {};
+      const sw = document.getElementById('rack-swatch');
+      if (lights.on === false) {
+        sw.style.color = 'var(--border)';
+        sw.style.background = '';
+      } else if (lights.effect === 'rainbow') {
+        sw.style.color = '#8b5cf6';
+        sw.style.background = 'conic-gradient(#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6,#ef4444)';
+      } else {
+        sw.style.color = lights.color ?? color;
+        sw.style.background = '';
+      }
+
+      const ts = d.lastRun ? new Date(d.lastRun).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
+      document.getElementById('rack-status').textContent = `updated ${ts}${d.override ? ' · override active' : ''}`;
+
+      [...Object.values(RACK_MODE_BTNS), 'auto'].forEach(k => document.getElementById(`rack-btn-${k}`)?.classList.remove('fan-btn-active'));
+      const activeMode = d.override ? RACK_MODE_BTNS[d.mode] : 'auto';
+      if (activeMode) document.getElementById(`rack-btn-${activeMode}`)?.classList.add('fan-btn-active');
+
+      RACK_LIGHT_BTNS.forEach(k => document.getElementById(`rack-light-${k}`)?.classList.remove('fan-btn-active'));
+      const activeLight = lights.on === false ? 'off' : lights.effect;
+      if (activeLight) document.getElementById(`rack-light-${activeLight}`)?.classList.add('fan-btn-active');
+    } catch (e) {
+      rackPending('waiting on controller');
+    }
+  }
+
+  async function setRackOverride(mode, minutes) {
+    try {
+      document.getElementById('rack-status').textContent = 'setting...';
+      await fetch('/api/pimax/rack/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, minutes })
+      });
+      setTimeout(loadRack, 800);
+    } catch (e) {
+      document.getElementById('rack-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  async function clearRackOverride() {
+    try {
+      document.getElementById('rack-status').textContent = 'clearing...';
+      await fetch('/api/pimax/rack/override', { method: 'DELETE' });
+      setTimeout(loadRack, 800);
+    } catch (e) {
+      document.getElementById('rack-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  async function setRackLights(effect) {
+    try {
+      document.getElementById('rack-status').textContent = 'setting...';
+      await fetch('/api/pimax/rack/lights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ effect })
+      });
+      setTimeout(loadRack, 800);
+    } catch (e) {
+      document.getElementById('rack-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  loadRack();
+  setInterval(loadRack, 60000);
 
   async function loadPiholeFan() {
     try {

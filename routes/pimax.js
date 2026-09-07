@@ -83,6 +83,23 @@ router.delete('/fan/override', proxy('/fan/override', 'DELETE'));
 router.get('/fan/pihole', proxy('/fan/pihole'));
 router.post('/fan/pihole', proxy('/fan/pihole', 'POST'));
 
+// Rack chimney — the two 120mm ARGB fans bolted into the MOJO rack itself, bottom
+// intake and top exhaust, driven by an ESP32 running ESPHome rather than by a Pi.
+// The chain is dashboard -> agent-hub -> Home Assistant on bee -> ESP32, so the same
+// shape as the pimax fan above: agent-hub owns the curve and the fleet-status colour,
+// and the dashboard only asks and shows.
+//
+// Intake and exhaust are separate PWM channels on purpose. Running the intake a little
+// faster than the exhaust keeps the rack at positive pressure, so air enters through
+// the filtered bottom rather than being pulled in through every seam in the frame.
+router.get('/rack', proxy('/rack/status'));
+router.post('/rack/override', proxy('/rack/override', 'POST'));
+router.delete('/rack/override', proxy('/rack/override', 'DELETE'));
+
+// Lights are a separate call from speed because they are not always driven by the same
+// thing: the ring can be showing fleet status while the fans sit on the temp curve.
+router.post('/rack/lights', proxy('/rack/lights', 'POST'));
+
 // Mining switch. The POST is deliberately not a passthrough of the hub's path: the
 // button sends {enabled} to /api/pimax/mining and agent-hub takes it at
 // /mining/enabled, so the dashboard has one noun for the thing it is switching.

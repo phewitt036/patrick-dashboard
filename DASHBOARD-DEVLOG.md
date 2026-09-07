@@ -86,6 +86,51 @@ bash /home/pi/scripts/dashboard-update.sh claw idle ""
 
 ---
 
+## 2026-09-07 — Rack Chimney Fans
+
+Two 120mm ARCTIC P12 Pro A-RGB fans mounted in the MOJO rack frame itself — one
+through the vented bottom plate, one bolted to the underside of the acrylic top.
+Both blow upward, so the rack becomes a chimney: filtered air in at the bottom,
+past the Pis and mini PCs, out the top. The lights double as a fleet-status
+indicator using the same `tempWarn` / `tempCrit` thresholds as the node gauges.
+
+These fans are **not** on a Pi. They hang off an ESP32 (GLEDOPTO GL-C-017WL-D)
+running ESPHome, because the job needs two independent 25 kHz PWM channels plus
+addressable LED output, and the Pironman HAT already owns the Pi's usable pins.
+
+### Chain
+`dashboard → agent-hub (pimax) → Home Assistant (bee) → ESP32 → fans`
+
+One hop longer than the pimax fan widget, same shape otherwise: agent-hub owns
+the curve and the status colour, the dashboard only asks and shows.
+
+### Added this session
+- `routes/pimax.js` — `/rack`, `/rack/override` (POST + DELETE), `/rack/lights`
+- `public/index.html` — "Rack Chimney" tile under the pimax Fan block: mode,
+  intake %, exhaust %, intake RPM, hottest node, a swatch mirroring the ring
+  colour, four speed presets and four light presets
+- `esphome/rack-chimney.yaml` — firmware config (lives in HA's ESPHome add-on;
+  kept here so it is versioned alongside the dashboard that drives it)
+- `esphome/README.md` — wiring, power, and build order
+
+### Still to do
+- Order a **5V 3A supply, 5.5×2.1mm barrel**. This is the only missing part. The
+  controller passes its input voltage straight through to the LED terminals, so
+  feeding it the 12V brick would put 12V on 5V LED rings and destroy them.
+- Tie the 12V and 5V grounds together (lever nut) — without a shared ground the
+  PWM signal is meaningless and the fans run flat out.
+- agent-hub endpoints on pimax. Until they exist the tile sits greyed rather than
+  throwing a red error — the same quiet state it falls back to later if the ESP32
+  is unplugged or off the wifi.
+
+### Pin notes
+`GPIO16` LED data · `GPIO4` bottom fan PWM · `GPIO13` top fan PWM · `GPIO2` bottom
+fan tach. `GPIO12` is left empty on purpose: it is an ESP32 strapping pin, and a
+PC fan holds its PWM wire high internally, which is exactly the state that stops
+the board booting. Flash over USB before wiring the tach to `GPIO2`.
+
+---
+
 ## On the Horizon
 
 ### Agent wiring (next session)
