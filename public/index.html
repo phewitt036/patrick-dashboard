@@ -1663,16 +1663,25 @@
     return ` · ${hhmm(w.start)}–${hhmm(w.end)}`;
   }
 
+  // Always draw a tile for every rig in MINING_NODE_ORDER, even when the response does not
+  // mention it. Building the list purely from the response meant a rig could silently vanish
+  // from the panel — which is exactly what it must not do, because "pihole's tile is gone" and
+  // "pihole is fine" look identical to the reader. A missing rig now says "no data" in red.
+  // Anything the response reports that is not in the list is still shown, on the end.
   function renderMiningNodes(nodes) {
-    const names = Object.keys(nodes).sort((a, b) => {
+    const names = [...new Set([...MINING_NODE_ORDER, ...Object.keys(nodes)])].sort((a, b) => {
       const ia = MINING_NODE_ORDER.indexOf(a), ib = MINING_NODE_ORDER.indexOf(b);
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
     });
     document.getElementById('mining-nodes').innerHTML = names.map(name => {
       const n = nodes[name];
-      const cls = n.mining && miningNodeFresh(n) ? 'mining-stat-val fan-val' : 'mining-stat-val';
-      return `<div class="mining-stat"><div class="${cls}">${miningNodeText(n)}</div>` +
-             `<div class="mining-stat-label">${name}${miningWindowText(n.window)}</div></div>`;
+      const missing = !n;
+      const stale = n && !miningNodeFresh(n);
+      const cls = n && n.mining && !stale ? 'mining-stat-val fan-val' : 'mining-stat-val';
+      const style = (missing || stale) ? ' style="color:#c0392b"' : '';
+      const text = missing ? 'no data' : miningNodeText(n);
+      return `<div class="mining-stat"><div class="${cls}"${style}>${text}</div>` +
+             `<div class="mining-stat-label">${name}${miningWindowText(n && n.window)}</div></div>`;
     }).join('');
   }
 
