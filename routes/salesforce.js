@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const jsforce = require('jsforce');
 
+// Which system answered. gig.html used to print "live from salesforce" no
+// matter what was actually serving it, which would have been a lie on screen
+// the moment CRM_BACKEND flipped - and during the month both are alive, that
+// label is the only way to tell at a glance.
+const BACKEND = 'salesforce';
+
 async function getConnection() {
   const conn = new jsforce.Connection({
     loginUrl: 'https://login.salesforce.com'
@@ -22,7 +28,7 @@ router.get('/weekly', async (req, res) => {
       FROM Income_Record__c
       WHERE Income_Date__c = THIS_WEEK
     `);
-    res.json({ total: result.records[0].total || 0 });
+    res.json({ total: result.records[0].total || 0, backend: BACKEND });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -38,7 +44,7 @@ router.get('/monthly', async (req, res) => {
       FROM Income_Record__c
       WHERE Income_Date__c = THIS_MONTH
     `);
-    res.json({ total: result.records[0].total || 0 });
+    res.json({ total: result.records[0].total || 0, backend: BACKEND });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

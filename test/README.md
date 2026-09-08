@@ -52,6 +52,18 @@ one explicitly rather than reinstalling:
 
     CHROME_PATH=/path/to/chrome npm run test:browser
 
+## 4b. Gig page browser — the cutover test, needs the IMPORTED data
+
+25 Playwright assertions driving `public/gig.html` — the page used every day —
+against the **Postgres** backend. The API suites prove the JSON is the right
+shape; this proves the page renders it without a line of the page changing,
+which is the thing that would bite on the night `CRM_BACKEND` is flipped.
+
+Chart.js is stubbed: the page loads it from a CDN, and what matters is whether
+the page hands it real numbers, not whether Chart.js can draw them.
+
+    npm run test:gig
+
 ## 5. Fixture round trip — the cutover gate, needs a SCRATCH database
 
 Builds a synthetic Salesforce export in the exact shape of a real one, with

@@ -14,6 +14,12 @@ const express = require('express');
 const router = express.Router();
 const { pool, withTransaction } = require('../lib/db');
 
+// Which system answered. gig.html used to print "live from salesforce" no
+// matter what was actually serving it, which would have been a lie on screen
+// the moment CRM_BACKEND flipped - and during the month both are alive, that
+// label is the only way to tell at a glance.
+const BACKEND = 'postgres';
+
 // The business runs on Central time while the server runs on UTC. Every
 // "this week" and "this month" boundary is resolved in this zone, not the
 // server's, or a shift worked at 7pm Sunday lands in the wrong week.
@@ -50,7 +56,7 @@ router.get('/weekly', async (req, res) => {
         where week_start = date_trunc('week', (now() at time zone $1)::date)::date`,
       [TZ]
     );
-    res.json({ total: rows[0]?.total ?? 0 });
+    res.json({ total: rows[0]?.total ?? 0, backend: BACKEND });
   } catch (e) { fail(res, e, 'Weekly'); }
 });
 
@@ -63,7 +69,7 @@ router.get('/monthly', async (req, res) => {
             = date_trunc('month', (now() at time zone $1)::date)`,
       [TZ]
     );
-    res.json({ total: rows[0]?.total ?? 0 });
+    res.json({ total: rows[0]?.total ?? 0, backend: BACKEND });
   } catch (e) { fail(res, e, 'Monthly'); }
 });
 

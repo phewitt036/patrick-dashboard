@@ -765,7 +765,7 @@
   <header>
     <div class="header-left">
       <h1>Gig <span>Income</span></h1>
-      <p><a href="/" style="color: var(--muted); text-decoration: none;">← Command Center</a> · Salesforce · Pixit</p>
+      <p><a href="/" style="color: var(--muted); text-decoration: none;">← Command Center</a> · <a href="/records" style="color: var(--muted); text-decoration: none;">Records</a> · Pixit</p>
     </div>
     <div class="live-clock">
       <span id="clock">--:-- --</span>
@@ -1236,10 +1236,13 @@
         fetch('/api/income/monthly').then(r => r.json()),
         fetch('/api/income/trend').then(r => r.json())
       ]);
+      // The backend says which it is. This used to read 'live from salesforce'
+      // unconditionally, which would have been wrong on screen the moment
+      // CRM_BACKEND flipped.
       document.getElementById('weekly-display').textContent = fmt(weekly.total);
-      document.getElementById('weekly-sub').textContent = 'live from salesforce';
+      document.getElementById('weekly-sub').textContent = `live from ${weekly.backend || 'salesforce'}`;
       document.getElementById('monthly-display').textContent = fmt(monthly.total);
-      document.getElementById('monthly-sub').textContent = 'live from salesforce';
+      document.getElementById('monthly-sub').textContent = `live from ${monthly.backend || 'salesforce'}`;
       if (trend.trend && trend.trend.length) {
         const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const labels = trend.trend.map(t => `${monthNames[t.mo - 1]} '${String(t.yr).slice(2)}`);
