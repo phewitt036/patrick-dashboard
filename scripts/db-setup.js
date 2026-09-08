@@ -21,7 +21,11 @@ const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
 
-const FILES = ['001_tables.sql', '002_views.sql'];
+// Every numbered file in db/, in order. Adding a migration means adding a file;
+// nothing here needs editing.
+const FILES = fs.readdirSync(path.join(__dirname, '..', 'db'))
+  .filter(f => /^\d{3}_.*\.sql$/.test(f))
+  .sort();
 const RESET = process.argv.includes('--reset');
 
 function die(msg) { console.error(`\n  ${msg}\n`); process.exit(1); }
@@ -105,21 +109,43 @@ async function main() {
 
   const db = await connect(raw, database);
   try {
-    const existing = await db.query(
+    // A ledger of what has run, so this command works the same on an empty
+    // machine and on the one that has been the system of record for a year.
+    // Without it a new migration could only reach an existing database by
+    // someone remembering to run psql by hand, which is how databases drift.
+    await db.query(`create table if not exists schema_migration (
+      filename   text primary key,
+      applied_at timestamptz not null default now())`);
+
+    // A database built before the ledger existed has the first files applied
+    // but no record of it. The tables are the evidence.
+    const built = await db.query(
       `select count(*)::int as n from information_schema.tables
         where table_schema = 'public' and table_name = 'income_record'`);
-    if (existing.rows[0].n && !RESET) {
-      console.log('\nSchema is already applied. Nothing to do.');
-      console.log('To start over: npm run db:setup -- --reset');
-      return;
+    if (built.rows[0].n) {
+      await db.query(
+        `insert into schema_migration (filename) values ('001_tables.sql'), ('002_views.sql')
+         on conflict do nothing`);
     }
 
+    const done = new Set(
+      (await db.query('select filename from schema_migration')).rows.map(r => r.filename));
+
+    let applied = 0;
     for (const file of FILES) {
+      if (done.has(file)) continue;
       const sql = fs.readFileSync(path.join(__dirname, '..', 'db', file), 'utf8');
       // Sent whole rather than split on semicolons: the files contain
       // dollar-quoted function bodies that any naive splitter would cut in half.
       await db.query(sql);
+      await db.query('insert into schema_migration (filename) values ($1)', [file]);
       console.log(`Applied db/${file}`);
+      applied++;
+    }
+    if (!applied) {
+      console.log('\nSchema is already up to date. Nothing to do.');
+      console.log('To start over: npm run db:setup -- --reset');
+      return;
     }
 
     const tables = await db.query(

@@ -94,6 +94,11 @@ app.use('/api/income', requireAuth,
 app.use('/api/records', requireAuth, require('./routes/records'));
 app.use('/api/pimax', requireAuth, require('./routes/pimax'));
 
+// Machine-to-machine ingestion. Deliberately not behind requireAuth: Pixit has
+// no browser session, so this router does its own INGEST_KEY check and answers
+// 503 until that key is set.
+app.use('/api/ingest', express.json({ limit: '2mb' }), require('./routes/ingest'));
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Dashboard running on http://localhost:${PORT}`);

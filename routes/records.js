@@ -496,3 +496,17 @@ router.get('/meta', handle(async (req, res) => {
 }));
 
 module.exports = router;
+
+// Shared with routes/ingest.js, which accepts the same records over a different
+// door: an API key instead of a browser session. Exported rather than copied so
+// the two can never disagree about what a valid income record is - a validation
+// rule that holds on the form but not on the machine-to-machine path is a rule
+// that does not hold.
+module.exports.incomeFields = incomeFields;
+module.exports.expenseFields = expenseFields;
+module.exports.shiftForDate = shiftForDate;
+module.exports.weekForDate = weekForDate;
+module.exports.explain = explain;
+module.exports.BadRequest = BadRequest;
+module.exports.requiredDate = requiredDate;
+module.exports.optionalNumber = optionalNumber;

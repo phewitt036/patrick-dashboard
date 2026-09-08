@@ -176,6 +176,13 @@ const eq = (label, got, want) =>
   console.log('\n--- meta reflects the unlinked row ---');
   check('unlinked income counted', (await GET('/meta')).body.unlinked.income >= 1, '');
 
+  // Deleting the shift above left this record unlinked on purpose, and leaving
+  // it there made the suite pass only once: the next run's backfill adopted two
+  // loose records instead of one, then three. A test that only works on a
+  // virgin database is not testing the database anyone actually has.
+  eq('the loose record is cleaned up, so this suite can run again',
+     (await DEL(`/income/${orphan.body.id}`)).status, 200);
+
   eq('deleting the edited income record', (await DEL(`/income/${incId}`)).status, 200);
   eq('deleting it twice 404s', (await DEL(`/income/${incId}`)).status, 404);
 

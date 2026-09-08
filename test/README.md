@@ -24,10 +24,19 @@ depends on: field names, date formats, aggregation across shifts in a day.
 
 ## 3. Records API — runs against ANY database with the schema
 
-44 assertions on the CRUD endpoints. Creates and deletes its own rows, so it
-is safe against the imported data.
+45 assertions on the CRUD endpoints. Creates and deletes its own rows, including
+the deliberately-unlinked one, so it is safe against the imported data and safe
+to run repeatedly.
 
     npm run test:records
+
+## 3b. Ingest API — needs a SCRATCH database with the schema
+
+46 assertions on the machine-to-machine endpoints Pixit pushes to. Mostly about
+retries: the same externalId sent twice, twice in one batch, and twice at the
+same moment. Sets its own INGEST_KEY, writes data, does not clean up.
+
+    DATABASE_URL=postgresql:///gigingest npm run test:ingest
 
 ## 4. Records browser — needs the IMPORTED data
 
