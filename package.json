@@ -5,11 +5,12 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "db:setup": "node scripts/db-setup.js",
+    "db:import": "node scripts/import-export.js",
+    "db:reconcile": "node scripts/reconcile.js",
     "schema:dump": "node scripts/sf-schema-dump.js",
     "data:export": "node scripts/sf-data-export.js",
     "test:api": "node test/income-api.test.js",
-    "db:import": "node scripts/import-export.js",
-    "db:reconcile": "node scripts/reconcile.js",
     "test:fixture": "node test/make-fixture.js"
   },
   "keywords": [],
