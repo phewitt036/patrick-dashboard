@@ -23,37 +23,12 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const jsforce = require('jsforce');
+const { fail, connect, customObjectNames } = require('./lib/salesforce');
 
 const OUT_DIR = path.join(__dirname, '..', 'sf-export', 'schema');
 
 // Metadata API caps CustomObject reads at 10 per call.
 const METADATA_BATCH = 10;
-
-function fail(msg) {
-  console.error(`\n  ${msg}\n`);
-  process.exit(1);
-}
-
-async function connect() {
-  const { SF_USERNAME, SF_PASSWORD } = process.env;
-  if (!SF_USERNAME || !SF_PASSWORD) {
-    fail('SF_USERNAME and SF_PASSWORD must be set (same values routes/salesforce.js uses).');
-  }
-  console.log('Connecting...');
-  const conn = new jsforce.Connection({ loginUrl: 'https://login.salesforce.com' });
-  await conn.login(SF_USERNAME, SF_PASSWORD);
-  return conn;
-}
-
-/** Every custom object in the org, so we catch ones the dashboard never touches. */
-async function customObjectNames(conn) {
-  const global = await conn.describeGlobal();
-  return global.sobjects
-    .filter(o => o.custom && o.name.endsWith('__c') && o.queryable)
-    .map(o => o.name)
-    .sort();
-}
 
 async function readMetadata(conn, names) {
   const byName = {};
