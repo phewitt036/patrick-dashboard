@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Records · Patrick's Command Center</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: #2a2a3a;
+    --accent: #6c63ff;
+    --accent3: #00d4aa;
+    --accent4: #f5a623;
+    --danger: #ff6b5c;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --dim: #3a3a50;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    -webkit-text-size-adjust: 100%;
+  }
+  a { color: var(--accent3); text-decoration: none; }
+
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(10,10,15,0.94);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .head-row {
+    max-width: 1180px; margin: 0 auto;
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 20px;
+  }
+  h1 {
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: 20px; margin: 0; letter-spacing: -0.01em;
+  }
+  .back { font-size: 11px; color: var(--muted); }
+  .back:hover { color: var(--text); }
+  .spacer { flex: 1; }
+
+  .tabs { display: flex; gap: 4px; max-width: 1180px; margin: 0 auto; padding: 0 20px 12px; }
+  .tab {
+    font-family: inherit; font-size: 12px; letter-spacing: 0.04em;
+    background: none; border: 1px solid transparent; color: var(--muted);
+    padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { background: var(--surface2); border-color: var(--border); color: var(--text); }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 20px; }
+
+  .bar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+    margin-bottom: 16px;
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label {
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+  }
+  input, select, textarea {
+    font-family: inherit; font-size: 13px;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 11px; min-height: 38px;
+  }
+  input:focus, select:focus, textarea:focus, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+  input[type="date"] { min-width: 140px; }
+
+  button {
+    font-family: inherit; font-size: 12px; cursor: pointer;
+    border-radius: 8px; padding: 10px 16px; min-height: 38px;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+  }
+  button:hover { border-color: var(--dim); }
+  .primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+  .primary:hover { opacity: 0.9; }
+  .danger { color: var(--danger); border-color: transparent; background: none; padding: 6px 10px; min-height: 0; }
+  .danger:hover { border-color: var(--danger); }
+  .link-btn { background: none; border: none; color: var(--accent3); padding: 6px 10px; min-height: 0; }
+
+  .summary {
+    display: flex; flex-wrap: wrap; gap: 20px;
+    padding: 12px 16px; margin-bottom: 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    font-size: 12px; color: var(--muted);
+  }
+  .summary b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; }
+  th {
+    text-align: left; font-weight: 500; font-size: 10px;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+    padding: 12px 14px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--surface2); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .rec { color: var(--dim); font-size: 11px; }
+  .muted { color: var(--muted); }
+
+  .pill {
+    display: inline-block; font-size: 10px; letter-spacing: 0.06em;
+    padding: 3px 8px; border-radius: 4px; background: var(--surface2); color: var(--muted);
+  }
+  .pill.uber { background: rgba(108,99,255,0.16); color: #9b95ff; }
+  .pill.dd { background: rgba(255,107,92,0.14); color: var(--danger); }
+  .pill.open { background: rgba(0,212,170,0.15); color: var(--accent3); }
+  .pill.warn { background: rgba(245,166,35,0.15); color: var(--accent4); }
+
+  .empty { padding: 44px 20px; text-align: center; color: var(--muted); }
+
+  /* modal */
+  dialog {
+    border: 1px solid var(--border); border-radius: 14px;
+    background: var(--surface); color: var(--text);
+    padding: 0; width: min(560px, calc(100vw - 32px));
+  }
+  dialog::backdrop { background: rgba(0,0,0,0.6); }
+  .dlg-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px; border-bottom: 1px solid var(--border);
+  }
+  .dlg-head h2 { font-family: 'Syne', sans-serif; font-size: 16px; margin: 0; }
+  .dlg-body { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .dlg-body .full { grid-column: 1 / -1; }
+  .dlg-foot {
+    display: flex; gap: 10px; justify-content: flex-end;
+    padding: 16px 20px; border-top: 1px solid var(--border);
+  }
+  .err {
+    grid-column: 1 / -1; color: var(--danger); font-size: 12px;
+    background: rgba(255,107,92,0.1); border: 1px solid rgba(255,107,92,0.3);
+    border-radius: 8px; padding: 10px 12px;
+  }
+  .hint { font-size: 10px; color: var(--dim); }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 18px; font-size: 12px;
+    opacity: 0; pointer-events: none; transition: opacity 0.18s;
+    z-index: 40; max-width: calc(100vw - 32px);
+  }
+  #toast.show { opacity: 1; }
+  #toast.bad { border-color: var(--danger); color: var(--danger); }
+
+  @media (max-width: 640px) {
+    .dlg-body { grid-template-columns: 1fr; }
+    .bar .field { flex: 1 1 140px; }
+    main { padding: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-row">
+    <h1>Records</h1>
+    <a class="back" href="/">&larr; dashboard</a>
+    <span class="spacer"></span>
+    <button class="primary" id="add-btn">+ Add</button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="income" aria-selected="true">Income</button>
+    <button class="tab" role="tab" data-tab="expenses" aria-selected="false">Expenses</button>
+    <button class="tab" role="tab" data-tab="shifts" aria-selected="false">Shifts</button>
+  </div>
+</header>
+
+<main>
+  <div class="bar" id="filters"></div>
+  <div class="summary" id="summary"></div>
+  <div class="table-wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+  <div class="bar" style="margin-top:14px" id="pager"></div>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="form">
+    <div class="dlg-head"><h2 id="dlg-title">Add</h2><button type="button" id="dlg-x" class="link-btn">Close</button></div>
+    <div class="dlg-body" id="dlg-body"></div>
+    <div class="dlg-foot">
+      <button type="button" id="cancel">Cancel</button>
+      <button type="button" class="primary" id="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const el = (t, a = {}, kids = []) => {
+    const n = document.createElement(t);
+    for (const [k, v] of Object.entries(a)) {
+      if (k === 'text') n.textContent = v;
+      else if (k === 'html') n.innerHTML = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else if (v !== null && v !== undefined) n.setAttribute(k, v);
+    }
+    for (const c of [].concat(kids)) if (c) n.append(c);
+    return n;
+  };
+
+  const money = v => (v === null || v === undefined) ? '—' : '$' + Number(v).toFixed(2);
+  const numOrDash = (v, d = 1) => (v === null || v === undefined || v === '') ? '—' : Number(v).toFixed(d);
+  const dayName = s => (s || '').replace(/^\d+\.\s*/, '');
+  // A datetime-local input has no zone; the browser's own offset is the right
+  // one, because Patrick is standing where the shift happened.
+  const toLocalInput = iso => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+  const fromLocalInput = v => v ? new Date(v).toISOString() : null;
+
+  let toastTimer;
+  function toast(msg, bad) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.className = 'show' + (bad ? ' bad' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = ''; }, bad ? 5000 : 2600);
+  }
+
+  async function api(method, path, body) {
+    const r = await fetch('/api/records' + path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
+    return data;
+  }
+
+  const state = { tab: 'income', meta: null, filter: {}, offset: 0, limit: 50, editing: null };
+
+  // -------------------------------------------------------------- tab config
+  const TABS = {
+    income: {
+      columns: ['Date', 'Platform', 'Store', 'Base', 'Tips', 'Bonus', 'Total', 'Miles', 'Mins', 'Shift', ''],
+      load: () => {
+        const p = new URLSearchParams({ limit: state.limit, offset: state.offset });
+        for (const [k, v] of Object.entries(state.filter)) if (v) p.set(k, v);
+        return api('GET', '/income?' + p);
+      },
+      row: r => el('tr', {}, [
+        el('td', {}, [el('div', { text: r.income_date }), el('div', { class: 'rec', text: r.record_no })]),
+        el('td', {}, el('span', {
+          class: 'pill ' + (r.source === 'Doordash' ? 'dd' : r.source.startsWith('Uber') ? 'uber' : ''),
+          text: r.source
+        })),
+        el('td', { class: r.store ? '' : 'muted', text: r.store || '—' }),
+        el('td', { class: 'num', text: money(r.amount) }),
+        el('td', { class: 'num', text: r.tips ? money(r.tips) : '—' }),
+        el('td', { class: 'num', text: r.surge_bonus ? money(r.surge_bonus) : '—' }),
+        el('td', { class: 'num', text: money(r.total_earnings) }),
+        el('td', { class: 'num', text: numOrDash(r.miles_driven) }),
+        el('td', { class: 'num', text: numOrDash(r.time_taken_minutes) }),
+        el('td', {}, r.shift_record_no
+          ? el('span', { class: 'rec', text: r.shift_record_no })
+          : el('span', { class: 'pill warn', text: 'unlinked' })),
+        el('td', { class: 'num' }, [
+          el('button', { class: 'link-btn', onclick: () => openForm('income', r), text: 'Edit' }),
+          el('button', { class: 'danger', onclick: () => remove('income', r.id, r.record_no), text: 'Delete' })
+        ])
+      ]),
+      summary: d => [`${d.total} record${d.total === 1 ? '' : 's'}`, `${money(d.sumEarnings)} earned`]
+    },
+
+    expenses: {
+      columns: ['Date', 'Type', 'Store', 'Amount', 'Note', 'Shift', ''],
+      load: () => {
+        const p = new URLSearchParams({ limit: state.limit, offset: state.offset });
+        for (const [k, v] of Object.entries(state.filter)) if (v) p.set(k, v);
+        return api('GET', '/expenses?' + p);
+      },
+      row: r => el('tr', {}, [
+        el('td', {}, [el('div', { text: r.expense_date }), el('div', { class: 'rec', text: r.record_no })]),
+        el('td', {}, el('span', { class: 'pill', text: r.type || 'none' })),
+        el('td', { class: r.store ? '' : 'muted', text: r.store || '—' }),
+        el('td', { class: 'num', text: money(r.amount) }),
+        el('td', { class: 'muted', text: r.type_explanation || '—' }),
+        el('td', {}, r.shift_record_no
+          ? el('span', { class: 'rec', text: r.shift_record_no })
+          : el('span', { class: 'pill warn', text: 'unlinked' })),
+        el('td', { class: 'num' }, [
+          el('button', { class: 'link-btn', onclick: () => openForm('expenses', r), text: 'Edit' }),
+          el('button', { class: 'danger', onclick: () => remove('expenses', r.id, r.record_no), text: 'Delete' })
+        ])
+      ]),
+      summary: d => [`${d.total} expense${d.total === 1 ? '' : 's'}`, `${money(d.sumAmount)} spent`]
+    },
+
+    shifts: {
+      columns: ['Date', 'In', 'Out', 'Hours', 'Income', 'Expenses', 'Net', '$/hr', 'Miles', 'Records', ''],
+      load: async () => {
+        const p = new URLSearchParams({ limit: 200 });
+        for (const [k, v] of Object.entries(state.filter)) if (v && k !== 'source' && k !== 'q') p.set(k, v);
+        const d = await api('GET', '/shifts?' + p);
+        return { records: d.shifts, total: d.shifts.length };
+      },
+      row: r => el('tr', {}, [
+        el('td', {}, [
+          el('div', { text: r.shift_date }),
+          el('div', { class: 'rec', text: `${r.record_no} · ${dayName(r.day_of_week)}` })
+        ]),
+        el('td', { class: 'muted', text: r.clock_in ? toLocalInput(r.clock_in).slice(11) : '—' }),
+        el('td', {}, r.is_open
+          ? el('span', { class: 'pill open', text: 'open' })
+          : el('span', { class: 'muted', text: r.clock_out ? toLocalInput(r.clock_out).slice(11) : '—' })),
+        el('td', { class: 'num', text: numOrDash(r.shift_hours, 2) }),
+        el('td', { class: 'num', text: money(r.total_income) }),
+        el('td', { class: 'num', text: money(r.total_expenses) }),
+        el('td', { class: 'num', text: money(r.net_profit) }),
+        el('td', { class: 'num', text: money(r.earnings_per_shift_hour) }),
+        el('td', { class: 'num', text: numOrDash(r.total_shift_miles) }),
+        el('td', { class: 'num muted', text: `${r.income_count} / ${r.expense_count}` }),
+        el('td', { class: 'num' }, [
+          el('button', { class: 'link-btn', onclick: () => openForm('shifts', r), text: 'Edit' }),
+          el('button', { class: 'danger', onclick: () => remove('shifts', r.id, r.record_no), text: 'Delete' })
+        ])
+      ]),
+      summary: d => [`${d.total} shift${d.total === 1 ? '' : 's'}`]
+    }
+  };
+
+  // ------------------------------------------------------------------ render
+  function renderFilters() {
+    const f = $('#filters');
+    f.replaceChildren();
+    const dateField = (key, label) => el('div', { class: 'field' }, [
+      el('label', { text: label, for: 'f-' + key }),
+      el('input', {
+        type: 'date', id: 'f-' + key, value: state.filter[key] || '',
+        onchange: e => { state.filter[key] = e.target.value; state.offset = 0; load(); }
+      })
+    ]);
+    f.append(dateField('from', 'From'), dateField('to', 'To'));
+
+    if (state.tab === 'income') {
+      f.append(el('div', { class: 'field' }, [
+        el('label', { text: 'Platform', for: 'f-source' }),
+        el('select', {
+          id: 'f-source',
+          onchange: e => { state.filter.source = e.target.value; state.offset = 0; load(); }
+        }, [el('option', { value: '', text: 'All' })].concat(
+          state.meta.sources.map(s => el('option', {
+            value: s, text: s, selected: state.filter.source === s ? 'selected' : null
+          }))))
+      ]));
+      f.append(el('div', { class: 'field', style: 'flex:1 1 180px' }, [
+        el('label', { text: 'Search store, note or number', for: 'f-q' }),
+        el('input', {
+          type: 'search', id: 'f-q', placeholder: 'Chipotle…', value: state.filter.q || '',
+          onchange: e => { state.filter.q = e.target.value; state.offset = 0; load(); }
+        })
+      ]));
+    }
+    if (state.tab === 'expenses') {
+      f.append(el('div', { class: 'field' }, [
+        el('label', { text: 'Type', for: 'f-type' }),
+        el('select', {
+          id: 'f-type',
+          onchange: e => { state.filter.type = e.target.value; state.offset = 0; load(); }
+        }, [el('option', { value: '', text: 'All' })].concat(
+          state.meta.expenseTypes.map(t => el('option', {
+            value: t, text: t, selected: state.filter.type === t ? 'selected' : null
+          }))))
+      ]));
+    }
+    f.append(el('div', { class: 'field' }, [
+      el('label', { text: ' ' }),
+      el('button', { text: 'Clear', onclick: () => { state.filter = {}; state.offset = 0; renderFilters(); load(); } })
+    ]));
+  }
+
+  async function load() {
+    const cfg = TABS[state.tab];
+    $('#thead').replaceChildren(el('tr', {}, cfg.columns.map(c =>
+      el('th', { class: /Base|Tips|Bonus|Total|Miles|Mins|Amount|Hours|Income|Expenses|Net|\$/.test(c) ? 'num' : '', text: c }))));
+    $('#tbody').replaceChildren(el('tr', {}, el('td', { colspan: cfg.columns.length, class: 'empty', text: 'Loading…' })));
+
+    try {
+      const data = await cfg.load();
+      const rows = data.records || [];
+      $('#tbody').replaceChildren(...(rows.length
+        ? rows.map(cfg.row)
+        : [el('tr', {}, el('td', { colspan: cfg.columns.length, class: 'empty', text: 'Nothing here yet.' }))]));
+
+      const bits = cfg.summary(data);
+      const un = state.meta.unlinked;
+      if (state.tab === 'income' && un.income) bits.push(`${un.income} not linked to a shift`);
+      if (state.tab === 'expenses' && un.expenses) bits.push(`${un.expenses} not linked to a shift`);
+      $('#summary').replaceChildren(...bits.map(b => el('span', { html: b.replace(/^([\d$.,]+)/, '<b>$1</b>') })));
+
+      renderPager(data);
+    } catch (e) {
+      $('#tbody').replaceChildren(el('tr', {}, el('td', {
+        colspan: cfg.columns.length, class: 'empty', text: e.message
+      })));
+      $('#summary').replaceChildren();
+      $('#pager').replaceChildren();
+    }
+  }
+
+  function renderPager(data) {
+    const p = $('#pager');
+    p.replaceChildren();
+    if (state.tab === 'shifts' || !data.total || data.total <= state.limit) return;
+    const page = Math.floor(state.offset / state.limit) + 1;
+    const pages = Math.ceil(data.total / state.limit);
+    p.append(
+      el('button', {
+        text: '← Newer', disabled: state.offset === 0 ? 'disabled' : null,
+        onclick: () => { state.offset = Math.max(0, state.offset - state.limit); load(); }
+      }),
+      el('span', { class: 'muted', style: 'align-self:center', text: `page ${page} of ${pages}` }),
+      el('button', {
+        text: 'Older →', disabled: page >= pages ? 'disabled' : null,
+        onclick: () => { state.offset += state.limit; load(); }
+      })
+    );
+  }
+
+  // -------------------------------------------------------------------- form
+  const FORMS = {
+    income: (r = {}) => [
+      ['incomeDate', 'Date', 'date', r.income_date || state.meta.today, true],
+      ['source', 'Platform', 'select', r.source || 'Uber', true, state.meta.sources],
+      ['amount', 'Base pay', 'number', r.amount ?? '', true, null, 'Zero is fine — a cancellation still pays the tip'],
+      ['tips', 'Tips', 'number', r.tips ?? ''],
+      ['surgeBonus', 'Surge / bonus', 'number', r.surge_bonus ?? ''],
+      ['store', 'Store', 'text', r.store ?? ''],
+      ['milesDriven', 'Miles driven', 'number', r.miles_driven ?? ''],
+      ['totalMiles', 'Total miles', 'number', r.total_miles ?? '', false, null, 'Including the drive to pickup'],
+      ['timeTakenMinutes', 'Time (minutes)', 'number', r.time_taken_minutes ?? '', false, null, 'Minutes, not hours'],
+      ['uberLevel', 'Uber level', 'text', r.uber_level ?? '', false, null, 'Uber and Uber Eats only'],
+      ['notes', 'Notes', 'textarea', r.notes ?? '']
+    ],
+    expenses: (r = {}) => [
+      ['expenseDate', 'Date', 'date', r.expense_date || state.meta.today, true],
+      ['type', 'Type', 'select', r.type || 'Food', false, state.meta.expenseTypes],
+      ['amount', 'Amount', 'number', r.amount ?? '', true],
+      ['store', 'Store', 'text', r.store ?? ''],
+      ['typeExplanation', 'Note', 'textarea', r.type_explanation ?? '']
+    ],
+    shifts: (r = {}) => [
+      ['shiftDate', 'Date', 'date', r.shift_date || state.meta.today, true],
+      ['clockIn', 'Clock in', 'datetime-local', toLocalInput(r.clock_in)],
+      ['clockOut', 'Clock out', 'datetime-local', toLocalInput(r.clock_out), false, null, 'Leave blank to keep it open'],
+      ['totalShiftMiles', 'Shift miles', 'number', r.total_shift_miles ?? ''],
+      ['doordashDashTimeHours', 'DoorDash dash time (hours)', 'number', r.doordash_dash_time_hours ?? '']
+    ]
+  };
+
+  const LABELS = { income: 'income record', expenses: 'expense', shifts: 'shift' };
+
+  function openForm(kind, record) {
+    state.editing = record ? { kind, id: record.id } : { kind, id: null };
+    $('#dlg-title').textContent = (record ? 'Edit ' : 'New ') + LABELS[kind];
+    const body = $('#dlg-body');
+    body.replaceChildren();
+
+    for (const [name, label, type, value, required, options, hint] of FORMS[kind](record || {})) {
+      let input;
+      if (type === 'select') {
+        input = el('select', { name, id: 'i-' + name },
+          (required ? [] : [el('option', { value: '', text: '—' })]).concat(
+            options.map(o => el('option', { value: o, text: o, selected: value === o ? 'selected' : null }))));
+      } else if (type === 'textarea') {
+        input = el('textarea', { name, id: 'i-' + name, rows: 2 });
+        input.value = value ?? '';
+      } else {
+        input = el('input', {
+          type, name, id: 'i-' + name,
+          step: type === 'number' ? 'any' : null,
+          inputmode: type === 'number' ? 'decimal' : null,
+          value: value ?? ''
+        });
+      }
+      body.append(el('div', { class: type === 'textarea' ? 'field full' : 'field' }, [
+        el('label', { text: label + (required ? ' *' : ''), for: 'i-' + name }),
+        input,
+        hint ? el('span', { class: 'hint', text: hint }) : null
+      ]));
+    }
+    $('#dlg').showModal();
+    body.querySelector('input, select, textarea')?.focus();
+  }
+
+  function showError(msg, field) {
+    const body = $('#dlg-body');
+    body.querySelectorAll('.err').forEach(n => n.remove());
+    body.prepend(el('div', { class: 'err', text: msg }));
+    if (field) document.getElementById('i-' + field)?.focus();
+  }
+
+  async function save() {
+    const { kind, id } = state.editing;
+    const payload = {};
+    for (const [name, , type] of FORMS[kind]({})) {
+      const node = document.getElementById('i-' + name);
+      if (!node) continue;
+      let v = node.value;
+      if (type === 'datetime-local') v = fromLocalInput(v);
+      payload[name] = v === '' ? null : v;
+    }
+    try {
+      const path = '/' + kind + (id ? '/' + id : '');
+      const saved = await api(id ? 'PATCH' : 'POST', path, payload);
+      $('#dlg').close();
+      if (kind === 'shifts' && saved.adopted && (saved.adopted.income || saved.adopted.expenses)) {
+        toast(`Shift saved — picked up ${saved.adopted.income} income and ${saved.adopted.expenses} expense records from that day`);
+      } else {
+        toast(`${id ? 'Updated' : 'Added'} ${saved.record_no || ''}`.trim());
+      }
+      state.meta = await api('GET', '/meta');
+      load();
+    } catch (e) {
+      showError(e.message);
+    }
+  }
+
+  async function remove(kind, id, label) {
+    const what = kind === 'shifts'
+      ? `Delete shift ${label}?\n\nIts income and expense records are kept — they just stop being linked to a shift.`
+      : `Delete ${label}?`;
+    if (!confirm(what)) return;
+    try {
+      const r = await api('DELETE', `/${kind}/${id}`);
+      toast(kind === 'shifts' && r.unlinked
+        ? `Deleted ${label} — ${r.unlinked.income} income and ${r.unlinked.expenses} expense records kept`
+        : `Deleted ${label}`);
+      state.meta = await api('GET', '/meta');
+      load();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  // ------------------------------------------------------------------- wiring
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+    state.tab = t.dataset.tab;
+    state.offset = 0;
+    renderFilters();
+    load();
+  }));
+  $('#add-btn').addEventListener('click', () => openForm(state.tab, null));
+  $('#save').addEventListener('click', save);
+  $('#cancel').addEventListener('click', () => $('#dlg').close());
+  $('#dlg-x').addEventListener('click', () => $('#dlg').close());
+  $('#form').addEventListener('submit', e => { e.preventDefault(); save(); });
+
+  (async () => {
+    try {
+      state.meta = await api('GET', '/meta');
+    } catch (e) {
+      $('#tbody').replaceChildren(el('tr', {}, el('td', {
+        colspan: 6, class: 'empty',
+        text: 'Cannot reach the records API. Is DATABASE_URL set on the server? (' + e.message + ')'
+      })));
+      return;
+    }
+    renderFilters();
+    load();
+  })();
+})();
+</script>
+</body>
+</html>
