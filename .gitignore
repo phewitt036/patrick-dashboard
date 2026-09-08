@@ -5,3 +5,4 @@ node_modules
 .sfdx
 .DS_Store
 .claude
+sf-export
