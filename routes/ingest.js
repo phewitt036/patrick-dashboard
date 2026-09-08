@@ -25,7 +25,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
-const { pool, withTransaction } = require('../lib/db');
+const { pool, withTransaction, requireDatabase } = require('../lib/db');
 const records = require('./records');
 
 const { incomeFields, expenseFields, shiftForDate, weekForDate, explain,
@@ -54,6 +54,10 @@ router.use((req, res, next) => {
   }
   next();
 });
+
+// After the key check, deliberately: whether this server has a database is not
+// something an unauthenticated caller should be able to probe for.
+router.use(requireDatabase);
 
 function handle(fn) {
   return async (req, res) => {

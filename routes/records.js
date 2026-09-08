@@ -10,7 +10,9 @@
 
 const express = require('express');
 const router = express.Router();
-const { pool, withTransaction } = require('../lib/db');
+const { pool, withTransaction, requireDatabase } = require('../lib/db');
+
+router.use(requireDatabase);
 
 const TZ = 'America/Chicago';
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

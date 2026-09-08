@@ -12,7 +12,9 @@
 
 const express = require('express');
 const router = express.Router();
-const { pool, withTransaction } = require('../lib/db');
+const { pool, withTransaction, requireDatabase } = require('../lib/db');
+
+router.use(requireDatabase);
 
 // Which system answered. gig.html used to print "live from salesforce" no
 // matter what was actually serving it, which would have been a lie on screen
