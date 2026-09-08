@@ -118,7 +118,14 @@ create table daily_cash_flow (
   ) stored,
 
   -- Constraints Salesforce never enforced.
-  constraint dcf_clock_out_after_in check (clock_out is null or clock_in is null or clock_out > clock_in),
+  --
+  -- >= rather than >, so a shift that was never clocked out can be closed at its
+  -- own clock-in during import. That records the truth - it happened, no
+  -- duration was ever measured - and reproduces Salesforce's Shift_Hours__c of
+  -- 0 for those rows, instead of inventing an end time from a child record's
+  -- timestamp. A real shift is always longer than an instant, so nothing
+  -- legitimate is admitted by the looser bound.
+  constraint dcf_clock_out_after_in check (clock_out is null or clock_in is null or clock_out >= clock_in),
   constraint dcf_clock_out_needs_in check (clock_out is null or clock_in is not null),
   constraint dcf_miles_not_negative check (total_shift_miles >= 0),
   constraint dcf_dash_time_not_negative check (doordash_dash_time_hours >= 0)
