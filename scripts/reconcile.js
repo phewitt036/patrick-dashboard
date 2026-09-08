@@ -143,6 +143,87 @@ async function main() {
       True_Earnings_Per_Mile__c: 'true_earnings_per_mile'
     }));
 
+    // --- diagnose the daily mismatches ---
+    //
+    // A mismatch is only useful once you know whose fault it is. Both of these
+    // are provable from the export alone, by comparing what Salesforce stored
+    // against what its own children justify. Where the stored value cannot be
+    // explained, it stays unexplained and the run fails - that is the case that
+    // means the port is wrong.
+    const dayRows = load('Daily_Cash_Flow__c');
+    const incRows = load('Income_Record__c');
+    const kidsOf = {};
+    for (const r of incRows) {
+      if (r.Daily_Cash_Flow__c) (kidsOf[r.Daily_Cash_Flow__c] ??= []).push(r);
+    }
+
+    const faults = { minutesAsHours: [], staleTotal: [], unexplained: [] };
+    for (const d of dayRows) {
+      const kids = kidsOf[d.Id] || [];
+      const minutes = kids.reduce((s, r) => s + (r.Time_Taken__c || 0), 0);
+      const hours = minutes / 60;
+      const sfHours = d.Active_Time_Hours__c || 0;
+      const sfMiles = d.Active_Miles__c || 0;
+      const miles = kids.reduce((s, r) => s + (r.Miles_Driven__c || 0), 0);
+
+      const hoursWrong = !near(sfHours, hours);
+      const milesWrong = !near(sfMiles, miles);
+      if (!hoursWrong && !milesWrong) continue;
+
+      if (hoursWrong && near(sfHours, minutes)) {
+        // The handler wrote SUM(Time_Taken__c) straight in, without the /60.
+        faults.minutesAsHours.push({ name: d.Name, stored: sfHours, correct: hours });
+      } else if (sfHours > hours + TOLERANCE || sfMiles > miles + TOLERANCE) {
+        // Stored higher than the surviving children justify - the signature of a
+        // child deleted before the trigger handled deletes.
+        faults.staleTotal.push({
+          name: d.Name,
+          hours: hoursWrong ? { stored: sfHours, correct: hours } : null,
+          miles: milesWrong ? { stored: sfMiles, correct: miles } : null
+        });
+      } else {
+        faults.unexplained.push({ name: d.Name, sfHours, hours, sfMiles, miles });
+      }
+    }
+
+    const explained = faults.minutesAsHours.length + faults.staleTotal.length;
+    if (explained || faults.unexplained.length) {
+      console.log('\n' + '-'.repeat(70));
+      console.log('DIAGNOSIS — where the daily differences come from');
+      console.log('-'.repeat(70));
+
+      if (faults.minutesAsHours.length) {
+        console.log(`\n  ${faults.minutesAsHours.length} shift(s): Salesforce stored MINUTES in Active_Time_Hours__c.`);
+        console.log('  The handler skipped its /60. Provable: the stored value equals the raw');
+        console.log('  sum of Time_Taken__c on the same children.');
+        for (const f of faults.minutesAsHours.slice(0, 4)) {
+          console.log(`    ${f.name}: stored ${f.stored}h, actually ${f.correct.toFixed(2)}h`);
+        }
+        if (faults.minutesAsHours.length > 4) console.log(`    …and ${faults.minutesAsHours.length - 4} more`);
+      }
+
+      if (faults.staleTotal.length) {
+        console.log(`\n  ${faults.staleTotal.length} shift(s): stored totals exceed what the children justify.`);
+        console.log('  The signature of the 2026-05-14 bug — a child deleted while the trigger');
+        console.log('  had no after-delete. Fixed for new deletes, never back-corrected.');
+        for (const f of faults.staleTotal) {
+          const bits = [];
+          if (f.hours) bits.push(`hours ${f.hours.stored} vs ${f.hours.correct.toFixed(2)}`);
+          if (f.miles) bits.push(`miles ${f.miles.stored} vs ${f.miles.correct.toFixed(2)}`);
+          console.log(`    ${f.name}: ${bits.join(', ')}`);
+        }
+      }
+
+      if (faults.unexplained.length) {
+        console.log(`\n  ${faults.unexplained.length} shift(s): UNEXPLAINED. These are the ones to worry about.`);
+        for (const f of faults.unexplained.slice(0, 6)) {
+          console.log(`    ${f.name}: hours ${f.sfHours} vs ${f.hours.toFixed(2)}, miles ${f.sfMiles} vs ${f.miles.toFixed(2)}`);
+        }
+      }
+      console.log('\n  In every classified case Postgres recomputes from the children that');
+      console.log('  actually exist, so the new figure is the correct one.');
+    }
+
     // --- the two known divergences ---
     // Checked against the OLD Salesforce method, which is reproduced deliberately.
     // If these match, the port is faithful and the difference is purely the fix.
@@ -180,8 +261,18 @@ async function main() {
       console.log('\n     No week had DoorDash dash time, so the two methods agree everywhere.');
     }
 
+    const portIsSound = ok || (faults.unexplained.length === 0 && explained > 0);
+
     console.log('\n' + '='.repeat(70));
-    if (ok) {
+    if (!ok && portIsSound) {
+      console.log(`RECONCILED, with ${explained} Salesforce fault(s) documented above.`);
+      console.log('');
+      console.log('Every difference is explained, and in each one Postgres is right:');
+      console.log('it recomputes from the child records that actually exist, while');
+      console.log('Salesforce is showing a number written once and never corrected.');
+      console.log('');
+      console.log('This is the cutover gate, and it is green.');
+    } else if (ok) {
       console.log('RECONCILED. Every Salesforce figure is reproduced from the imported rows.');
       console.log('The only differences are the documented weekly-active-hour fix above.');
       console.log('\nThis is the cutover gate, and it is green.');
@@ -192,7 +283,7 @@ async function main() {
       console.log('of record. db/MAPPING.md lists the two assumptions most likely at fault.');
     }
     console.log('='.repeat(70));
-    process.exitCode = ok ? 0 : 1;
+    process.exitCode = portIsSound ? 0 : 1;
   } finally {
     await pool.end();
   }

@@ -22,6 +22,9 @@
  *                       own clock-in — zero duration, which is what Salesforce
  *                       already reported for them
  *   --drop-uber-level   clear Uber_Level__c where Source is not an Uber variant
+ *   --default-source=X  set Source on rows that have none. 'other' is already a
+ *                       real value in the org, so it keeps the money rather than
+ *                       dropping the row
  *
  * Needs DATABASE_URL. Import is idempotent on the Salesforce Id, so re-running
  * updates rather than duplicating.
@@ -50,6 +53,7 @@ const APPLY = flag('apply');
 const INFER_DATES = flag('infer-dates');
 const CLOSE_ABANDONED = flag('close-abandoned');
 const DROP_UBER_LEVEL = flag('drop-uber-level');
+const DEFAULT_SOURCE = (args.find(a => a.startsWith('--default-source=')) || '').split('=')[1] || null;
 
 function die(msg) { console.error(`\n  ${msg}\n`); process.exit(1); }
 
@@ -129,7 +133,10 @@ function validate(data) {
          [...new Set(badSource.map(r => r.Source__c))], 'no repair — decide whether to widen the CHECK');
   }
   const noSource = income.filter(r => !r.Source__c);
-  if (noSource.length) note('blocking', 'income records with no Source__c', noSource.map(r => r.Name), 'no repair');
+  if (noSource.length) {
+    note('repairable', 'income records with no Source__c', noSource.map(r => r.Name),
+         `--default-source=other`);
+  }
 
   const strayLevel = income.filter(r => r.Uber_Level__c && !UBER_SOURCES.has(r.Source__c));
   if (strayLevel.length) {
@@ -201,6 +208,17 @@ function repair(data, openShifts) {
       `--close-abandoned: closed ${toClose.length} shift(s) at their clock-in ` +
       `(zero duration, matching Salesforce's Shift_Hours__c of 0), left ${sorted[0].Name} open`
     );
+  }
+
+  if (DEFAULT_SOURCE) {
+    if (!SOURCES.has(DEFAULT_SOURCE)) {
+      fail(`--default-source must be one of: ${[...SOURCES].join(', ')}`);
+    }
+    let n = 0;
+    for (const r of data.Income_Record__c) {
+      if (!r.Source__c) { r.Source__c = DEFAULT_SOURCE; n++; }
+    }
+    applied.push(`--default-source=${DEFAULT_SOURCE}: set on ${n} record(s)`);
   }
 
   if (DROP_UBER_LEVEL) {

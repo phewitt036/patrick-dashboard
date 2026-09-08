@@ -133,9 +133,14 @@ create table daily_cash_flow (
 
 -- At most one shift open at a time. Salesforce allowed several, and
 -- GET /shift/active silently took the newest by CreatedDate.
+--
+-- "Open" means clocked in and not yet out. A row with neither time is not an
+-- open shift, it is a record with no times on it - the imported history has one
+-- of those - so it is left unconstrained rather than competing for the single
+-- open slot.
 create unique index daily_cash_flow_one_open_shift
   on daily_cash_flow ((clock_out is null))
-  where clock_out is null;
+  where clock_in is not null and clock_out is null;
 
 create index daily_cash_flow_shift_date_idx on daily_cash_flow (shift_date);
 create index daily_cash_flow_week_idx on daily_cash_flow (weekly_cash_flow_id);
@@ -170,14 +175,20 @@ create table income_record (
 
   uber_level          text,
   miles_driven        numeric(16,2),
-  total_miles         numeric(18,2),
+  -- Three decimals in the export (15.125), so not (18,2).
+  total_miles         numeric(18,3),
 
   -- Salesforce called this Time_Taken__c and labelled it "Time Taken (Hours)"
   -- while storing MINUTES. The handler divided by 60, its test asserted
   -- 30 -> 0.50, and Pixit wrote minutes into it. The data was consistent; only
   -- the label lied. Renamed so the units are in the name and the lie does not
   -- survive the migration.
-  time_taken_minutes  numeric(6,1),
+  --
+  -- Four decimal places, not the one the vault's "Number(3,1)" implied: the real
+  -- export carries values like 0.9125, and a narrower column silently rounds
+  -- every one of them. Reconciliation caught this as a drifting active-hours
+  -- total before it caught anything else.
+  time_taken_minutes  numeric(9,4),
 
   notes               text,
 

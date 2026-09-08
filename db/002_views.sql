@@ -19,7 +19,11 @@ begin;
 -- v_daily_cash_flow — replaces DailyCashFlowHandler.recalculateTotals()
 --                     plus the DCF formula fields
 -- ---------------------------------------------------------------------------
-create or replace view v_daily_cash_flow as
+-- Unrounded, and the base every other view builds on. Salesforce kept full
+-- float precision in its aggregates - Weekly_Active_Hours__c comes back as
+-- 7.457333333333334 - and divided by that, so rounding here would shift every
+-- rate that depends on it and make faithful reconciliation impossible.
+create or replace view v_daily_cash_flow_raw as
 with income as (
   select
     daily_cash_flow_id,
@@ -32,65 +36,66 @@ with income as (
   group by daily_cash_flow_id
 ),
 expense as (
-  select
-    daily_cash_flow_id,
-    sum(amount) as total_expenses
+  select daily_cash_flow_id, sum(amount) as total_expenses
   from expense_record
   where daily_cash_flow_id is not null
   group by daily_cash_flow_id
-),
-base as (
-  select
-    d.id,
-    d.sf_id,
-    d.record_no,
-    d.weekly_cash_flow_id,
-    d.shift_date,
-    d.day_of_week,
-    d.clock_in,
-    d.clock_out,
-    d.clock_out is null                                     as is_open,
-    d.shift_hours,
-    d.total_shift_miles,
-    d.doordash_dash_time_hours,
-    round(coalesce(i.total_income, 0), 2)                   as total_income,
-    round(coalesce(e.total_expenses, 0), 2)                 as total_expenses,
-    round(coalesce(i.active_miles, 0), 2)                   as active_miles,
-    round(coalesce(i.active_time_hours, 0), 2)              as active_time_hours,
-    d.created_at,
-    d.updated_at
-  from daily_cash_flow d
-  left join income  i on i.daily_cash_flow_id = d.id
-  left join expense e on e.daily_cash_flow_id = d.id
 )
 select
-  b.*,
+  d.id, d.sf_id, d.record_no, d.weekly_cash_flow_id, d.shift_date, d.day_of_week,
+  d.clock_in, d.clock_out, d.clock_out is null as is_open,
+  d.shift_hours, d.total_shift_miles, d.doordash_dash_time_hours,
 
-  -- Salesforce: BLANKVALUE(Active_Time_Hours__c,0) + BLANKVALUE(Doordash_Dash_Time__c,0)
-  -- Added 2026-08-11. DoorDash reports no per-delivery time, so active_time_hours
-  -- is in practice Uber time; DoorDash arrives as a per-dash figure instead.
-  round(b.active_time_hours + b.doordash_dash_time_hours, 2) as total_active_time_hours,
+  -- Salesforce stores Shift_Hours__c rounded to two places but divides by the
+  -- unrounded duration: DCF-0035 shows 0.59 stored, yet its rate is $12.50/0.585
+  -- = $21.37 rather than $21.19. So the stored column keeps the rounded value
+  -- Salesforce shows, and rates below use this exact one.
+  case
+    when d.clock_out is not null and d.clock_in is not null
+      then (extract(epoch from (d.clock_out - d.clock_in)) / 3600.0)::numeric
+    else 0
+  end as shift_hours_exact,
+
+  coalesce(i.total_income, 0)      as total_income,
+  coalesce(e.total_expenses, 0)    as total_expenses,
+  coalesce(i.active_miles, 0)      as active_miles,
+  coalesce(i.active_time_hours, 0) as active_time_hours,
+  coalesce(i.active_time_hours, 0) + d.doordash_dash_time_hours as total_active_time_hours,
+  d.created_at, d.updated_at
+from daily_cash_flow d
+left join income  i on i.daily_cash_flow_id = d.id
+left join expense e on e.daily_cash_flow_id = d.id;
+
+-- What the application reads: the same figures rounded for display, with every
+-- ratio computed from the unrounded values above.
+create or replace view v_daily_cash_flow as
+select
+  b.id, b.sf_id, b.record_no, b.weekly_cash_flow_id, b.shift_date, b.day_of_week,
+  b.clock_in, b.clock_out, b.is_open, b.shift_hours, b.total_shift_miles,
+  b.doordash_dash_time_hours,
+  round(b.total_income, 2)            as total_income,
+  round(b.total_expenses, 2)          as total_expenses,
+  round(b.active_miles, 2)            as active_miles,
+  round(b.active_time_hours, 2)       as active_time_hours,
+  round(b.total_active_time_hours, 2) as total_active_time_hours,
 
   -- Salesforce: Total_Income__c - Total_Expenses__c
-  round(b.total_income - b.total_expenses, 2)               as net_profit,
+  round(b.total_income - b.total_expenses, 2) as net_profit,
 
   -- Salesforce: IF(BLANKVALUE(Total_Active_Time_Hours__c,0) > 0, Total_Income__c / Total_Active_Time_Hours__c, 0)
   -- Divides by the COMBINED figure. Before that fix a DoorDash-only day divided
   -- by zero Uber hours and reported $0.00/hr against real earnings.
-  case when (b.active_time_hours + b.doordash_dash_time_hours) > 0
-       then round(b.total_income / (b.active_time_hours + b.doordash_dash_time_hours), 2)
-       else 0 end                                           as earnings_per_active_hour,
+  case when b.total_active_time_hours > 0
+       then round(b.total_income / b.total_active_time_hours, 2) else 0 end as earnings_per_active_hour,
 
   -- Salesforce: IF(BLANKVALUE(Shift_Hours__c,0) > 0, Total_Income__c / Shift_Hours__c, 0)
-  case when b.shift_hours > 0
-       then round(b.total_income / b.shift_hours, 2)
-       else 0 end                                           as earnings_per_shift_hour,
+  case when b.shift_hours_exact > 0
+       then round(b.total_income / b.shift_hours_exact, 2) else 0 end as earnings_per_shift_hour,
 
   -- Salesforce: IF(BLANKVALUE(Total_Shift_Miles__c,0) > 0, Total_Income__c / Total_Shift_Miles__c, 0)
   case when b.total_shift_miles > 0
-       then round(b.total_income / b.total_shift_miles, 2)
-       else 0 end                                           as true_earnings_per_mile
-from base b;
+       then round(b.total_income / b.total_shift_miles, 2) else 0 end as true_earnings_per_mile
+from v_daily_cash_flow_raw b;
 
 comment on view v_daily_cash_flow is
   'One row per shift with all totals recomputed from children. Read this, never the table, for anything with a number in it.';
@@ -111,7 +116,7 @@ with daily as (
     sum(active_time_hours)        as weekly_uber_active_hours,
     sum(total_active_time_hours)  as weekly_active_hours,
     count(*)                      as day_count
-  from v_daily_cash_flow
+  from v_daily_cash_flow_raw
   group by weekly_cash_flow_id
 ),
 base as (

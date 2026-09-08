@@ -122,10 +122,17 @@ const dayOut = days.map(d => {
   const totalIncome = r2(kids.reduce((s, r) => s + r.Total_Earnings__c, 0));
   const totalExp = r2(exps.reduce((s, r) => s + r.Amount__c, 0));
   const activeMiles = r2(kids.reduce((s, r) => s + (r.Miles_Driven__c ?? 0), 0));
-  const activeHours = r2(kids.reduce((s, r) => s + (r.Time_Taken__c ?? 0), 0) / 60);
-  const totalActive = r2(activeHours + d.Doordash_Dash_Time__c);
-  const shiftHours = d.Clock_Out__c
-    ? r2((new Date(d.Clock_Out__c) - new Date(d.Clock_In__c)) / 3600000) : 0;
+  // Deliberately NOT rounded. The real export carries Active_Time_Hours__c to
+  // full float precision (0.31616666666666665) and Salesforce divides by that,
+  // so rounding here would make the fixture easier to satisfy than the org.
+  const activeHours = kids.reduce((s, r) => s + (r.Time_Taken__c ?? 0), 0) / 60;
+  const totalActive = activeHours + d.Doordash_Dash_Time__c;
+  const shiftHoursExact = d.Clock_Out__c
+    ? (new Date(d.Clock_Out__c) - new Date(d.Clock_In__c)) / 3600000 : 0;
+  // Salesforce stores this rounded to two places but computes rates from the
+  // exact duration - DCF-0035 in the real export shows 0.59 stored against a
+  // $12.50/0.585 rate of $21.37.
+  const shiftHours = r2(shiftHoursExact);
   const dows = ['7. Sunday','1. Monday','2. Tuesday','3. Wednesday','4. Thursday','5. Friday','6. Saturday'];
   return {
     Id: d.Id, Name: d.Name, Weekly_Cash_Flow__c: weeks[d.w].Id,
@@ -137,7 +144,7 @@ const dayOut = days.map(d => {
     Total_Active_Time_Hours__c: totalActive,
     Shift_Hours__c: shiftHours,
     Net_Profit__c: r2(totalIncome - totalExp),
-    Earnings_Per_Shift_Hour__c: shiftHours > 0 ? r2(totalIncome / shiftHours) : 0,
+    Earnings_Per_Shift_Hour__c: shiftHoursExact > 0 ? r2(totalIncome / shiftHoursExact) : 0,
     Earnings_Per_Active_Hour__c: totalActive > 0 ? r2(totalIncome / totalActive) : 0,
     True_Earnings_Per_Mile__c: d.Total_Shift_Miles__c > 0 ? r2(totalIncome / d.Total_Shift_Miles__c) : 0,
     Day_of_Week__c: dows[new Date(d.Date__c + 'T12:00:00Z').getUTCDay()],
@@ -154,7 +161,7 @@ const weekOut = weeks.map(w => {
   const shiftMiles = r2(kids.reduce((s, d) => s + d.Total_Shift_Miles__c, 0));
   const activeMiles = r2(kids.reduce((s, d) => s + d.Active_Miles__c, 0));
   const shiftHours = r2(kids.reduce((s, d) => s + d.Shift_Hours__c, 0));
-  const activeHours = r2(kids.reduce((s, d) => s + d.Active_Time_Hours__c, 0));
+  const activeHours = kids.reduce((s, d) => s + d.Active_Time_Hours__c, 0);
   const end = new Date(w.Start_Date__c + 'T12:00:00Z'); end.setUTCDate(end.getUTCDate() + 6);
   return {
     Id: w.Id, Name: w.Name, Start_Date__c: w.Start_Date__c,
