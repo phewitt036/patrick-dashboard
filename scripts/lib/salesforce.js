@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const { execFileSync } = require('child_process');
 const jsforce = require('jsforce');
 
 function fail(msg) {
@@ -87,7 +88,67 @@ async function promptForCredentials() {
   }
 }
 
+/**
+ * Borrow the Salesforce CLI's existing session.
+ *
+ * This is how the org is actually reached in practice — the vault records
+ * `sf org display --target-org pat@patsdelivery.com --json` as the auth method,
+ * and Pixit pushes with a CLI token too. Preferred over a password because it
+ * needs no secret typed anywhere, survives MFA, and does not care whether the
+ * machine sits in a trusted IP range — which a password plus security token
+ * very much does.
+ *
+ * Windows installs the CLI as sf.cmd, which execFileSync will not find under
+ * the bare name, hence the list.
+ */
+function sfCliSession(username) {
+  const args = ['org', 'display', '--json'];
+  if (username) args.push('--target-org', username);
+
+  for (const bin of ['sf', 'sf.cmd', 'sfdx', 'sfdx.cmd']) {
+    try {
+      const out = execFileSync(bin, args, {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 60_000
+      });
+      const result = (JSON.parse(out) || {}).result || {};
+      if (result.accessToken && result.instanceUrl) {
+        return {
+          accessToken: result.accessToken,
+          instanceUrl: result.instanceUrl,
+          username: result.username || username || 'unknown',
+          via: bin
+        };
+      }
+    } catch {
+      // Not installed under this name, no authenticated org, or expired.
+      // Try the next candidate and fall back to a password if none work.
+    }
+  }
+  return null;
+}
+
 async function connect() {
+  // An explicit token wins: it is the only way to point these scripts at an org
+  // the CLI does not know about.
+  if (process.env.SF_ACCESS_TOKEN && process.env.SF_INSTANCE_URL) {
+    console.log('\nConnecting with SF_ACCESS_TOKEN...');
+    return new jsforce.Connection({
+      accessToken: process.env.SF_ACCESS_TOKEN,
+      instanceUrl: process.env.SF_INSTANCE_URL
+    });
+  }
+
+  const cli = sfCliSession(process.env.SF_USERNAME);
+  if (cli) {
+    console.log(`\nConnecting as ${cli.username} using the ${cli.via} CLI session.`);
+    return new jsforce.Connection({
+      accessToken: cli.accessToken,
+      instanceUrl: cli.instanceUrl
+    });
+  }
+
   let username = process.env.SF_USERNAME;
   let password = process.env.SF_PASSWORD;
 
@@ -100,12 +161,28 @@ async function connect() {
   try {
     await conn.login(username, password);
   } catch (e) {
-    // By far the most common cause, and the error text alone doesn't say so.
     if (/INVALID_LOGIN/i.test(e.message || '')) {
       fail(
-        'Salesforce rejected the login.\n' +
-        '  The password must have your security token appended directly to it,\n' +
-        '  with no space or separator between them.'
+        'Salesforce rejected that username and password.\n\n' +
+        '  Three things cause this, in rough order of likelihood:\n\n' +
+        '  1. The password needs your security token appended directly to it,\n' +
+        '     with no space between them. A password that works in the browser\n' +
+        '     is not enough on its own.\n\n' +
+        '  2. The value works from a trusted IP range and not from here. If the\n' +
+        '     profile trusts the range your server deploys from, Salesforce never\n' +
+        '     asks it for a token, so the stored value may not contain one.\n\n' +
+        '  3. Multi-factor auth is enforced, which blocks this kind of login\n' +
+        '     outright however the password is assembled.\n\n' +
+        (process.env.SF_PASSWORD
+          ? '  The value being used came from .env or the environment, not from a\n' +
+            '  prompt — so re-running will keep failing the same way until that\n' +
+            '  file is corrected or deleted.\n\n'
+          : '') +
+        '  All three go away with the Salesforce CLI, which is how this org is\n' +
+        '  reached everywhere else:\n\n' +
+        '      sf org login web --alias patsdelivery\n\n' +
+        '  Then re-run this command. It picks the CLI session up automatically —\n' +
+        '  no password, no token.'
       );
     }
     throw e;
