@@ -79,7 +79,7 @@ Everything Salesforce derived — formula fields, weekly rollups, and the Apex i
 | `Doordash_Pay_Internal__c` | `doordash_pay` | view | |
 | `Doordash_Tips_Internal__c` | `doordash_tips` | view | |
 | — | `time_taken_hours` | view | Convenience; nothing should divide by 60 again |
-| ~~`Shift__c`~~ | — | — | **Dropped.** Parent object deleted; the column errors |
+| ~~`Shift__c`~~ | — | — | **Dropped.** Not present in the org — see below |
 
 ## Expense_Record__c → `expense_record`
 
@@ -92,9 +92,16 @@ Everything Salesforce derived — formula fields, weekly rollups, and the Apex i
 | `Type__c` | `type` | CHECK: Food, Charging, Toll, Tires, Maintenance, Other |
 | `Type_Explanation__c` | `type_explanation` | |
 | `Store__c` | `store` | |
-| `Store_Address__c` | `store_street`, `store_city`, `store_state`, `store_postal_code`, `store_country` | Compound field unpacked |
-| `Location__c` | `location_latitude`, `location_longitude` | Geolocation unpacked |
-| ~~`Shift__c`~~ | — | **Dropped**, same reason |
+| `Store_Address__Street__s` | `store_street` | Compound Address, unpacked |
+| `Store_Address__City__s` | `store_city` | " |
+| `Store_Address__StateCode__s` | `store_state` | " |
+| `Store_Address__PostalCode__s` | `store_postal_code` | " |
+| `Store_Address__CountryCode__s` | `store_country` | " |
+| `Store_Address__Latitude__s` | `store_address_latitude` | Salesforce's geocode of the address |
+| `Store_Address__Longitude__s` | `store_address_longitude` | " |
+| `Store_Address__GeocodeAccuracy__s` | `store_address_geocode_accuracy` | " |
+| `Location__Latitude__s` | `location_latitude` | Separate Geolocation field, set by hand or Pixit |
+| `Location__Longitude__s` | `location_longitude` | " |
 
 ---
 
@@ -147,6 +154,27 @@ never linked to a shift. That is the number `/weekly` should serve.
 are unlinked — **that difference is now a report you can run, not a mystery.**
 
 ---
+
+## What the export found that the vault did not
+
+The 2026-09-08 export enumerated **eight** custom objects. Four are the gig
+income model above. The rest:
+
+**`Job__c`, `Income__c`, `Expense__c`** — 5, 8 and 10 records. A separate
+job-costing model: `Job__c` holds `Client__c`, `Service_Type__c`,
+`Quoted_Amount__c` and `Profit_Margin_Percent__c`, with `Income__c` and
+`Expense__c` hanging off it by lookup, both carrying `Locked__c` and
+`Job_Import_Key__c`. Client work with quotes and margins, not deliveries.
+**Out of scope for this migration** — but they are in the export, so nothing is
+lost by leaving them where they are.
+
+**`Shift__c`** — 0 records, and no custom fields at all: only `Id`, `Name`,
+`OwnerId` and the usual system columns. The vault concluded the object had been
+deleted, because `SELECT Shift__c FROM Income_Record__c` failed with "No such
+column". The object is actually still there and queryable; it is the *lookup
+field* pointing at it that no longer exists — on `Income_Record__c` and on
+`Expense_Record__c` alike, neither of which lists it in the export. An empty
+shell either way, and nothing references it.
 
 ## Two things to verify against the org
 

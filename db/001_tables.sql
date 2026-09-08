@@ -227,15 +227,25 @@ create table expense_record (
 
   store               text,
 
-  -- Salesforce Address is a compound field and Geolocation a second one;
-  -- neither survives a flat export intact, so both are unpacked into columns.
-  store_street        text,
-  store_city          text,
-  store_state         text,
-  store_postal_code   text,
-  store_country       text,
-  location_latitude   numeric(9,6),
-  location_longitude  numeric(9,6),
+  -- Salesforce Address is a compound field and Geolocation a second one; neither
+  -- survives a flat export intact, so both are unpacked. The export manifest
+  -- names the component each column comes from.
+  store_street        text,   -- Store_Address__Street__s
+  store_city          text,   -- Store_Address__City__s
+  store_state         text,   -- Store_Address__StateCode__s
+  store_postal_code   text,   -- Store_Address__PostalCode__s
+  store_country       text,   -- Store_Address__CountryCode__s
+
+  -- The Address field carries its own geocode, which Salesforce fills in, and
+  -- it is not the same thing as Location__c below — that one was set by hand or
+  -- by Pixit. Keeping both means an address that was never geocoded stays
+  -- distinguishable from one that has no location at all.
+  store_address_latitude        numeric(9,6),  -- Store_Address__Latitude__s
+  store_address_longitude       numeric(9,6),  -- Store_Address__Longitude__s
+  store_address_geocode_accuracy text,         -- Store_Address__GeocodeAccuracy__s
+
+  location_latitude   numeric(9,6),  -- Location__Latitude__s
+  location_longitude  numeric(9,6),  -- Location__Longitude__s
 
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
@@ -246,7 +256,11 @@ create table expense_record (
   constraint expense_latitude_valid
     check (location_latitude is null or location_latitude between -90 and 90),
   constraint expense_longitude_valid
-    check (location_longitude is null or location_longitude between -180 and 180)
+    check (location_longitude is null or location_longitude between -180 and 180),
+  constraint expense_address_latitude_valid
+    check (store_address_latitude is null or store_address_latitude between -90 and 90),
+  constraint expense_address_longitude_valid
+    check (store_address_longitude is null or store_address_longitude between -180 and 180)
 );
 
 create index expense_record_dcf_idx on expense_record (daily_cash_flow_id);
