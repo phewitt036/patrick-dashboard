@@ -8,6 +8,13 @@
 const fs = require('fs');
 const path = require('path');
 const out = process.argv[2];
+if (!out) {
+  console.error('\n  usage: node test/make-fixture.js <output-dir>\n\n' +
+                '  Writes a synthetic Salesforce export there. Then:\n' +
+                '    node scripts/import-export.js <output-dir> --close-abandoned --infer-dates --drop-uber-level --apply\n' +
+                '    node scripts/reconcile.js <output-dir>\n');
+  process.exit(1);
+}
 fs.mkdirSync(out, { recursive: true });
 
 const r2 = n => Math.round(n * 100) / 100;

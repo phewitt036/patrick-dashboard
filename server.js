@@ -40,9 +40,16 @@ const authLimiter = rateLimit({
 });
 
 function requireAuth(req, res, next) {
+  // originalUrl, not path. Express strips the mount prefix off req.url before
+  // calling middleware mounted with app.use('/api/income', ...), so req.path is
+  // '/score' there and this test read false for every API route. An expired
+  // session then answered fetch() with a 302 to login.html, which the browser
+  // followed, and the page died on res.json() parsing HTML instead of saying
+  // the session had expired.
+  const isApi = req.originalUrl.startsWith('/api');
   const token = req.cookies?.session;
   if (!token) {
-    if (!req.path.startsWith('/api')) return res.redirect('/login.html');
+    if (!isApi) return res.redirect('/login.html');
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
@@ -50,7 +57,7 @@ function requireAuth(req, res, next) {
     next();
   } catch {
     res.clearCookie('session');
-    if (!req.path.startsWith('/api')) return res.redirect('/login.html');
+    if (!isApi) return res.redirect('/login.html');
     return res.status(401).json({ error: 'Session expired' });
   }
 }
@@ -72,7 +79,14 @@ app.get('/claw.html', requireAuth, (req, res) => res.sendFile(path.join(__dirnam
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Protected API routes
-app.use('/api/income', requireAuth, require('./routes/salesforce'));
+// Cutover is a config change, not a code change. CRM_BACKEND=postgres serves
+// the income endpoints from the local database; anything else keeps Salesforce.
+// Both implement the same eight paths with the same JSON, so flipping it back is
+// the rollback - no deploy, no edit, no thinking required at the point where
+// thinking is hardest.
+const CRM_BACKEND = process.env.CRM_BACKEND === 'postgres' ? 'postgres' : 'salesforce';
+app.use('/api/income', requireAuth,
+  require(CRM_BACKEND === 'postgres' ? './routes/income' : './routes/salesforce'));
 
 // The record-management screens. A new path alongside the Salesforce-backed
 // endpoints rather than in place of them - cutover is a separate decision, and
@@ -81,4 +95,10 @@ app.use('/api/records', requireAuth, require('./routes/records'));
 app.use('/api/pimax', requireAuth, require('./routes/pimax'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Dashboard running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Dashboard running on http://localhost:${PORT}`);
+  console.log(`Income endpoints served by: ${CRM_BACKEND}`);
+  if (CRM_BACKEND === 'postgres' && !process.env.DATABASE_URL) {
+    console.warn('WARNING: CRM_BACKEND=postgres but DATABASE_URL is not set.');
+  }
+});
