@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "schema:dump": "node scripts/sf-schema-dump.js",
-    "data:export": "node scripts/sf-data-export.js"
+    "data:export": "node scripts/sf-data-export.js",
+    "test:api": "node test/income-api.test.js"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +20,7 @@
     "express-rate-limit": "^8.6.0",
     "helmet": "^8.3.0",
     "jsforce": "^3.10.14",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.0"
   }
 }

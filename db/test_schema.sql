@@ -43,6 +43,17 @@ $$;
 
 begin;
 
+-- These assertions read the views unqualified in places, so a database with
+-- other rows in it produces "more than one row returned by a subquery" rather
+-- than a useful failure. Say so plainly instead.
+do $$
+begin
+  if exists (select 1 from daily_cash_flow) or exists (select 1 from income_record) then
+    raise exception 'test_schema.sql needs an empty database. Create a scratch one: createdb gigtest && psql -d gigtest -f db/001_tables.sql -f db/002_views.sql';
+  end if;
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Fixture: one Monday week, one shift, Uber + DoorDash income, one expense.
 -- Mirrors the vault's worked example: 1.00h Uber + 1.28h DoorDash = 2.28h.
