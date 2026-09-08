@@ -64,6 +64,8 @@ app.get('/index.html', requireAuth, (req, res) => res.sendFile(path.join(__dirna
 app.get('/gig', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'gig.html')));
 app.get('/gig.html', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'gig.html')));
 app.get('/claw', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'claw.html')));
+app.get('/records', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'records.html')));
+app.get('/records.html', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'records.html')));
 app.get('/claw.html', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'claw.html')));
 
 // Static files (login.html, setup.html, assets — no auth)
@@ -71,6 +73,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Protected API routes
 app.use('/api/income', requireAuth, require('./routes/salesforce'));
+
+// The record-management screens. A new path alongside the Salesforce-backed
+// endpoints rather than in place of them - cutover is a separate decision, and
+// until then both can be reached at once for comparison.
+app.use('/api/records', requireAuth, require('./routes/records'));
 app.use('/api/pimax', requireAuth, require('./routes/pimax'));
 
 const PORT = process.env.PORT || 3000;

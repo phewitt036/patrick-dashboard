@@ -43,7 +43,13 @@ expense as (
 )
 select
   d.id, d.sf_id, d.record_no, d.weekly_cash_flow_id, d.shift_date, d.day_of_week,
-  d.clock_in, d.clock_out, d.clock_out is null as is_open,
+  d.clock_in, d.clock_out,
+
+  -- Open means clocked in and not yet out - the same test the one-open-shift
+  -- index uses. A row with neither time (the imported history has one) is not
+  -- an open shift, and reporting it as one made /score call a 2026 April record
+  -- "in progress" forever.
+  (d.clock_in is not null and d.clock_out is null) as is_open,
   d.shift_hours, d.total_shift_miles, d.doordash_dash_time_hours,
 
   -- Salesforce stores Shift_Hours__c rounded to two places but divides by the

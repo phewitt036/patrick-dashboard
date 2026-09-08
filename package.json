@@ -11,7 +11,9 @@
     "schema:dump": "node scripts/sf-schema-dump.js",
     "data:export": "node scripts/sf-data-export.js",
     "test:api": "node test/income-api.test.js",
-    "test:fixture": "node test/make-fixture.js"
+    "test:fixture": "node test/make-fixture.js",
+    "test:records": "node test/records-api.test.js",
+    "test:browser": "node test/records-browser.test.js"
   },
   "keywords": [],
   "author": "",
