@@ -13,7 +13,8 @@
     "test:api": "node test/income-api.test.js",
     "test:fixture": "node test/make-fixture.js",
     "test:records": "node test/records-api.test.js",
-    "test:browser": "node test/records-browser.test.js"
+    "test:browser": "node test/records-browser.test.js",
+    "db:backup": "node scripts/backup.js"
   },
   "keywords": [],
   "author": "",
