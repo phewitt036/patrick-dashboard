@@ -110,14 +110,36 @@ async function fingerprint(connectionString) {
 }
 
 /**
+ * Split the password out of the connection string.
+ *
+ * pg_dump and pg_restore take the connection string as a command-line
+ * argument, which puts the database password into `ps` output for every user
+ * on the machine — every night at 3:15, unattended. Verified by catching the
+ * running process: the password was there in full. pimax is not a bare box
+ * either; agent-hub and Ollama run beside this.
+ *
+ * PGPASSWORD carries it instead. A process environment is readable only by the
+ * same user and root, where argv is readable by anyone who can run ps.
+ */
+function pgConn(raw) {
+  const u = new URL(raw);
+  const password = decodeURIComponent(u.password || '');
+  u.password = '';
+  return {
+    url: u.toString(),
+    env: password ? { ...process.env, PGPASSWORD: password } : process.env
+  };
+}
+
+/**
  * Throws rather than exiting. A failure part way through a backup has to unwind
  * through the finally blocks that delete the half-written dump and drop the
  * verification database - process.exit() skipped both, so every failed night
  * left a .partial file that looked like a backup and an orphaned database that
  * never went away.
  */
-function run(cmd, argv, label) {
-  const r = spawnSync(cmd, argv, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 256 });
+function run(cmd, argv, label, env = process.env) {
+  const r = spawnSync(cmd, argv, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 256, env });
   if (r.error) throw new Error(`${label} failed to start: ${r.error.message}`);
   if (r.status !== 0) {
     throw new Error(`${label} failed (exit ${r.status}):\n\n  ${(r.stderr || '').trim().split('\n').join('\n  ')}`);
@@ -246,7 +268,9 @@ async function backup() {
     // Written under .partial and renamed only once verified, so a dump killed
     // half way through never sits in the directory looking like a good backup.
     console.log(`Dumping ${database} ...`);
-    run('pg_dump', ['-Fc', '--no-owner', '--no-privileges', '-f', partial, '-d', raw], 'pg_dump');
+    const dump = pgConn(raw);
+    run('pg_dump', ['-Fc', '--no-owner', '--no-privileges', '-f', partial, '-d', dump.url],
+        'pg_dump', dump.env);
     console.log(`  wrote ${bytes(fs.statSync(partial).size)}`);
 
     // --- verify by restoring it ---
@@ -258,7 +282,8 @@ async function backup() {
       await admin.query(`create database "${verifyDb}"`);
       try {
         console.log(`Verifying: restoring into ${verifyDb} ...`);
-        run('pg_restore', ['--no-owner', '--no-privileges', '-d', urlFor(raw, verifyDb), partial], 'pg_restore');
+        const vc = pgConn(urlFor(raw, verifyDb));
+        run('pg_restore', ['--no-owner', '--no-privileges', '-d', vc.url, partial], 'pg_restore', vc.env);
 
         const [source, restored] = await Promise.all([fingerprint(raw), fingerprint(urlFor(raw, verifyDb))]);
         for (const line of restored) console.log(`  ${line}`);
@@ -346,7 +371,8 @@ async function restore() {
   } finally { await admin.end(); }
 
   console.log(`Restoring ${path.basename(file)} into ${into} ...`);
-  run('pg_restore', ['--no-owner', '--no-privileges', '-d', urlFor(raw, into), file], 'pg_restore');
+  const rc = pgConn(urlFor(raw, into));
+  run('pg_restore', ['--no-owner', '--no-privileges', '-d', rc.url, file], 'pg_restore', rc.env);
   for (const line of await fingerprint(urlFor(raw, into))) console.log(`  ${line}`);
   console.log(`\nRestored. Point DATABASE_URL at ${into} when you have checked it.`);
 }

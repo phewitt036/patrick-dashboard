@@ -109,7 +109,8 @@ router.post('/verify', async (req, res) => {
       requireUserVerification: true
     });
     if (!verification.verified) return res.status(401).json({ error: 'Authentication failed' });
-    const token = jwt.sign({ user: 'patrick' }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign({ user: 'patrick' }, process.env.JWT_SECRET,
+      { expiresIn: '24h', algorithm: 'HS256' });
     res.cookie('session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== 'development',
@@ -127,7 +128,7 @@ router.get('/status', (req, res) => {
   const token = req.cookies?.session;
   if (!token) return res.json({ authenticated: false });
   try {
-    jwt.verify(token, process.env.JWT_SECRET);
+    jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     res.json({ authenticated: true });
   } catch {
     res.json({ authenticated: false });

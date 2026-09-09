@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Stand the CRM up on a fresh machine, in one command.
+ * Stand Patforce up on a fresh machine, in one command.
  *
  * Everything here can already be done with four separate npm scripts. The point
  * of this one is that it runs them in the right order, checks the things that
@@ -244,7 +244,7 @@ function cron(backupDir) {
 }
 
 (async () => {
-  console.log('\nGig CRM — install\n');
+  console.log('\nPatforce — install\n');
   await preflight();
   schema();
   importData();

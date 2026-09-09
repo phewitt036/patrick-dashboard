@@ -1,4 +1,4 @@
-# Backups
+# Patforce backups
 
 `npm run db:backup` dumps the database, **restores that dump into a throwaway
 database, and compares it against the source** — row counts per table and the

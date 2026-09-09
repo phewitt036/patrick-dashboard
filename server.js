@@ -53,7 +53,7 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
-    jwt.verify(token, process.env.JWT_SECRET);
+    jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     next();
   } catch {
     res.clearCookie('session');
@@ -97,7 +97,17 @@ app.use('/api/pimax', requireAuth, require('./routes/pimax'));
 // Machine-to-machine ingestion. Deliberately not behind requireAuth: Pixit has
 // no browser session, so this router does its own INGEST_KEY check and answers
 // 503 until that key is set.
-app.use('/api/ingest', express.json({ limit: '2mb' }), require('./routes/ingest'));
+//
+// Rate limited because it is the one route reachable from the internet without
+// a browser session. The key is 256 bits and not worth guessing, but a limit
+// also keeps anyone who finds the URL from spending a Pi's CPU on it.
+const ingestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use('/api/ingest', ingestLimiter, express.json({ limit: '2mb' }), require('./routes/ingest'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

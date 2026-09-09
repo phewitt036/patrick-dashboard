@@ -1,4 +1,4 @@
-# Pushing records in from Pixit
+# Pushing records into Patforce from Pixit
 
 Pixit reads a screenshot, works out what was earned, and pushes it. Today it
 pushes into Salesforce. This is what it pushes into instead.
