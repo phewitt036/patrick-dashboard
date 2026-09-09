@@ -32,7 +32,7 @@ leaves a verified dump on another machine.
 In `.env` on pimax:
 
     DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/gig
-    BACKUP_DIR=/home/patrick/gig-backups
+    BACKUP_DIR=$HOME/gig-backups
     BACKUP_MIRROR=/mnt/bee/gig-backups
     BACKUP_KEEP=30
 
@@ -54,7 +54,7 @@ month of them covers a full billing cycle.
 
 On pimax, `crontab -e`, then one line:
 
-    15 3 * * * cd /home/patrick/patrick-dashboard && /usr/bin/node scripts/backup.js >> /home/patrick/gig-backup.log 2>&1
+    15 3 * * * cd $HOME/patrick-dashboard && /usr/bin/node scripts/backup.js >> $HOME/gig-backup.log 2>&1
 
 3:15am, after any realistic end of a shift. Read the log occasionally; a failed
 run says so loudly and exits non-zero.

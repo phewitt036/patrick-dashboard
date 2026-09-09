@@ -30,7 +30,19 @@ machine.
 
 ## 1. Get the pieces onto pimax
 
-    ssh pimax
+**The account on pimax is `pi`,** not the Windows username x8 will default to and
+not `patrick`. `DASHBOARD-DEVLOG.md` records the real path there —
+`/home/pi/scripts/dashboard-update.sh` — from when the agent-hub scripts were
+set up.
+
+If `ssh pi@pimax` asks for a password, x8's key is not installed on that account
+yet. Install it once and everything after this is passwordless:
+
+    ssh-copy-id pi@pimax
+
+Then:
+
+    ssh pi@pimax
 
     sudo apt install postgresql postgresql-client
     sudo systemctl enable --now postgresql
