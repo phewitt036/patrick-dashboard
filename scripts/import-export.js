@@ -272,13 +272,20 @@ async function importAll(pool, data) {
     counts.weekly_cash_flow = data.Weekly_Cash_Flow__c.length;
 
     // --- shifts ---
+    // An imported shift with neither a clock-in nor a clock-out was never a day
+    // worked - it is the container the bulk history was hung on, the way
+    // DCF-0000 holds 18 months of backfilled earnings under one April date.
+    // Flagged here rather than derived by the database, because a shift typed
+    // in by hand with the times left blank is a different thing: that one is a
+    // day Patrick means to fill in, and it stays visible.
     await insertRows(client, 'daily_cash_flow',
       ['sf_id', 'record_no', 'weekly_cash_flow_id', 'shift_date', 'clock_in', 'clock_out',
-       'total_shift_miles', 'doordash_dash_time_hours'],
+       'total_shift_miles', 'doordash_dash_time_hours', 'is_placeholder'],
       data.Daily_Cash_Flow__c.map(d => [
         d.Id, d.Name, weekMap.get(d.Weekly_Cash_Flow__c), d.Date__c,
         d.Clock_In__c || null, d.Clock_Out__c || null,
-        num(d.Total_Shift_Miles__c) ?? 0, num(d.Doordash_Dash_Time__c) ?? 0
+        num(d.Total_Shift_Miles__c) ?? 0, num(d.Doordash_Dash_Time__c) ?? 0,
+        !d.Clock_In__c && !d.Clock_Out__c
       ]));
     const dayMap = new Map((await client.query('select id, sf_id from daily_cash_flow where sf_id is not null'))
       .rows.map(r => [r.sf_id, r.id]));

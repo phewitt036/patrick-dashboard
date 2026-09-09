@@ -115,7 +115,10 @@ async function main() {
     }));
 
     // --- daily: what DailyCashFlowHandler used to write, plus the formulas ---
-    const daily = byId((await pool.query('select * from v_daily_cash_flow where sf_id is not null')).rows);
+    // The _all views deliberately, not the ones the application reads. Those
+    // leave placeholder shifts out; the org being compared against still has
+    // DCF-0000 in it, and a fidelity check has to compare like with like.
+    const daily = byId((await pool.query('select * from v_daily_cash_flow_all where sf_id is not null')).rows);
     ok &= report(compare('Daily_Cash_Flow__c totals (was Apex) and formulas', load('Daily_Cash_Flow__c'), daily, {
       Total_Income__c: 'total_income',
       Total_Expenses__c: 'total_expenses',
@@ -130,7 +133,7 @@ async function main() {
     }));
 
     // --- weekly: the native rollups ---
-    const weekly = byId((await pool.query('select * from v_weekly_cash_flow where sf_id is not null')).rows);
+    const weekly = byId((await pool.query('select * from v_weekly_cash_flow_all where sf_id is not null')).rows);
     ok &= report(compare('Weekly_Cash_Flow__c rollups', load('Weekly_Cash_Flow__c'), weekly, {
       Weekly_Total_Income__c: 'weekly_total_income',
       Weekly_Total_Expenses__c: 'weekly_total_expenses',

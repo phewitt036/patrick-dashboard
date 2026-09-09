@@ -136,7 +136,7 @@ function handle(fn) {
 async function shiftForDate(client, date) {
   const { rows } = await client.query(
     `select id from daily_cash_flow
-      where shift_date = $1
+      where shift_date = $1 and not is_placeholder
       order by (clock_out is null) desc, clock_in desc nulls last
       limit 1`,
     [date]

@@ -202,3 +202,34 @@ psql -d gig -f db/test_schema.sql
 ```
 
 `test_schema.sql` rolls back — it leaves nothing behind.
+
+## Placeholder shifts — a fourth deliberate divergence
+
+`DCF-0000` is dated 2026-04-19 with no clock-in, no clock-out and no miles, and
+it holds **1,155 income records worth $41,359.34 spanning 2024-10-21 to
+2026-04-19** — the history bulk-loaded when the org was built. The earnings are
+real; the shift is not. Nobody worked an eighteen-month shift on one April
+afternoon.
+
+Salesforce counted it as a day worked, which did three wrong things: it showed
+in the shift list, it earned $41,359.34 across zero shift hours so every rate
+derived from it was meaningless, and it dropped eighteen months into the single
+week of 2026-04-20 — the week that reads $42,082.66 in the org against $723.32
+of actual work.
+
+`daily_cash_flow.is_placeholder` marks it. The flag is on the **shift**: every
+income record stays where it is and still counts, because `/weekly`, `/monthly`
+and `v_income_by_week` bucket by `income_date` rather than by shift, so those
+earnings land in the months they were actually made.
+
+| View | Placeholders | Read by |
+|---|---|---|
+| `v_daily_cash_flow_all`, `v_weekly_cash_flow_all` | included | `scripts/reconcile.js` |
+| `v_daily_cash_flow`, `v_weekly_cash_flow` | excluded | the application |
+
+Reconciliation needs the `_all` views because the org it compares against still
+has `DCF-0000` in it, and a fidelity check has to compare like with like.
+
+The flag is set by the importer, not derived by the database. A shift typed in
+by hand with the times left blank is a different thing — a day still to be
+filled in — and it stays visible.
