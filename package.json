@@ -16,7 +16,8 @@
     "test:browser": "node test/records-browser.test.js",
     "db:backup": "node scripts/backup.js",
     "test:ingest": "node test/ingest-api.test.js",
-    "test:gig": "node test/gig-browser.test.js"
+    "test:gig": "node test/gig-browser.test.js",
+    "crm:install": "node scripts/install-crm.js"
   },
   "keywords": [],
   "author": "",
