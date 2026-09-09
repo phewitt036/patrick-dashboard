@@ -154,6 +154,32 @@ async function sweepOrphans(admin) {
   }
 }
 
+/**
+ * Make a backup directory without ever calling recursive mkdir on a path this
+ * script does not control.
+ *
+ * fs.mkdirSync(dir, {recursive:true}) does not fail when a parent cannot be
+ * created — it spins at 100% CPU and never returns. A BACKUP_MIRROR pointing at
+ * a share that is not mounted is exactly that case, and on a nightly cron it
+ * means a job that never finishes, another one stacked on top of it tomorrow,
+ * and a Pi running hot for no reason. Failing in two seconds is worth a great
+ * deal more than succeeding eventually.
+ *
+ * The parent is the mount point. If it is missing, that is a mount to fix, not
+ * a directory for a backup script to invent.
+ */
+function ensureDir(dir, label) {
+  const resolved = path.resolve(dir);
+  const parent = path.dirname(resolved);
+  if (parent !== resolved && !fs.existsSync(parent)) {
+    throw new Error(
+      `${label} ${dir} cannot be created because ${parent} does not exist.\n` +
+      '  If that is a mounted share, it is not mounted.');
+  }
+  try { fs.mkdirSync(resolved); }
+  catch (e) { if (e.code !== 'EEXIST') throw e; }
+}
+
 /** Same device means one disk failure loses both copies. Best effort — not every path can be stat'd. */
 function warnIfSameDisk(dir, dataDirectory) {
   if (!dataDirectory) return;
@@ -199,7 +225,7 @@ async function backup() {
   const { version, dataDirectory } = await serverInfo(raw);
   checkTools(version);
 
-  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  ensureDir(BACKUP_DIR, 'BACKUP_DIR');
   warnIfSameDisk(BACKUP_DIR, dataDirectory);
 
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
@@ -276,7 +302,7 @@ async function backup() {
 
   if (MIRROR) {
     try {
-      fs.mkdirSync(MIRROR, { recursive: true });
+      ensureDir(MIRROR, 'BACKUP_MIRROR');
       warnIfSameDisk(MIRROR, dataDirectory);
       fs.copyFileSync(file, path.join(MIRROR, path.basename(file)));
       console.log(`Mirrored to ${path.join(MIRROR, path.basename(file))}`);
