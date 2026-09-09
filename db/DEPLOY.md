@@ -1,7 +1,8 @@
-# Standing the CRM up on pimax
+# Standing Patforce up on pimax
 
-Everything below happens on **pimax**, over SSH from x8. One command does the
-work; the rest is getting the pieces onto the box.
+Patforce — the CRM replacing the Salesforce org. Everything below happens on
+**pimax**, over SSH from x8. One command does the work; the rest is getting the
+pieces onto the box.
 
 ## Why this cannot be done from a Claude Code web session
 
