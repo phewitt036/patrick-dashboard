@@ -340,6 +340,10 @@
     return n;
   };
 
+  /** Earned money, but has no recorded hours to divide it by. */
+  const needsHours = r =>
+    !r.is_open && r.clock_out && Number(r.shift_hours) === 0 && Number(r.total_income) > 0;
+
   const money = v => (v === null || v === undefined) ? '—'
     : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const numOrDash = (v, d = 1) => (v === null || v === undefined || v === '') ? '—' : Number(v).toFixed(d);
@@ -450,7 +454,15 @@
         el('td', {}, r.is_open
           ? el('span', { class: 'pill open', text: 'open' })
           : el('span', { class: 'muted', text: r.clock_out ? toLocalInput(r.clock_out).slice(11) : '—' })),
-        el('td', { class: 'num', text: numOrDash(r.shift_hours, 2) }),
+        // A shift that earned money across no recorded hours never got a
+        // clock-out — the import closed it at its own clock-in rather than
+        // inventing a duration Salesforce never had. Its income still counts
+        // toward the weekly rate while its hours do not, so that rate reads
+        // high until the real clock-out is filled in. Flagged so the ones that
+        // need fixing can be found instead of scrolled for.
+        el('td', { class: 'num' }, needsHours(r)
+          ? el('span', { class: 'pill warn', text: 'no hours' })
+          : el('span', { text: numOrDash(r.shift_hours, 2) })),
         el('td', { class: 'num', text: money(r.total_income) }),
         el('td', { class: 'num', text: money(r.total_expenses) }),
         el('td', { class: 'num', text: money(r.net_profit) }),
