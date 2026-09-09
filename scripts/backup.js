@@ -203,8 +203,24 @@ function ensureDir(dir, label) {
 }
 
 /** Same device means one disk failure loses both copies. Best effort — not every path can be stat'd. */
+/**
+ * True when `dir` is on a different device from the database, so a copy there
+ * survives that disk dying. A path we cannot stat counts as not proven safe.
+ */
+function isOffDatabaseDisk(dir, dataDirectory) {
+  if (!dir || !dataDirectory) return false;
+  try { return fs.statSync(dir).dev !== fs.statSync(dataDirectory).dev; }
+  catch { return false; }
+}
+
 function warnIfSameDisk(dir, dataDirectory) {
   if (!dataDirectory) return;
+  // A mirror on another disk is the whole point of BACKUP_MIRROR. Once one is
+  // configured and demonstrably elsewhere, BACKUP_DIR sharing a disk with the
+  // database is no longer the failure this warns about - it is just the fast
+  // local copy. Warning anyway teaches the reader to skip a line that will one
+  // day be real; a mirror that fails is reported separately, and loudly.
+  if (dir === BACKUP_DIR && isOffDatabaseDisk(MIRROR, dataDirectory)) return;
   try {
     if (fs.statSync(dir).dev === fs.statSync(dataDirectory).dev) {
       console.warn(

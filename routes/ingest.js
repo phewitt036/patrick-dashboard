@@ -193,11 +193,47 @@ router.post('/expenses', handle(async (req, res) => {
  * in, and silently creating one produces exactly the kind of empty record the
  * Salesforce history is full of. Pass createShift to say you meant it.
  */
+/**
+ * What a day already holds. Pixit needs this because the POST above SETS the
+ * figure: a client that only knows its own dashes would replace hours recorded
+ * elsewhere - by the Salesforce import, or by a dash it never saw - with the
+ * smaller number it happens to know. Reading first lets it add instead.
+ *
+ * Read-only, behind the same key, and answers for a day with no shift rather
+ * than 404ing, because "no shift, so no hours" is a real and useful answer.
+ */
+router.get('/dash-time', handle(async (req, res) => {
+  const date = requiredDate(req.query.date, 'date');
+  const { rows } = await pool.query(
+    `select record_no, doordash_dash_time_hours, doordash_active_time_hours
+       from daily_cash_flow
+      where shift_date = $1 and not is_placeholder
+      order by id limit 1`, [date]);
+  const row = rows[0] || null;
+  res.json({
+    date,
+    shift: row ? row.record_no : null,
+    hours: row ? Number(row.doordash_dash_time_hours) : 0,
+    // null, not 0: a day whose active time was never captured is not a day of
+    // zero driving, and a client adding to it must be able to tell the two apart.
+    activeHours: row && row.doordash_active_time_hours !== null
+      ? Number(row.doordash_active_time_hours) : null
+  });
+}));
+
 router.post('/dash-time', handle(async (req, res) => {
   const body = req.body || {};
   const date = requiredDate(body.date, 'date');
   const hours = optionalNumber(body.hours, 'hours', { min: 0 });
   if (hours === null) throw new BadRequest('hours is required.', 'hours');
+  // DoorDash reports the driving portion separately from the whole logged-on
+  // window. Optional: omitting it leaves whatever is stored alone rather than
+  // erasing it, so a client that does not know about active time cannot
+  // silently discard a figure another one recorded.
+  const activeHours = optionalNumber(body.activeHours, 'activeHours', { min: 0 });
+  if (activeHours !== null && activeHours > hours) {
+    throw new BadRequest('activeHours cannot exceed hours - active time is measured inside the dash.', 'activeHours');
+  }
 
   const result = await withTransaction(async (client) => {
     let shiftId = await shiftForDate(client, date);
@@ -206,13 +242,16 @@ router.post('/dash-time', handle(async (req, res) => {
       if (!body.createShift) return null;
       const weekId = await weekForDate(client, date);
       const { rows } = await client.query(
-        `insert into daily_cash_flow (weekly_cash_flow_id, shift_date, doordash_dash_time_hours)
-         values ($1, $2, $3) returning id`, [weekId, date, hours]);
+        `insert into daily_cash_flow (weekly_cash_flow_id, shift_date, doordash_dash_time_hours, doordash_active_time_hours)
+         values ($1, $2, $3, $4) returning id`, [weekId, date, hours, activeHours]);
       shiftId = rows[0].id;
       createdShift = true;
     } else {
       await client.query(
-        'update daily_cash_flow set doordash_dash_time_hours = $1 where id = $2', [hours, shiftId]);
+        `update daily_cash_flow
+            set doordash_dash_time_hours = $1,
+                doordash_active_time_hours = coalesce($2, doordash_active_time_hours)
+          where id = $3`, [hours, activeHours, shiftId]);
     }
     return { shiftId, createdShift };
   });
