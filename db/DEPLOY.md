@@ -14,6 +14,20 @@ the boundary, not a setting to change.
 **Claude Code running on x8** does have the LAN, and can SSH into pimax and do
 all of this. That is the session to use for this part.
 
+## 0. Take a fresh export first — on x8
+
+Everything entered in Salesforce since the last export is only in Salesforce.
+Export now, so the cutover carries today's data rather than a snapshot from
+whenever the last one was taken:
+
+    cd patrick-dashboard
+    git pull
+    npm run data:export
+
+It writes `sf-export/data/<timestamp>/`. That newest folder is the one to copy
+across — not an older one. `sf-export/` is gitignored, so it stays on the
+machine.
+
 ## 1. Get the pieces onto pimax
 
     ssh pimax
@@ -25,11 +39,14 @@ all of this. That is the session to use for this part.
     cd patrick-dashboard
     npm install
 
-The Salesforce export folder — `2026-09-08T18-55-15-881Z`, the one holding
-`Income_Record__c.json` and its three siblings — has to be on pimax too. From
-x8:
+The export folder from step 0 has to be on pimax too. From x8, copying the
+newest one:
 
-    scp -r <path-to-export> pimax:~/sf-export
+    scp -r sf-export/data/<the-newest-timestamp> pimax:~/sf-export
+
+It is the folder holding `Income_Record__c.json` and its three siblings. The
+installer checks that before it writes anything, and says so if you point it at
+the wrong directory.
 
 ## 2. Set the database password
 
