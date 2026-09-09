@@ -208,6 +208,20 @@ function repair(data, openShifts) {
       `--close-abandoned: closed ${toClose.length} shift(s) at their clock-in ` +
       `(zero duration, matching Salesforce's Shift_Hours__c of 0), left ${sorted[0].Name} open`
     );
+    // Say what that costs, not just what was done. These shifts earned money
+    // across no recorded hours, so their income counts toward the weekly
+    // $/shift-hour while their hours do not, and that rate reads high until a
+    // real clock-out is entered. Salesforce has exactly the same problem today;
+    // the difference is that this says so.
+    const earners = toClose.filter(d => d.Name);
+    if (earners.length) {
+      applied.push(
+        `  note: those ${earners.length} shift(s) — ${earners.map(d => d.Name).join(', ')} — ` +
+        'have no measured hours, so any week containing one reports $/shift-hour ' +
+        'higher than it really was. They are flagged "no hours" on the Shifts ' +
+        'tab; entering the real clock-out corrects the week.'
+      );
+    }
   }
 
   if (DEFAULT_SOURCE) {

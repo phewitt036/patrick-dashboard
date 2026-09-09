@@ -233,3 +233,32 @@ has `DCF-0000` in it, and a fidelity check has to compare like with like.
 The flag is set by the importer, not derived by the database. A shift typed in
 by hand with the times left blank is a different thing — a day still to be
 filled in — and it stays visible.
+
+## Shifts that earned money across no measured hours
+
+Six shifts in the 2026-09-08 export were clocked into and never clocked out:
+DCF-0069, DCF-0095, DCF-0096, DCF-0097, DCF-0098, DCF-0099. Between them they
+carry **$404.85**.
+
+Salesforce reads `Shift_Hours__c = 0` for every one of them, because that
+formula is `IF(NOT(ISBLANK(Clock_Out__c)), ..., 0)`. The import keeps that
+rather than guessing a duration from the last child record — inventing one
+would make every derived figure disagree at reconciliation for a reason that is
+the repair rather than a porting error.
+
+The consequence is worth stating plainly, because it is a live problem in the
+org today and not something the migration introduced:
+
+**A week containing one of these reports $/shift-hour higher than it really
+was.** The income counts toward the weekly rate; the hours do not, so it divides
+by too little.
+
+| Week | Reported $/shift-hour | Excluding the income with no hours |
+|---|---|---|
+| 2026-08-24 | $36.69 | $23.77 |
+| 2026-08-03 | $25.33 | $21.30 |
+| 2026-08-31 | $0.00 | every shift that week is missing its clock-out |
+
+They are flagged **no hours** on the Shifts tab, and the importer names them
+after any run that closes them. Entering the real clock-out corrects the shift
+and the week it sits in.
