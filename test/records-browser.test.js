@@ -9,7 +9,14 @@
 
 const express = require('express');
 const path = require('path');
+const { Pool } = require('pg');
 const { chromium } = require('playwright');
+
+const DB = process.env.DATABASE_URL;
+if (!DB) {
+  console.error('\n  DATABASE_URL must point at a database with imported records.\n');
+  process.exit(1);
+}
 
 const ROOT = require('path').join(__dirname, '..');
 let pass = 0, fail = 0;
@@ -24,6 +31,7 @@ const loaded = page => page.waitForFunction(
   null, { timeout: 10000 });
 
 (async () => {
+  const pool = new Pool({ connectionString: DB });
   const app = express();
   app.use(express.json());
   app.use('/api/records', require(path.join(ROOT, 'routes/records')));
@@ -61,7 +69,11 @@ const loaded = page => page.waitForFunction(
   check('a full page of rows', rowCount === 50, `got ${rowCount}`);
 
   const summary = await page.textContent('#summary');
-  check('summary shows the real record count', /1,?5\d\d record/.test(summary.replace(/\s+/g, ' ')), summary);
+  const expected = Number((await pool.query('select count(*) as n from income_record')).rows[0].n);
+  const shown = Number((summary.replace(/\s+/g, ' ').match(/([\d,]+) record/) || [])[1]?.replace(/,/g, ''));
+  // Counted from the database, not hard-coded. A literal range read "1,5xx"
+  // and went stale the first time anything added a row.
+  check(`summary shows the real record count (${expected})`, shown === expected, summary);
   check('summary shows earnings', /\$[\d,]+\.\d\d earned/.test(summary), summary);
 
   // --- filtering ---
@@ -148,6 +160,15 @@ const loaded = page => page.waitForFunction(
 
   await browser.close();
   server.close();
+
+  // The record added through the form above is this suite's own litter. Left
+  // behind, every run added another and the counts drifted.
+  const cleaned = await pool.query(
+    `delete from income_record where store = 'Playwright Diner'`);
+  check('the record added through the form is cleaned up', cleaned.rowCount >= 1,
+        `deleted ${cleaned.rowCount}`);
+  await pool.end();
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exitCode = fail ? 1 : 0;
 })();

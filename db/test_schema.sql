@@ -250,6 +250,45 @@ select assert_eq('unlinked income still lands in the right week',
 select assert_eq('...and the weekly rollup, which walks shifts, does not see it',
   (select weekly_total_income from v_weekly_cash_flow), 62.50::numeric);
 
+-- ---------------------------------------------------------------------------
+-- Placeholder shifts
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '--- a container is not a day worked ---'
+
+-- The shape of DCF-0000: dated, but never clocked into, holding backfilled
+-- income from months that have nothing to do with that date.
+-- Set explicitly, the way scripts/import-export.js sets it. Not derived from
+-- the missing times: a shift typed in by hand with the times left blank is a
+-- day still to be filled in, and the assertion below holds it visible.
+insert into daily_cash_flow (weekly_cash_flow_id, shift_date, is_placeholder)
+  select id, '2026-05-15', true from weekly_cash_flow where start_date = '2026-05-11';
+
+insert into income_record (daily_cash_flow_id, income_date, source, amount)
+  select id, '2024-11-02', 'Uber', 500.00 from daily_cash_flow where shift_date = '2026-05-15';
+
+select assert_eq('the application does not see it as a shift',
+  (select count(*) from v_daily_cash_flow where shift_date = '2026-05-15'), 0::bigint);
+select assert_eq('...but reconciliation still does',
+  (select count(*) from v_daily_cash_flow_all where shift_date = '2026-05-15'), 1::bigint);
+
+select assert_eq('its income stays out of the weekly rollup the app reads',
+  (select weekly_total_income from v_weekly_cash_flow), 62.50::numeric);
+select assert_eq('...and stays in the one reconciliation reads',
+  (select weekly_total_income from v_weekly_cash_flow_all), 562.50::numeric);
+
+-- The point of keeping the rows: the money is still counted, in the month it
+-- was actually earned rather than the month the placeholder is dated.
+select assert_eq('the income still counts, in its own week',
+  (select total_income from v_income_by_week where week_start = '2024-10-28'), 500.00::numeric);
+
+-- The other half of the rule. A day with no times that nobody flagged is a
+-- shift waiting to be filled in, not a container, and it must not vanish.
+insert into daily_cash_flow (weekly_cash_flow_id, shift_date)
+  select id, '2026-05-16' from weekly_cash_flow where start_date = '2026-05-11';
+select assert_eq('a hand-made shift with blank times stays visible',
+  (select count(*) from v_daily_cash_flow where shift_date = '2026-05-16'), 1::bigint);
+
 \echo ''
 \echo 'All schema tests passed.'
 
