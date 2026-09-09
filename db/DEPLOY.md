@@ -36,7 +36,14 @@ not `patrick`. `DASHBOARD-DEVLOG.md` records the real path there —
 set up.
 
 If `ssh pi@pimax` asks for a password, x8's key is not installed on that account
-yet. Install it once and everything after this is passwordless:
+yet. Install it once and everything after this is passwordless.
+
+Windows' bundled OpenSSH has no `ssh-copy-id`, so in PowerShell pipe the key
+across instead — one password prompt, the last one:
+
+    type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh pi@pimax "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+
+From Git Bash or a Mac, the short form works:
 
     ssh-copy-id pi@pimax
 
