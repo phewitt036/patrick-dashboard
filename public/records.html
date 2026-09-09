@@ -5,167 +5,285 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Records · Patrick's Command Center</title>
 <link rel="icon" href="/favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
+  /* Light, deliberately. The command centre is dark because it is a wall of
+     live telemetry read at a glance; this is a ledger, read closely, for a long
+     time, often in daylight in a car. Different job, different surface.
+
+     No webfont. system-ui is SF Pro on the phone and Segoe on x8 — sharper than
+     anything a CDN would send, it renders on the first paint instead of the
+     second, and it still works when the Pi has no internet. Numbers get a mono
+     stack so columns of money line up. */
   :root {
-    --bg: #0a0a0f;
-    --surface: #111118;
-    --surface2: #1a1a24;
-    --border: #2a2a3a;
-    --accent: #6c63ff;
-    --accent3: #00d4aa;
-    --accent4: #f5a623;
-    --danger: #ff6b5c;
-    --text: #e8e8f0;
-    --muted: #6b6b80;
-    --dim: #3a3a50;
+    --bg:        #f4f5f7;
+    --surface:   #ffffff;
+    --surface2:  #f0f2f5;
+    --border:    #e4e7ec;
+    --border-2:  #d0d5dd;
+    --text:      #0f1219;
+    --muted:     #5b6472;
+    --dim:       #98a1af;
+    --accent:    #4f46e5;
+    --accent-lo: #eef0fe;
+    --pos:       #0a7a4f;
+    --pos-lo:    #e6f5ee;
+    --neg:       #b3341d;
+    --neg-lo:    #fdeeea;
+    --warn:      #8a5a00;
+    --warn-lo:   #fdf3e0;
+    --ring:      0 0 0 3px rgba(79,70,229,0.18);
+    --shadow:    0 1px 2px rgba(16,24,40,0.05);
+    --shadow-lg: 0 12px 32px rgba(16,24,40,0.14), 0 2px 6px rgba(16,24,40,0.06);
+    --ui:  system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
+    font-family: var(--ui);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
     -webkit-text-size-adjust: 100%;
   }
-  a { color: var(--accent3); text-decoration: none; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
 
   header {
     position: sticky; top: 0; z-index: 20;
-    background: rgba(10,10,15,0.94);
-    backdrop-filter: blur(8px);
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: saturate(180%) blur(10px);
     border-bottom: 1px solid var(--border);
   }
   .head-row {
     max-width: 1180px; margin: 0 auto;
-    display: flex; align-items: center; gap: 16px;
-    padding: 14px 20px;
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 20px 12px;
   }
   h1 {
-    font-family: 'Syne', sans-serif; font-weight: 800;
-    font-size: 20px; margin: 0; letter-spacing: -0.01em;
+    font-size: 19px; font-weight: 640; margin: 0;
+    letter-spacing: -0.021em;
   }
-  .back { font-size: 11px; color: var(--muted); }
-  .back:hover { color: var(--text); }
+  .back { font-size: 13px; color: var(--muted); }
+  .back:hover { color: var(--text); text-decoration: none; }
   .spacer { flex: 1; }
 
-  .tabs { display: flex; gap: 4px; max-width: 1180px; margin: 0 auto; padding: 0 20px 12px; }
-  .tab {
-    font-family: inherit; font-size: 12px; letter-spacing: 0.04em;
-    background: none; border: 1px solid transparent; color: var(--muted);
-    padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  /* Segmented control rather than three loose buttons: one object with a
+     selected part reads as a switch, which is what it is. */
+  .tabs {
+    display: inline-flex; gap: 2px;
+    max-width: 1180px; margin: 0 auto; padding: 0 20px 12px;
   }
-  .tab:hover { color: var(--text); }
-  .tab[aria-selected="true"] { background: var(--surface2); border-color: var(--border); color: var(--text); }
+  .tabs { display: flex; }
+  .tab {
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    background: none; border: 1px solid transparent; color: var(--muted);
+    padding: 7px 15px; border-radius: 8px; cursor: pointer;
+    min-height: 34px; transition: background 0.12s, color 0.12s;
+  }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab[aria-selected="true"] {
+    background: var(--surface); border-color: var(--border);
+    color: var(--text); box-shadow: var(--shadow); font-weight: 560;
+  }
 
   main { max-width: 1180px; margin: 0 auto; padding: 20px; }
 
-  .bar {
-    display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
-    margin-bottom: 16px;
-  }
-  .field { display: flex; flex-direction: column; gap: 5px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 16px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
   .field label {
-    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+    font-size: 11px; font-weight: 560; letter-spacing: 0.02em; color: var(--muted);
   }
   input, select, textarea {
-    font-family: inherit; font-size: 13px;
+    font-family: inherit; font-size: 14px;
     background: var(--surface); color: var(--text);
-    border: 1px solid var(--border); border-radius: 8px;
-    padding: 9px 11px; min-height: 38px;
+    border: 1px solid var(--border-2); border-radius: 8px;
+    padding: 8px 11px; min-height: 38px;
+    box-shadow: var(--shadow);
+    transition: border-color 0.12s, box-shadow 0.12s;
   }
-  input:focus, select:focus, textarea:focus, button:focus-visible {
-    outline: 2px solid var(--accent); outline-offset: 1px;
+  input::placeholder { color: var(--dim); }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--accent); box-shadow: var(--ring);
   }
-  input[type="date"] { min-width: 140px; }
+  button:focus-visible { outline: none; box-shadow: var(--ring); }
+  input[type="date"] { min-width: 148px; }
+  input[type="search"] { max-width: 320px; }
+  input[type="number"] { font-variant-numeric: tabular-nums; }
 
   button {
-    font-family: inherit; font-size: 12px; cursor: pointer;
-    border-radius: 8px; padding: 10px 16px; min-height: 38px;
-    border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+    font-family: inherit; font-size: 13px; font-weight: 540; cursor: pointer;
+    border-radius: 8px; padding: 9px 14px; min-height: 38px;
+    border: 1px solid var(--border-2); background: var(--surface); color: var(--text);
+    box-shadow: var(--shadow); transition: background 0.12s, border-color 0.12s;
   }
-  button:hover { border-color: var(--dim); }
-  .primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
-  .primary:hover { opacity: 0.9; }
-  .danger { color: var(--danger); border-color: transparent; background: none; padding: 6px 10px; min-height: 0; }
-  .danger:hover { border-color: var(--danger); }
-  .link-btn { background: none; border: none; color: var(--accent3); padding: 6px 10px; min-height: 0; }
+  button:hover { background: var(--surface2); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .primary {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+    box-shadow: 0 1px 2px rgba(79,70,229,0.28);
+  }
+  .primary:hover { background: #4338ca; border-color: #4338ca; }
+  .danger {
+    color: var(--muted); border-color: transparent; background: none;
+    padding: 5px 9px; min-height: 0; box-shadow: none; font-size: 13px;
+  }
+  .danger:hover { background: var(--neg-lo); color: var(--neg); }
+  .link-btn {
+    background: none; border: none; color: var(--muted); padding: 5px 9px;
+    min-height: 0; box-shadow: none;
+  }
+  .link-btn:hover { background: var(--surface2); color: var(--text); }
 
+  /* Stat tiles. The number is the thing; the label is a caption under it. */
   .summary {
-    display: flex; flex-wrap: wrap; gap: 20px;
-    padding: 12px 16px; margin-bottom: 14px;
-    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-    font-size: 12px; color: var(--muted);
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 14px; padding: 0; border: none; background: none;
   }
-  .summary b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .summary span {
+    flex: 0 1 auto; min-width: 148px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: var(--shadow);
+    padding: 12px 14px;
+    font-size: 12px; color: var(--muted); font-weight: 500;
+  }
+  .summary b {
+    display: block; margin-bottom: 1px;
+    color: var(--text); font-family: var(--mono);
+    font-size: 21px; font-weight: 600; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
 
-  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
-  table { border-collapse: collapse; width: 100%; min-width: 760px; }
-  th {
-    text-align: left; font-weight: 500; font-size: 10px;
-    letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
-    padding: 12px 14px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--surface); box-shadow: var(--shadow);
   }
-  td { padding: 11px 14px; border-bottom: 1px solid var(--surface2); white-space: nowrap; }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; }
+  thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--surface2);
+    text-align: left; font-weight: 600; font-size: 11px;
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
+    padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  td {
+    padding: 11px 14px; border-bottom: 1px solid var(--border);
+    white-space: nowrap; color: var(--text);
+  }
   tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover { background: var(--surface2); }
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .rec { color: var(--dim); font-size: 11px; }
+  tbody tr:hover { background: #fafbfc; }
+  .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .rec { color: var(--dim); font-family: var(--mono); font-size: 12px; }
   .muted { color: var(--muted); }
 
   .pill {
-    display: inline-block; font-size: 10px; letter-spacing: 0.06em;
-    padding: 3px 8px; border-radius: 4px; background: var(--surface2); color: var(--muted);
+    display: inline-block; font-size: 11px; font-weight: 560; letter-spacing: 0.01em;
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--surface2); color: var(--muted);
+    border: 1px solid transparent;
   }
-  .pill.uber { background: rgba(108,99,255,0.16); color: #9b95ff; }
-  .pill.dd { background: rgba(255,107,92,0.14); color: var(--danger); }
-  .pill.open { background: rgba(0,212,170,0.15); color: var(--accent3); }
-  .pill.warn { background: rgba(245,166,35,0.15); color: var(--accent4); }
+  .pill.uber { background: var(--accent-lo); color: #3f37c9; }
+  .pill.dd   { background: var(--neg-lo);    color: var(--neg); }
+  .pill.open { background: var(--pos-lo);    color: var(--pos); }
+  .pill.warn { background: var(--warn-lo);   color: var(--warn); }
 
-  .empty { padding: 44px 20px; text-align: center; color: var(--muted); }
+  .empty { padding: 52px 20px; text-align: center; color: var(--muted); }
 
   /* modal */
   dialog {
     border: 1px solid var(--border); border-radius: 14px;
     background: var(--surface); color: var(--text);
     padding: 0; width: min(560px, calc(100vw - 32px));
+    box-shadow: var(--shadow-lg);
   }
-  dialog::backdrop { background: rgba(0,0,0,0.6); }
+  dialog::backdrop { background: rgba(15,18,25,0.32); backdrop-filter: blur(2px); }
   .dlg-head {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 20px; border-bottom: 1px solid var(--border);
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
   }
-  .dlg-head h2 { font-family: 'Syne', sans-serif; font-size: 16px; margin: 0; }
+  .dlg-head h2 { font-size: 16px; font-weight: 620; margin: 0; letter-spacing: -0.015em; }
   .dlg-body { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .dlg-body .full { grid-column: 1 / -1; }
   .dlg-foot {
     display: flex; gap: 10px; justify-content: flex-end;
-    padding: 16px 20px; border-top: 1px solid var(--border);
+    padding: 14px 20px; border-top: 1px solid var(--border); background: var(--surface2);
+    border-radius: 0 0 13px 13px;
   }
   .err {
-    grid-column: 1 / -1; color: var(--danger); font-size: 12px;
-    background: rgba(255,107,92,0.1); border: 1px solid rgba(255,107,92,0.3);
+    grid-column: 1 / -1; color: var(--neg); font-size: 13px;
+    background: var(--neg-lo); border: 1px solid #f5c9be;
     border-radius: 8px; padding: 10px 12px;
   }
-  .hint { font-size: 10px; color: var(--dim); }
+  .hint { font-size: 11px; color: var(--dim); }
 
+  /* Dark on light: a toast has to read as an overlay, not another card. */
   #toast {
-    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 10px; padding: 12px 18px; font-size: 12px;
-    opacity: 0; pointer-events: none; transition: opacity 0.18s;
-    z-index: 40; max-width: calc(100vw - 32px);
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(6px);
+    background: #10131a; border: 1px solid #10131a; color: #fff;
+    border-radius: 10px; padding: 11px 18px; font-size: 13px; font-weight: 500;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 40; max-width: calc(100vw - 32px); box-shadow: var(--shadow-lg);
   }
-  #toast.show { opacity: 1; }
-  #toast.bad { border-color: var(--danger); color: var(--danger); }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.bad { background: var(--neg); border-color: var(--neg); }
+
+  #filter-toggle { display: none; }
 
   @media (max-width: 640px) {
     .dlg-body { grid-template-columns: 1fr; }
     .bar .field { flex: 1 1 140px; }
     main { padding: 14px; }
+    .summary span { flex: 1 1 calc(50% - 4px); padding: 10px 12px; }
+    .summary b { font-size: 18px; }
+    h1 { font-size: 17px; }
+    .back { display: none; }
+    input[type="search"] { max-width: none; }
+
+    /* Records first. The filters are one tap away rather than a screenful in
+       front of them. */
+    #filter-toggle { display: inline-block; }
+    #filters { display: none; }
+    #filters.open { display: flex; }
+    #filters button { flex: 0 0 auto; }
+    #pager { justify-content: center; }
+
+    /* Column priority. On a phone the money is what you came for, so the
+       component columns that add up to it stand down. Nothing is lost - the
+       full row is on any wider screen, and Edit opens all of it. */
+    #tbl { min-width: 0; }
+    #tbl[data-tab="income"]   :is(th,td):nth-child(3),
+    #tbl[data-tab="income"]   :is(th,td):nth-child(4),
+    #tbl[data-tab="income"]   :is(th,td):nth-child(5),
+    #tbl[data-tab="income"]   :is(th,td):nth-child(6),
+    #tbl[data-tab="income"]   :is(th,td):nth-child(8),
+    #tbl[data-tab="income"]   :is(th,td):nth-child(9),
+    #tbl[data-tab="income"]   :is(th,td):nth-child(10),
+    #tbl[data-tab="expenses"] :is(th,td):nth-child(3),
+    #tbl[data-tab="expenses"] :is(th,td):nth-child(5),
+    #tbl[data-tab="expenses"] :is(th,td):nth-child(6),
+    #tbl[data-tab="shifts"]   :is(th,td):nth-child(2),
+    #tbl[data-tab="shifts"]   :is(th,td):nth-child(3),
+    #tbl[data-tab="shifts"]   :is(th,td):nth-child(6),
+    #tbl[data-tab="shifts"]   :is(th,td):nth-child(9),
+    #tbl[data-tab="shifts"]   :is(th,td):nth-child(10) { display: none; }
+    td, thead th { padding-left: 8px; padding-right: 8px; }
+    td { font-size: 13px; }
+    .rec { font-size: 11px; }
+
+    /* Delete stands down on a phone. It is the one irreversible thing on this
+       page, the target is small, and it is not what anyone opens this for in a
+       car — it is still there on any wider screen, and Edit is one tap away. */
+    td .danger { display: none; }
+    td .link-btn { padding: 4px 8px; }
+
+    /* Shifts carry more numbers than a phone can show; these are the four that
+       answer "was that shift worth it". */
+    #tbl[data-tab="shifts"] :is(th,td):nth-child(4),
+    #tbl[data-tab="shifts"] :is(th,td):nth-child(7) { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -177,6 +295,7 @@
     <h1>Records</h1>
     <a class="back" href="/">&larr; dashboard</a>
     <span class="spacer"></span>
+    <button id="filter-toggle" aria-expanded="false" aria-controls="filters">Filters</button>
     <button class="primary" id="add-btn">+ Add</button>
   </div>
   <div class="tabs" role="tablist">
@@ -189,7 +308,7 @@
 <main>
   <div class="bar" id="filters"></div>
   <div class="summary" id="summary"></div>
-  <div class="table-wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+  <div class="table-wrap"><table id="tbl"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
   <div class="bar" style="margin-top:14px" id="pager"></div>
 </main>
 
@@ -221,7 +340,8 @@
     return n;
   };
 
-  const money = v => (v === null || v === undefined) ? '—' : '$' + Number(v).toFixed(2);
+  const money = v => (v === null || v === undefined) ? '—'
+    : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const numOrDash = (v, d = 1) => (v === null || v === undefined || v === '') ? '—' : Number(v).toFixed(d);
   const dayName = s => (s || '').replace(/^\d+\.\s*/, '');
   // A datetime-local input has no zone; the browser's own offset is the right
@@ -347,6 +467,15 @@
   };
 
   // ------------------------------------------------------------------ render
+  // On a phone the filter bar is a screenful of inputs standing between you and
+  // your records, so it collapses behind this. Above 640px it is always open and
+  // the toggle is not shown.
+  $('#filter-toggle').addEventListener('click', () => {
+    const bar = $('#filters');
+    const open = bar.classList.toggle('open');
+    $('#filter-toggle').setAttribute('aria-expanded', String(open));
+  });
+
   function renderFilters() {
     const f = $('#filters');
     f.replaceChildren();
@@ -398,6 +527,7 @@
 
   async function load() {
     const cfg = TABS[state.tab];
+    $('#tbl').dataset.tab = state.tab;
     $('#thead').replaceChildren(el('tr', {}, cfg.columns.map(c =>
       el('th', { class: /Base|Tips|Bonus|Total|Miles|Mins|Amount|Hours|Income|Expenses|Net|\$/.test(c) ? 'num' : '', text: c }))));
     $('#tbody').replaceChildren(el('tr', {}, el('td', { colspan: cfg.columns.length, class: 'empty', text: 'Loading…' })));

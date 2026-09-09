@@ -145,11 +145,17 @@ const loaded = page => page.waitForFunction(
   const overflow = await page.evaluate(() =>
     document.documentElement.scrollWidth - document.documentElement.clientWidth);
   check('no horizontal page scroll on a phone', overflow <= 1, `overflow ${overflow}px`);
-  const wrapScrolls = await page.evaluate(() => {
+  // The invariant is that the page itself never scrolls sideways, asserted
+  // above. Whether the table needs to scroll is a consequence of how many
+  // columns survive the mobile breakpoint - it used to have to, and now it
+  // fits, which is better. Either is fine; the table spilling onto the page is
+  // not.
+  const wrap = await page.evaluate(() => {
     const w = document.querySelector('.table-wrap');
-    return w.scrollWidth > w.clientWidth;
+    return { scrolls: w.scrollWidth > w.clientWidth, contained: w.clientWidth <= document.documentElement.clientWidth };
   });
-  check('the table scrolls inside its own container instead', wrapScrolls, '');
+  check('the table is contained by its own box, scrolling or not',
+        wrap.contained, JSON.stringify(wrap));
 
   await page.screenshot({ path: process.env.SHOT_DIR ? process.env.SHOT_DIR + '/records-mobile.png' : '/tmp/records-mobile.png' });
   await page.setViewportSize({ width: 1280, height: 900 });
