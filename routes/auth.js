@@ -1,3 +1,4 @@
+const fs = require('fs');
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
@@ -14,7 +15,26 @@ const ORIGIN = () => process.env.ORIGIN || `https://${RP_ID()}`;
 
 let pendingChallenge = null;
 
+// A self-hosted instance has nowhere to "add an env var and redeploy" to, so
+// when CREDENTIALS_FILE is set the credential is stored there and registration
+// completes on its own. Unset, everything behaves exactly as it did on Vercel.
+const CREDENTIALS_FILE = process.env.CREDENTIALS_FILE || null;
+
+// The placeholder exists only to close the registration door on an instance
+// that has never enrolled anyone. It must never be offered as a real key.
+const PLACEHOLDER_ID = 'cGxhY2Vob2xkZXI';
+
+function readCredentialsFile() {
+  if (!CREDENTIALS_FILE) return null;
+  try {
+    const list = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
+    return Array.isArray(list) && list.length ? list : null;
+  } catch { return null; }
+}
+
 function getStoredCredentials() {
+  const fromFile = readCredentialsFile();
+  if (fromFile) return fromFile;
   const json = process.env.WEBAUTHN_CREDENTIALS;
   if (json) {
     try { return JSON.parse(json); } catch { return []; }
@@ -64,11 +84,31 @@ router.post('/register/verify', async (req, res) => {
     });
     if (!verification.verified) return res.status(400).json({ error: 'Verification failed' });
     const { credential } = verification.registrationInfo;
-    const existing = getStoredCredentials();
+    const existing = getStoredCredentials().filter(c => c.id !== PLACEHOLDER_ID);
     const newCred = { id: credential.id, publicKey: Buffer.from(credential.publicKey).toString('base64url') };
     const updated = [...existing, newCred];
+
+    if (CREDENTIALS_FILE) {
+      // 0600: it is a public key, but the file is also what decides who may log
+      // in, so it should not be world-writable.
+      fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(updated, null, 2), { mode: 0o600 });
+      return res.json({
+        success: true,
+        saved: true,
+        WEBAUTHN_CREDENTIAL_ID: newCred.id,
+        WEBAUTHN_PUBLIC_KEY: newCred.publicKey,
+        WEBAUTHN_CREDENTIALS: JSON.stringify(updated),
+        message: 'Passkey saved. You can log in now - nothing else to do.'
+      });
+    }
+
     res.json({
       success: true,
+      saved: false,
+      // The setup page has always read these two names; keep sending them so it
+      // has something to show rather than two empty boxes.
+      WEBAUTHN_CREDENTIAL_ID: newCred.id,
+      WEBAUTHN_PUBLIC_KEY: newCred.publicKey,
       WEBAUTHN_CREDENTIALS: JSON.stringify(updated),
       message: 'Set WEBAUTHN_CREDENTIALS env var to this value, then redeploy.'
     });

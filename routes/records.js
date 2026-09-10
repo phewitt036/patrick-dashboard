@@ -497,6 +497,191 @@ router.get('/meta', handle(async (req, res) => {
   });
 }));
 
+// ---------------------------------------------------------------------------
+// Reading: weeks, months, drill-down and the per-service breakdown
+// ---------------------------------------------------------------------------
+// Everything below is read-only. The record screens can already create and
+// correct; what was missing was any way to look at a record and the records
+// underneath it without opening an edit form, and any month grain at all.
+
+/** One week with the shifts inside it. */
+router.get('/weeks', handle(async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 60, 200);
+  const { rows } = await pool.query(
+    `select w.*,
+            (select count(*)::int from daily_cash_flow d
+              where d.weekly_cash_flow_id = w.id and not d.is_placeholder) as shift_count
+       from v_weekly_cash_flow w
+      order by start_date desc
+      limit ${limit}`);
+  res.json({ weeks: rows });
+}));
+
+router.get('/weeks/:id', handle(async (req, res) => {
+  const weekId = id(req.params.id);
+  const { rows } = await pool.query('select * from v_weekly_cash_flow where id = $1', [weekId]);
+  if (!rows.length) return res.status(404).json({ error: 'No such week.' });
+
+  const shifts = await pool.query(
+    `select v.*,
+            (select count(*)::int from income_record i where i.daily_cash_flow_id = v.id) as income_count,
+            (select count(*)::int from expense_record e where e.daily_cash_flow_id = v.id) as expense_count
+       from v_daily_cash_flow v
+      where v.weekly_cash_flow_id = $1
+      order by shift_date asc`, [weekId]);
+
+  const bySource = await pool.query(
+    `select source,
+            round(sum(income), 2)        as income,
+            sum(deliveries)::int         as deliveries,
+            round(sum(hours), 2)         as hours,
+            round(sum(income_timed), 2)  as income_timed,
+            sum(deliveries_timed)::int   as deliveries_timed
+       from v_income_by_source_day
+      where day between $1 and $2
+      group by source
+      order by 2 desc`, [rows[0].start_date, rows[0].end_date]);
+
+  res.json({ week: rows[0], shifts: shifts.rows, bySource: bySource.rows });
+}));
+
+/** One shift with every child record, which is the drill-down the org had. */
+router.get('/shifts/:id', handle(async (req, res) => {
+  const shiftId = id(req.params.id);
+  const { rows } = await pool.query('select * from v_daily_cash_flow_all where id = $1', [shiftId]);
+  if (!rows.length) return res.status(404).json({ error: 'No such shift.' });
+
+  const income = await pool.query(
+    `select * from v_income_record where daily_cash_flow_id = $1
+      order by income_date asc, id asc`, [shiftId]);
+  const expenses = await pool.query(
+    `select * from expense_record where daily_cash_flow_id = $1
+      order by expense_date asc, id asc`, [shiftId]);
+
+  let week = null;
+  if (rows[0].weekly_cash_flow_id) {
+    const w = await pool.query('select * from v_weekly_cash_flow where id = $1', [rows[0].weekly_cash_flow_id]);
+    week = w.rows[0] || null;
+  }
+
+  res.json({ shift: rows[0], week, income: income.rows, expenses: expenses.rows });
+}));
+
+/** One income record on its own, with the shift it belongs to. */
+router.get('/income/:id', handle(async (req, res) => {
+  const recordId = id(req.params.id);
+  const { rows } = await pool.query('select * from v_income_record where id = $1', [recordId]);
+  if (!rows.length) return res.status(404).json({ error: 'No such income record.' });
+  let shift = null;
+  if (rows[0].daily_cash_flow_id) {
+    const d = await pool.query('select * from v_daily_cash_flow_all where id = $1', [rows[0].daily_cash_flow_id]);
+    shift = d.rows[0] || null;
+  }
+  res.json({ income: rows[0], shift });
+}));
+
+router.get('/months', handle(async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 36, 120);
+  const { rows } = await pool.query(
+    `select * from v_month_cash_flow order by month_start desc limit ${limit}`);
+  res.json({ months: rows });
+}));
+
+/**
+ * Any day, week or month by date - the search behind "show me this week".
+ *
+ * The per-service rate divides income_timed rather than income, because most
+ * historical records carry no Time_Taken and dividing all the money by the few
+ * hours recorded reports a rate several times what was really earned. Coverage
+ * is returned alongside so a thin figure can be shown as thin.
+ */
+router.get('/period', handle(async (req, res) => {
+  const grain = String(req.query.grain || 'day').toLowerCase();
+  if (!['day', 'week', 'month'].includes(grain)) {
+    throw new BadRequest('grain must be day, week or month.', 'grain');
+  }
+  const date = requiredDate(req.query.date, 'date');
+
+  let start, end, label;
+  if (grain === 'day') {
+    start = end = date;
+    label = date;
+  } else if (grain === 'week') {
+    // Weeks start Monday here, as they do everywhere else in this schema.
+    const r = await pool.query(
+      `select (date_trunc('week', $1::date))::date as s,
+              (date_trunc('week', $1::date) + interval '6 days')::date as e`, [date]);
+    start = r.rows[0].s; end = r.rows[0].e;
+    label = `Week of ${start}`;
+  } else {
+    const r = await pool.query(
+      `select (date_trunc('month', $1::date))::date as s,
+              (date_trunc('month', $1::date) + interval '1 month - 1 day')::date as e,
+              to_char($1::date, 'FMMonth YYYY') as l`, [date]);
+    start = r.rows[0].s; end = r.rows[0].e; label = r.rows[0].l;
+  }
+
+  const totals = await pool.query(
+    `select round(coalesce(sum(total_income), 0), 2)            as total_income,
+            round(coalesce(sum(total_expenses), 0), 2)          as total_expenses,
+            round(coalesce(sum(total_income - total_expenses), 0), 2) as net_profit,
+            round(coalesce(sum(shift_hours), 0), 2)             as shift_hours,
+            round(coalesce(sum(total_active_time_hours), 0), 2) as active_hours,
+            round(coalesce(sum(total_shift_miles), 0), 2)       as shift_miles,
+            count(*)::int                                       as days_worked
+       from v_daily_cash_flow_raw
+      where not is_placeholder and shift_date between $1 and $2`, [start, end]);
+
+  const bySource = await pool.query(
+    `select source,
+            round(sum(income), 2)       as income,
+            sum(deliveries)::int        as deliveries,
+            round(sum(hours), 2)        as hours,
+            round(sum(income_timed), 2) as income_timed,
+            sum(deliveries_timed)::int  as deliveries_timed
+       from v_income_by_source_day
+      where day between $1 and $2
+      group by source
+      order by 2 desc`, [start, end]);
+
+  const shifts = await pool.query(
+    `select v.*,
+            (select count(*)::int from income_record i where i.daily_cash_flow_id = v.id) as income_count,
+            (select count(*)::int from expense_record e where e.daily_cash_flow_id = v.id) as expense_count
+       from v_daily_cash_flow v
+      where shift_date between $1 and $2
+      order by shift_date asc, clock_in asc nulls last`, [start, end]);
+
+  const expenses = await pool.query(
+    `select type, round(sum(amount), 2) as amount, count(*)::int as count
+       from expense_record
+      where expense_date between $1 and $2
+      group by type order by 2 desc`, [start, end]);
+
+  const t = totals.rows[0];
+  res.json({
+    grain, label, start, end,
+    totals: {
+      ...t,
+      earnings_per_active_hour: Number(t.active_hours) > 0
+        ? Number((Number(t.total_income) / Number(t.active_hours)).toFixed(2)) : null,
+      earnings_per_shift_hour: Number(t.shift_hours) > 0
+        ? Number((Number(t.total_income) / Number(t.shift_hours)).toFixed(2)) : null,
+      earnings_per_mile: Number(t.shift_miles) > 0
+        ? Number((Number(t.total_income) / Number(t.shift_miles)).toFixed(2)) : null
+    },
+    bySource: bySource.rows.map(r => ({
+      ...r,
+      per_hour: Number(r.hours) > 0
+        ? Number((Number(r.income_timed) / Number(r.hours)).toFixed(2)) : null,
+      coverage: Number(r.deliveries) > 0
+        ? Math.round(100 * Number(r.deliveries_timed) / Number(r.deliveries)) : 0
+    })),
+    shifts: shifts.rows,
+    expensesByType: expenses.rows
+  });
+}));
+
 module.exports = router;
 
 // Shared with routes/ingest.js, which accepts the same records over a different

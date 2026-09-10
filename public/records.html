@@ -156,6 +156,28 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Reporting */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .card .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .card .v { font-size: 20px; font-weight: 700; margin-top: 4px; }
+  .card .s { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .rpt-h { font-size: 13px; font-weight: 700; margin: 18px 0 8px; }
+  .rpt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .rpt-table th, .rpt-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+  .rpt-table th.num, .rpt-table td.num { text-align: right; }
+  .thin { color: var(--muted); font-size: 11px; }
+  .grain { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .grain button[aria-pressed="true"] { background: var(--accent, #2563eb); color: #fff; }
+  tr.tappable { cursor: pointer; }
+  tr.tappable:hover { background: var(--surface2); }
+  /* Read-only detail */
+  .kv { display: grid; grid-template-columns: minmax(120px, 40%) 1fr; gap: 6px 14px; font-size: 13px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .child { border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; margin-top: 7px; cursor: pointer; }
+  .child:hover { background: var(--surface2); }
+  .child .top { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
   .table-wrap {
     overflow-x: auto;
     border: 1px solid var(--border); border-radius: 12px;
@@ -302,13 +324,17 @@
     <button class="tab" role="tab" data-tab="income" aria-selected="true">Income</button>
     <button class="tab" role="tab" data-tab="expenses" aria-selected="false">Expenses</button>
     <button class="tab" role="tab" data-tab="shifts" aria-selected="false">Shifts</button>
+    <button class="tab" role="tab" data-tab="weeks" aria-selected="false">Weeks</button>
+    <button class="tab" role="tab" data-tab="months" aria-selected="false">Months</button>
+    <button class="tab" role="tab" data-tab="report" aria-selected="false">Report</button>
   </div>
 </header>
 
 <main>
   <div class="bar" id="filters"></div>
   <div class="summary" id="summary"></div>
-  <div class="table-wrap"><table id="tbl"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+  <div id="report" hidden></div>
+  <div class="table-wrap" id="table-wrap"><table id="tbl"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
   <div class="bar" style="margin-top:14px" id="pager"></div>
 </main>
 
@@ -321,6 +347,15 @@
       <button type="button" class="primary" id="save">Save</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="detail">
+  <div class="dlg-head">
+    <button type="button" id="detail-back" class="link-btn" hidden>&larr; Back</button>
+    <h2 id="detail-title">Record</h2>
+    <button type="button" id="detail-x" class="link-btn">Close</button>
+  </div>
+  <div class="dlg-body" id="detail-body"></div>
 </dialog>
 
 <div id="toast"></div>
@@ -381,6 +416,12 @@
   const state = { tab: 'income', meta: null, filter: {}, offset: 0, limit: 50, editing: null };
 
   // -------------------------------------------------------------- tab config
+  // Coverage is how much of a period's money actually has time recorded against
+  // it. Most of the imported history has no Time_Taken, so an hourly rate drawn
+  // from a thin slice is shown as thin rather than presented as fact.
+  const coverageNote = c =>
+    c >= 90 ? '' : c > 0 ? ` (${c}% timed)` : ' (no times recorded)';
+
   const TABS = {
     income: {
       columns: ['Date', 'Platform', 'Store', 'Base', 'Tips', 'Bonus', 'Total', 'Miles', 'Mins', 'Shift', ''],
@@ -488,6 +529,300 @@
     $('#filter-toggle').setAttribute('aria-expanded', String(open));
   });
 
+  TABS.weeks = {
+    columns: ['Week', 'Days', 'Income', 'Expenses', 'Net', 'Shift hrs', 'Active hrs', '$/active hr'],
+    detail: 'week',
+    load: async () => ({ records: (await api('GET', '/weeks?limit=60')).weeks }),
+    row: w => el('tr', {}, [
+      el('td', {}, [
+        el('div', { text: w.start_date + '  to  ' + w.end_date }),
+        el('div', { class: 'rec', text: w.record_no })
+      ]),
+      el('td', { class: 'num', text: String(w.shift_count) }),
+      el('td', { class: 'num', text: money(w.weekly_total_income) }),
+      el('td', { class: 'num', text: money(w.weekly_total_expenses) }),
+      el('td', { class: 'num', text: money(w.net_profit) }),
+      el('td', { class: 'num', text: numOrDash(w.weekly_shift_hours, 2) }),
+      el('td', { class: 'num', text: numOrDash(w.weekly_active_hours, 2) }),
+      el('td', { class: 'num', text: money(w.earnings_per_active_hour) })
+    ]),
+    summary: d => {
+      const inc = d.records.reduce((a, w) => a + Number(w.weekly_total_income), 0);
+      return [`${d.records.length} weeks`, `${money(inc)} total`];
+    }
+  };
+
+  TABS.months = {
+    columns: ['Month', 'Days', 'Income', 'Expenses', 'Net', 'Shift hrs', '$/shift hr', '$/active hr'],
+    detail: 'month',
+    load: async () => ({ records: (await api('GET', '/months?limit=36')).months }),
+    row: m => el('tr', {}, [
+      el('td', {}, [
+        el('div', { text: m.month_label }),
+        el('div', { class: 'rec', text: m.month_start + ' to ' + m.month_end })
+      ]),
+      el('td', { class: 'num', text: String(m.days_worked) }),
+      el('td', { class: 'num', text: money(m.total_income) }),
+      el('td', { class: 'num', text: money(m.total_expenses) }),
+      el('td', { class: 'num', text: money(m.net_profit) }),
+      el('td', { class: 'num', text: numOrDash(m.shift_hours, 2) }),
+      el('td', { class: 'num', text: money(m.earnings_per_shift_hour) }),
+      el('td', { class: 'num', text: money(m.earnings_per_active_hour) })
+    ]),
+    summary: d => {
+      const inc = d.records.reduce((a, m) => a + Number(m.total_income), 0);
+      const net = d.records.reduce((a, m) => a + Number(m.net_profit), 0);
+      return [`${d.records.length} months`, `${money(inc)} income`, `${money(net)} net`];
+    }
+  };
+
+  // ------------------------------------------------------------------ report
+  const report = { grain: 'month', date: null };
+
+  function renderReport() {
+    const box = $('#report');
+    if (!report.date) report.date = (state.meta && state.meta.today) || new Date().toISOString().slice(0, 10);
+
+    const controls = el('div', { class: 'bar' }, [
+      el('div', { class: 'grain' }, [
+        ...['day', 'week', 'month'].map(g => el('button', {
+          text: g[0].toUpperCase() + g.slice(1),
+          'aria-pressed': String(report.grain === g),
+          onclick: () => { report.grain = g; renderReport(); }
+        })),
+        el('input', {
+          type: 'date', value: report.date,
+          onchange: e => { report.date = e.target.value; renderReport(); }
+        })
+      ])
+    ]);
+
+    const body = el('div', {}, el('div', { class: 'empty', text: 'Loading…' }));
+    box.replaceChildren(controls, body);
+
+    api('GET', `/period?grain=${report.grain}&date=${report.date}`).then(d => {
+      const t = d.totals;
+      const cards = el('div', { class: 'cards' }, [
+        card('Income', money(t.total_income), `${t.days_worked} day${t.days_worked === 1 ? '' : 's'} worked`),
+        card('Expenses', money(t.total_expenses)),
+        card('Net profit', money(t.net_profit)),
+        card('Per shift hour', money(t.earnings_per_shift_hour), numOrDash(t.shift_hours, 2) + ' shift hrs'),
+        card('Per active hour', money(t.earnings_per_active_hour), numOrDash(t.active_hours, 2) + ' active hrs'),
+        card('Per mile', money(t.earnings_per_mile), numOrDash(t.shift_miles, 1) + ' miles')
+      ]);
+
+      const src = el('table', { class: 'rpt-table' }, [
+        el('thead', {}, el('tr', {}, ['Service', 'Income', 'Deliveries', 'Hours', 'Per hour'].map((h, i) =>
+          el('th', { class: i ? 'num' : '', text: h })))),
+        el('tbody', {}, d.bySource.length
+          ? d.bySource.map(b => el('tr', {}, [
+              el('td', {}, el('span', {
+                class: 'pill ' + (b.source === 'Doordash' ? 'dd' : b.source.startsWith('Uber') ? 'uber' : ''),
+                text: b.source
+              })),
+              el('td', { class: 'num', text: money(b.income) }),
+              el('td', { class: 'num', text: String(b.deliveries) }),
+              el('td', { class: 'num', text: numOrDash(b.hours, 2) }),
+              el('td', { class: 'num' }, [
+                el('span', { text: b.per_hour === null ? '—' : money(b.per_hour) }),
+                el('div', { class: 'thin', text: coverageNote(b.coverage).trim() })
+              ])
+            ]))
+          : [el('tr', {}, el('td', { colspan: 5, class: 'empty', text: 'No income in this period.' }))])
+      ]);
+
+      const exp = d.expensesByType.length ? el('table', { class: 'rpt-table' }, [
+        el('thead', {}, el('tr', {}, ['Category', 'Count', 'Amount'].map((h, i) =>
+          el('th', { class: i ? 'num' : '', text: h })))),
+        el('tbody', {}, d.expensesByType.map(e => el('tr', {}, [
+          el('td', { text: e.type || 'Uncategorised' }),
+          el('td', { class: 'num', text: String(e.count) }),
+          el('td', { class: 'num', text: money(e.amount) })
+        ])))
+      ]) : el('div', { class: 'muted', text: 'No expenses in this period.' });
+
+      const shifts = el('div', {}, d.shifts.length
+        ? d.shifts.map(sh => childCard(
+            sh.record_no + '  ·  ' + sh.shift_date,
+            money(sh.total_income),
+            dayName(sh.day_of_week) + '  ·  ' + numOrDash(sh.shift_hours, 2) + ' hrs  ·  ' +
+              sh.income_count + ' income, ' + sh.expense_count + ' expenses',
+            () => openDetail('shift', sh.id)))
+        : [el('div', { class: 'muted', text: 'No shifts in this period.' })]);
+
+      body.replaceChildren(
+        el('div', { class: 'rpt-h', text: d.label + '   (' + d.start + ' to ' + d.end + ')' }),
+        cards,
+        el('div', { class: 'rpt-h', text: 'By service' }), src,
+        el('div', { class: 'rpt-h', text: 'Expenses by category' }), exp,
+        el('div', { class: 'rpt-h', text: 'Shifts' }), shifts
+      );
+    }).catch(e => body.replaceChildren(el('div', { class: 'empty', text: e.message })));
+  }
+
+  const card = (k, v, sub) => el('div', { class: 'card' }, [
+    el('div', { class: 'k', text: k }),
+    el('div', { class: 'v', text: v }),
+    sub ? el('div', { class: 's', text: sub }) : null
+  ]);
+
+  const childCard = (title, right, sub, onclick) => el('div', { class: 'child', onclick }, [
+    el('div', { class: 'top' }, [el('strong', { text: title }), el('span', { text: right })]),
+    sub ? el('div', { class: 'muted', text: sub }) : null
+  ]);
+
+  // ------------------------------------------------------------ detail view
+  // Read-only on purpose: tapping a record should let you look at it without
+  // any risk of changing it. Editing stays where it was, behind the Edit button.
+  const detailStack = [];
+
+  function kv(pairs) {
+    const dl = el('dl', { class: 'kv' });
+    for (const [k, v] of pairs) {
+      if (v === null || v === undefined || v === '') continue;
+      dl.append(el('dt', { text: k }), el('dd', { text: String(v) }));
+    }
+    return dl;
+  }
+
+  async function openDetail(kind, id, push = true) {
+    const dlg = $('#detail');
+    if (push) detailStack.push({ kind, id });
+    $('#detail-back').hidden = detailStack.length < 2;
+    $('#detail-body').replaceChildren(el('div', { class: 'empty', text: 'Loading…' }));
+    $('#detail-title').textContent = 'Loading…';
+    if (!dlg.open) dlg.showModal();
+
+    try {
+      if (kind === 'shift') return renderShiftDetail(await api('GET', '/shifts/' + id));
+      if (kind === 'week') return renderWeekDetail(await api('GET', '/weeks/' + id));
+      if (kind === 'income') return renderIncomeDetail(await api('GET', '/income/' + id));
+      if (kind === 'month') {
+        // A month has no record of its own; jump the Report tab at it instead.
+        dlg.close();
+        report.grain = 'month';
+        report.date = id;
+        selectTab('report');
+        return;
+      }
+    } catch (e) {
+      $('#detail-title').textContent = 'Not available';
+      $('#detail-body').replaceChildren(el('div', { class: 'empty', text: e.message }));
+    }
+  }
+
+  function renderShiftDetail(d) {
+    const sh = d.shift;
+    $('#detail-title').textContent = sh.record_no + '  ·  ' + sh.shift_date;
+    const parts = [
+      kv([
+        ['Day', dayName(sh.day_of_week)],
+        ['Clock in', sh.clock_in ? new Date(sh.clock_in).toLocaleString() : '—'],
+        ['Clock out', sh.clock_out ? new Date(sh.clock_out).toLocaleString() : (sh.is_open ? 'Still open' : '—')],
+        ['Shift hours', numOrDash(sh.shift_hours, 2)],
+        ['Active hours', numOrDash(sh.total_active_time_hours, 2)],
+        ['DoorDash dash time', numOrDash(sh.doordash_dash_time_hours, 2)],
+        ['DoorDash active time', sh.doordash_active_time_hours === null ? 'not recorded' : numOrDash(sh.doordash_active_time_hours, 2)],
+        ['Miles', numOrDash(sh.total_shift_miles, 1)],
+        ['Income', money(sh.total_income)],
+        ['Expenses', money(sh.total_expenses)],
+        ['Net', money(sh.net_profit)],
+        ['Per shift hour', money(sh.earnings_per_shift_hour)],
+        ['Per active hour', money(sh.earnings_per_active_hour)]
+      ])
+    ];
+    if (needsHours(sh)) {
+      parts.push(el('div', { class: 'thin', text: 'No hours recorded, so the rates above read higher than they were.' }));
+    }
+    if (d.week) {
+      parts.push(el('div', { class: 'rpt-h', text: 'Week' }));
+      parts.push(childCard(d.week.record_no, money(d.week.weekly_total_income),
+        d.week.start_date + ' to ' + d.week.end_date, () => openDetail('week', d.week.id)));
+    }
+    parts.push(el('div', { class: 'rpt-h', text: `Income records (${d.income.length})` }));
+    parts.push(...(d.income.length
+      ? d.income.map(i => childCard(i.record_no + '  ·  ' + i.source, money(i.total_earnings),
+          [i.store, i.tips ? 'tips ' + money(i.tips) : null, i.time_taken_minutes ? i.time_taken_minutes + ' min' : null]
+            .filter(Boolean).join('  ·  '),
+          () => openDetail('income', i.id)))
+      : [el('div', { class: 'muted', text: 'None.' })]));
+    parts.push(el('div', { class: 'rpt-h', text: `Expenses (${d.expenses.length})` }));
+    parts.push(...(d.expenses.length
+      ? d.expenses.map(x => childCard(x.record_no + '  ·  ' + (x.type || 'Other'), money(x.amount),
+          x.store || '', () => {}))
+      : [el('div', { class: 'muted', text: 'None.' })]));
+    $('#detail-body').replaceChildren(...parts.filter(Boolean));
+  }
+
+  function renderWeekDetail(d) {
+    const w = d.week;
+    $('#detail-title').textContent = w.record_no + '  ·  ' + w.start_date + ' to ' + w.end_date;
+    const parts = [
+      kv([
+        ['Income', money(w.weekly_total_income)],
+        ['Expenses', money(w.weekly_total_expenses)],
+        ['Net profit', money(w.net_profit)],
+        ['Shift hours', numOrDash(w.weekly_shift_hours, 2)],
+        ['Active hours', numOrDash(w.weekly_active_hours, 2)],
+        ['Uber active hours', numOrDash(w.weekly_uber_active_hours, 2)],
+        ['Shift miles', numOrDash(w.weekly_shift_miles, 1)],
+        ['Per active hour', money(w.earnings_per_active_hour)],
+        ['Per shift hour', money(w.earnings_per_shift_hour)],
+        ['Per mile', money(w.true_earnings_per_mile)],
+        ['Days worked', w.day_count]
+      ]),
+      el('div', { class: 'rpt-h', text: 'By service' })
+    ];
+    parts.push(...(d.bySource.length
+      ? d.bySource.map(b => childCard(b.source, money(b.income),
+          b.deliveries + ' deliveries  ·  ' + numOrDash(b.hours, 2) + ' hrs' +
+          (Number(b.hours) > 0 ? '  ·  ' + money(Number(b.income_timed) / Number(b.hours)) + '/hr' : ''),
+          () => {}))
+      : [el('div', { class: 'muted', text: 'No income this week.' })]));
+    parts.push(el('div', { class: 'rpt-h', text: `Shifts (${d.shifts.length})` }));
+    parts.push(...(d.shifts.length
+      ? d.shifts.map(sh => childCard(sh.record_no + '  ·  ' + sh.shift_date, money(sh.total_income),
+          dayName(sh.day_of_week) + '  ·  ' + numOrDash(sh.shift_hours, 2) + ' hrs  ·  ' +
+            sh.income_count + ' income, ' + sh.expense_count + ' expenses',
+          () => openDetail('shift', sh.id)))
+      : [el('div', { class: 'muted', text: 'None.' })]));
+    $('#detail-body').replaceChildren(...parts);
+  }
+
+  function renderIncomeDetail(d) {
+    const i = d.income;
+    $('#detail-title').textContent = i.record_no + '  ·  ' + i.source;
+    const parts = [
+      kv([
+        ['Date', i.income_date],
+        ['Service', i.source],
+        ['Store', i.store],
+        ['Base pay', money(i.amount)],
+        ['Tips', i.tips === null ? '—' : money(i.tips)],
+        ['Surge bonus', i.surge_bonus === null ? '—' : money(i.surge_bonus)],
+        ['Total earnings', money(i.total_earnings)],
+        ['Uber level', i.uber_level],
+        ['Miles driven', i.miles_driven === null ? '—' : numOrDash(i.miles_driven, 1)],
+        ['Time taken', i.time_taken_minutes === null ? 'not recorded' : i.time_taken_minutes + ' min'],
+        ['Notes', i.notes]
+      ])
+    ];
+    if (d.shift) {
+      parts.push(el('div', { class: 'rpt-h', text: 'Shift' }));
+      parts.push(childCard(d.shift.record_no + '  ·  ' + d.shift.shift_date, money(d.shift.total_income),
+        dayName(d.shift.day_of_week), () => openDetail('shift', d.shift.id)));
+    }
+    $('#detail-body').replaceChildren(...parts);
+  }
+
+  function selectTab(name) {
+    document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', String(x.dataset.tab === name)));
+    state.tab = name;
+    state.offset = 0;
+    renderFilters();
+    load();
+  }
+
   function renderFilters() {
     const f = $('#filters');
     f.replaceChildren();
@@ -538,6 +873,17 @@
   }
 
   async function load() {
+    // The report is not a table, so it takes the whole panel instead.
+    const isReport = state.tab === 'report';
+    $('#report').hidden = !isReport;
+    $('#table-wrap').hidden = isReport;
+    $('#add-btn').hidden = !['income', 'expenses', 'shifts'].includes(state.tab);
+    if (isReport) {
+      $('#summary').replaceChildren();
+      $('#pager').replaceChildren();
+      return renderReport();
+    }
+
     const cfg = TABS[state.tab];
     $('#tbl').dataset.tab = state.tab;
     $('#thead').replaceChildren(el('tr', {}, cfg.columns.map(c =>
@@ -548,7 +894,21 @@
       const data = await cfg.load();
       const rows = data.records || [];
       $('#tbody').replaceChildren(...(rows.length
-        ? rows.map(cfg.row)
+        ? rows.map(r => {
+            const tr = cfg.row(r);
+            // Tapping a row reads it. Buttons inside the row still do their own
+            // job, so Edit and Delete are unaffected.
+            const kind = cfg.detail || (state.tab === 'shifts' ? 'shift'
+                        : state.tab === 'income' ? 'income' : null);
+            if (kind) {
+              tr.classList.add('tappable');
+              tr.addEventListener('click', ev => {
+                if (ev.target.closest('button, a, input, select, textarea')) return;
+                openDetail(kind, kind === 'month' ? r.month_start : r.id);
+              });
+            }
+            return tr;
+          })
         : [el('tr', {}, el('td', { colspan: cfg.columns.length, class: 'empty', text: 'Nothing here yet.' }))]));
 
       const bits = cfg.summary(data);
@@ -710,6 +1070,13 @@
     renderFilters();
     load();
   }));
+  $('#detail-x').addEventListener('click', () => { detailStack.length = 0; $('#detail').close(); });
+  $('#detail').addEventListener('close', () => { detailStack.length = 0; });
+  $('#detail-back').addEventListener('click', () => {
+    detailStack.pop();
+    const prev = detailStack[detailStack.length - 1];
+    if (prev) openDetail(prev.kind, prev.id, false);
+  });
   $('#add-btn').addEventListener('click', () => openForm(state.tab, null));
   $('#save').addEventListener('click', save);
   $('#cancel').addEventListener('click', () => $('#dlg').close());

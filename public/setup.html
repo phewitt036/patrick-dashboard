@@ -138,11 +138,20 @@
 
       if (!result.success) throw new Error(result.error);
 
-      document.getElementById('cred-id').textContent = result.WEBAUTHN_CREDENTIAL_ID;
-      document.getElementById('pub-key').textContent = result.WEBAUTHN_PUBLIC_KEY;
-      document.getElementById('result').style.display = 'block';
-      status.className = 'status success';
-      status.textContent = 'Passkey registered successfully.';
+      // A self-hosted instance stores the credential itself, so there is nothing
+      // to copy anywhere and the Vercel instructions below would be a lie. Show
+      // them only when the server says it did NOT save.
+      if (result.saved) {
+        document.getElementById('result').style.display = 'none';
+        status.className = 'status success';
+        status.innerHTML = 'Passkey saved. <a href="/login.html">Go to login &rarr;</a>';
+      } else {
+        document.getElementById('cred-id').textContent = result.WEBAUTHN_CREDENTIAL_ID || '';
+        document.getElementById('pub-key').textContent = result.WEBAUTHN_PUBLIC_KEY || '';
+        document.getElementById('result').style.display = 'block';
+        status.className = 'status success';
+        status.textContent = 'Passkey registered successfully.';
+      }
     } catch (e) {
       status.className = 'status error';
       status.textContent = e.name === 'NotAllowedError' ? 'Cancelled.' : `Error: ${e.message}`;

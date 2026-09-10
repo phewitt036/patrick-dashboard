@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const helmet = require('helmet');
@@ -24,6 +25,116 @@ app.use(helmet({
 }));
 
 app.use(cookieParser());
+
+// ---------------------------------------------------------------------------
+// Patforce-only front door
+// ---------------------------------------------------------------------------
+// Patforce lives inside this repo, but a hostname published for the gig records
+// must not double as a way into the command centre. The panels and their
+// upstream proxies are nothing to do with income, and reaching them needs only
+// the same session, so leaving them served would make one passkey open both.
+//
+// Off by default. The Vercel deployment sets nothing and stays the full
+// dashboard; the pimax instance sets PATFORCE_ONLY=1 and is the CRM alone.
+const PATFORCE_ONLY = process.env.PATFORCE_ONLY === '1';
+if (PATFORCE_ONLY) {
+  const BLOCKED_PAGES = new Set(['/index.html', '/gig', '/gig.html', '/claw', '/claw.html']);
+  const BLOCKED_APIS = ['/api/pimax', '/api/pixit'];
+  app.use((req, res, next) => {
+    // The records screen is the front page here, not a link buried in a menu.
+    if (req.path === '/') return res.redirect('/records');
+    if (BLOCKED_PAGES.has(req.path)) return res.status(404).send('Not found');
+    if (BLOCKED_APIS.some(a => req.path === a || req.path.startsWith(a + '/'))) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    next();
+  });
+
+  // Every page served here is rewritten on the way out: title, wordmark and
+  // icon all say Patforce, and the head gains what Android needs before it will
+  // offer to install the site to the home screen. Rewritten rather than forked,
+  // so the same files still serve the real dashboard untouched.
+  const PWA_HEAD = [
+    '<link rel="icon" href="/patforce/favicon.svg">',
+    '<link rel="apple-touch-icon" href="/patforce/apple-touch-icon.png">',
+    '<link rel="manifest" href="/patforce/manifest.webmanifest">',
+    '<meta name="theme-color" content="#d97706">',
+    '<meta name="mobile-web-app-capable" content="yes">',
+    '<meta name="apple-mobile-web-app-capable" content="yes">',
+    '<meta name="apple-mobile-web-app-title" content="Patforce">',
+    '<script>if ("serviceWorker" in navigator) { addEventListener("load", function () { navigator.serviceWorker.register("/sw.js"); }); }</' + 'script>'
+  ].join(String.fromCharCode(10));
+
+  // Plain string surgery rather than regular expressions: these files are ours,
+  // the markers are exact, and a bad pattern here would serve a broken page.
+  function replaceBetween(html, open, close, replacement) {
+    const a = html.toLowerCase().indexOf(open);
+    if (a < 0) return html;
+    const b = html.toLowerCase().indexOf(close, a);
+    if (b < 0) return html;
+    return html.slice(0, a) + replacement + html.slice(b + close.length);
+  }
+
+  const DASHBOARD_WORDMARK = 'Patrick Hewitt · ';
+
+  const patforcePage = (file, title, mark) => (req, res) => {
+    fs.readFile(path.join(__dirname, 'public', file), 'utf8', (err, html) => {
+      if (err) return res.status(500).send('Not available');
+      let out = replaceBetween(html, '<title>', '</title>', '<title>' + title + '</title>');
+
+      const i = out.indexOf(DASHBOARD_WORDMARK);
+      if (i >= 0) {
+        const j = out.indexOf('<', i);
+        out = out.slice(0, i) + mark + out.slice(j);
+      }
+
+      // The command glyph is the dashboard’s own mark. Swapped for the
+      // Patforce bars so nothing on the page points back at it.
+      out = out.split("<span class=\"icon\">⌘</span>").join(
+        "<span class=\"icon\"><img src=\"/patforce/favicon.svg\" alt=\"\" width=\"56\" height=\"56\" style=\"vertical-align:middle\"></span>");
+
+      // There is no dashboard behind this hostname, so the link back to it
+      // would 404 and, more to the point, should not be here at all. Matched
+      // on the tag rather than its text: the markup uses an HTML entity for
+      // the arrow, which an exact-text match missed.
+      const backAt = out.indexOf("<a class=\"back\"");
+      if (backAt >= 0) {
+        const closeAt = out.indexOf("</a>", backAt);
+        if (closeAt >= 0) out = out.slice(0, backAt) + out.slice(closeAt + 4);
+      }
+
+      // Drop the dashboard icon rather than leave two competing ones.
+      out = out.split('<link rel="icon" href="/favicon.svg">').join('');
+
+      out = out.indexOf('</head>') >= 0
+        ? out.replace('</head>', PWA_HEAD + '</head>')
+        : PWA_HEAD + out;
+
+      res.type('html').send(out);
+    });
+  };
+
+  app.get(['/records', '/records.html'], requireAuth,
+    patforcePage('records.html', 'Patforce', 'Patforce · Gig Records'));
+  app.get(['/login.html', '/login'],
+    patforcePage('login.html', 'Patforce', 'Patforce · Gig Records'));
+  app.get(['/setup.html', '/setup'],
+    patforcePage('setup.html', 'Patforce Setup', 'Patforce · Passkey Setup'));
+
+  // A service worker may only control paths at or below its own, so it has to be
+  // served from the root even though it lives with the other Patforce assets.
+  app.get('/sw.js', (req, res) => {
+    res.type('application/javascript')
+       .sendFile(path.join(__dirname, 'public', 'patforce', 'sw.js'));
+  });
+
+  // The last visual tie to the dashboard: anything still asking for the old
+  // icon path gets the new mark instead.
+  app.get('/favicon.svg', (req, res) => {
+    res.type('image/svg+xml')
+       .sendFile(path.join(__dirname, 'public', 'patforce', 'favicon.svg'));
+  });
+}
 
 // Screenshot uploads are base64 in the JSON body, so this route needs a much larger
 // limit than the rest of the app. Mounted ahead of the global parser so raising it
