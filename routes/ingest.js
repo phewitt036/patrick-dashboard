@@ -137,7 +137,7 @@ async function ingestBatch(req, { table, view, fieldsOf, dateKey }) {
       // does - and, as of the auto-open change, opens one when there is none.
       // Income only: an expense is not evidence that a shift was worked.
       const link = table === 'income_record'
-        ? await shiftForDateOrOpen(client, date)
+        ? await shiftForDateOrOpen(client, date, fields.occurred_at)
         : { id: await shiftForExpense(client, date) };
       const shiftId = link.id;
       if (link.createdShift) shiftNotes.push(link);

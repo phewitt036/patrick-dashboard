@@ -67,6 +67,26 @@ function requiredDate(value, field) {
   return value;
 }
 
+/**
+ * A moment, as read off a screenshot, resolved to an absolute instant.
+ *
+ * Accepts a full ISO string with an offset, and also a bare local wall-clock
+ * "2026-09-10T13:07", which is what a screenshot actually shows. A bare one is
+ * read in the SERVER's local timezone, which is the same America/Chicago the
+ * rest of this app assumes and the one he was driving in. Anything sent from
+ * another machine should carry its offset rather than rely on that.
+ */
+function optionalMoment(value, field) {
+  if (value === null || value === undefined || value === '') return null;
+  const s = String(value).trim().replace(' ', 'T');
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/.test(s)) {
+    throw new BadRequest(`${field} must look like 2026-09-10T13:07 or a full ISO timestamp.`, field);
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) throw new BadRequest(`${field} is not a real date and time.`, field);
+  return d.toISOString();
+}
+
 function optionalText(value, field, max) {
   if (value === null || value === undefined || value === '') return null;
   const s = String(value).trim();
@@ -168,7 +188,38 @@ async function shiftForDate(client, date) {
  * record, or at its clock-in if it has none - the same repair the installer
  * applies to abandoned shifts, and the caller is told it happened.
  */
-async function shiftForDateOrOpen(client, date) {
+/**
+ * The shift whose clocked window contains a moment. This is the whole point of
+ * recording when a delivery happened: a screenshot uploaded at 11pm for a
+ * delivery made at 9:15am belongs to the 9am shift, and no rule based on when
+ * the upload arrived can know that. Measured on the real data, a new shift has
+ * begun 4 minutes after a clock-out and a straggler has landed 625 minutes
+ * after one, so the two are indistinguishable by upload time alone.
+ *
+ * An open shift counts as running up to now, so a delivery on the shift he is
+ * currently driving matches it.
+ */
+async function shiftContaining(client, moment) {
+  const { rows } = await client.query(
+    `select id from daily_cash_flow
+      where not is_placeholder
+        and clock_in is not null
+        and clock_in <= $1::timestamptz
+        and coalesce(clock_out, now()) >= $1::timestamptz
+      order by clock_in desc
+      limit 1`, [moment]);
+  return rows[0]?.id ?? null;
+}
+
+async function shiftForDateOrOpen(client, date, occurredAt) {
+  // A real delivery time beats every other rule here, including the open shift.
+  if (occurredAt) {
+    const containing = await shiftContaining(client, occurredAt);
+    if (containing) {
+      return { id: containing, createdShift: false, closedAbandoned: null, matchedByTime: true };
+    }
+  }
+
   const { rows: [today] } = await client.query(
     `select (now() at time zone $1)::date = $2::date as is_today`, [TZ, date]);
   const isToday = today.is_today;
@@ -226,11 +277,18 @@ async function shiftForDateOrOpen(client, date) {
   }
 
   const weekId = await weekForDate(client, date);
+  // Clocked in at the delivery when we know it. Opening at "now" put today's
+  // 12:40 shift on the board at 14:46, because that is when its first record
+  // happened to be pushed.
   const { rows } = await client.query(
     `insert into daily_cash_flow (weekly_cash_flow_id, shift_date, clock_in)
-     values ($1, $2, now()) returning id`, [weekId, date]);
+     values ($1, $2, coalesce($3::timestamptz, now())) returning id`,
+    [weekId, date, occurredAt || null]);
 
-  return { id: rows[0].id, createdShift: true, openedNow: true, closedAbandoned };
+  return {
+    id: rows[0].id, createdShift: true, openedNow: true,
+    openedAt: occurredAt || null, closedAbandoned
+  };
 }
 
 /**
@@ -341,7 +399,10 @@ function incomeFields(body) {
     total_miles: optionalNumber(body.totalMiles, 'totalMiles', { min: 0 }),
     // Minutes, as the column name says. The UI collects minutes too.
     time_taken_minutes: optionalNumber(body.timeTakenMinutes, 'timeTakenMinutes', { min: 0 }),
-    notes: optionalText(body.notes, 'notes', 4000)
+    notes: optionalText(body.notes, 'notes', 4000),
+    // When the delivery happened, if the screenshot showed it. Distinct from
+    // created_at, which is only when the row was written.
+    occurred_at: optionalMoment(body.occurredAt, 'occurredAt')
   };
 }
 
@@ -352,7 +413,7 @@ router.post('/income', handle(async (req, res) => {
     // anyone who deliberately wants a loose record.
     const link = req.body.dailyCashFlowId !== undefined
       ? { id: id(req.body.dailyCashFlowId), createdShift: false, closedAbandoned: null }
-      : await shiftForDateOrOpen(client, f.income_date);
+      : await shiftForDateOrOpen(client, f.income_date, f.occurred_at);
     const shiftId = link.id;
     const cols = Object.keys(f).concat('daily_cash_flow_id');
     const vals = Object.values(f).concat(shiftId);
