@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Patforce</title>
+<style>
+  :root {
+    --bg:        #f4f5f7;
+    --surface:   #ffffff;
+    --surface2:  #f0f2f5;
+    --border:    #e4e7ec;
+    --border-2:  #d0d5dd;
+    --line:      #e4e7ec;
+    --text:      #0f1219;
+    --muted:     #5b6472;
+    --dim:       #98a1af;
+    --accent:    #4f46e5;
+    --accent-lo: #eef0fe;
+    --pos:       #0a7a4f;
+    --pos-lo:    #e6f5ee;
+    --neg:       #b3341d;
+    --neg-lo:    #fdeeea;
+    --warn:      #8a5a00;
+    --warn-lo:   #fdf3e0;
+    --shadow:    0 1px 2px rgba(16,24,40,0.05);
+    --ui:  system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--ui); font-size: 15px; line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 14px 20px 12px;
+  }
+  .head-row { display: flex; align-items: baseline; gap: 12px; max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 19px; margin: 0; letter-spacing: -0.01em; }
+  .spacer { flex: 1; }
+  header a {
+    color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 500;
+    padding: 6px 10px; border-radius: 8px; min-height: 32px; display: inline-flex; align-items: center;
+  }
+  header a:hover { background: var(--accent-lo); }
+  main { max-width: 1180px; margin: 0 auto; padding: 16px 20px 40px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px; box-shadow: var(--shadow); margin-bottom: 10px;
+  }
+  .k {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); font-weight: 600;
+  }
+  .v {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: 21px; font-weight: 700; margin-top: 3px; letter-spacing: -0.02em;
+  }
+  .v.hero { font-size: 34px; }
+  .s { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .thin { font-size: 12px; color: var(--dim); margin-top: 6px; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+
+  .pill {
+    display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px;
+    border-radius: 999px; background: var(--surface2); color: var(--muted);
+  }
+  .pill.warn { background: var(--warn-lo); color: var(--warn); }
+
+  /* Needs a minute */
+  .fix { background: var(--warn-lo); border-color: #f0dfba; }
+  .fix a, .fix .row {
+    display: flex; align-items: center; gap: 10px; justify-content: space-between;
+    min-height: 44px; padding: 6px 0; color: var(--warn); text-decoration: none;
+    border-bottom: 1px solid rgba(138,90,0,0.14);
+  }
+  .fix a:last-child, .fix .row:last-child { border-bottom: 0; }
+  .fix .what { font-size: 14px; font-weight: 600; }
+  .fix .go { font-size: 18px; opacity: .55; }
+
+  /* Rows with a proportional bar */
+  .bar-row { margin-top: 10px; }
+  .bar-row:first-of-type { margin-top: 6px; }
+  .bar-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; }
+  .bar-track { height: 8px; border-radius: 999px; background: var(--surface2); margin-top: 5px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; background: var(--accent); opacity: .75; }
+  .bar-fill.muted { background: var(--dim); opacity: .5; }
+  .bar-empty {
+    height: 8px; border-radius: 999px; margin-top: 5px;
+    border: 1px dashed var(--border-2); background: transparent;
+  }
+
+  .foot { font-size: 11px; color: var(--dim); margin-top: 14px; line-height: 1.6; }
+  .stale { color: var(--warn); }
+
+  @media (max-width: 640px) {
+    main { padding: 12px 12px 32px; }
+    header { padding: 12px 12px 10px; }
+    .card { padding: 12px 13px; }
+    .v { font-size: 20px; }
+    .v.hero { font-size: 31px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-row">
+    <h1>Patforce</h1>
+    <span class="spacer"></span>
+    <a href="/records">Records &rarr;</a>
+  </div>
+</header>
+
+<main id="app">
+  <div class="card"><div class="k">Loading</div><div class="v">&mdash;</div></div>
+</main>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const el = (t, a = {}, kids = []) => {
+    const n = document.createElement(t);
+    for (const [k, v] of Object.entries(a)) {
+      if (k === 'text') n.textContent = v;
+      else if (k === 'html') n.innerHTML = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else if (v !== null && v !== undefined) n.setAttribute(k, v);
+    }
+    for (const c of [].concat(kids)) if (c) n.append(c);
+    return n;
+  };
+
+  // An em-dash for a missing figure, never a zero. Several rate columns in this
+  // schema are CASE ... ELSE 0, so a zero that reached the screen would be
+  // indistinguishable from "you earned nothing per hour" on a real $224 week.
+  const money = (v, dp = 2) => (v === null || v === undefined) ? '—'
+    : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  const money0 = v => money(v, 0);
+  const plural = (n, w) => n + ' ' + w + (Number(n) === 1 ? '' : 's');
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const parseDay = iso => new Date(String(iso).slice(0, 10) + 'T12:00:00');
+  const dayLabel = iso => { const d = parseDay(iso); return DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; };
+  const shortDay = iso => { const d = parseDay(iso); return d.getDate() + ' ' + MONTHS[d.getMonth()]; };
+  const withYear = iso => { const d = parseDay(iso); return shortDay(iso) + ' ' + d.getFullYear(); };
+  const ordinal = n => n + ([,'st','nd','rd'][n % 100 >> 3 ^ 1 && n % 10] || 'th');
+
+  const card = (kids, cls) => el('div', { class: 'card' + (cls ? ' ' + cls : '') }, kids);
+  const K = t => el('div', { class: 'k', text: t });
+  const V = (t, hero) => el('div', { class: 'v' + (hero ? ' hero' : ''), text: t });
+  const S = t => el('div', { class: 's', text: t });
+  const T = t => el('div', { class: 'thin', text: t });
+
+  /** A signed delta, coloured, with the comparison spelled out beside it. */
+  // The shift count travels with the money. Calendar day 10 of September holds
+  // eight weekdays where August's held six, and he has never worked a weekend, so
+  // equal date ranges are not equal chances to earn. Printing both stops the delta
+  // implying a slump that is really a shorter stretch of working days.
+  const deltaLine = (label, priorIncome, delta, priorShifts) => {
+    if (priorShifts === 0) return T(label + ': no shifts');
+    const line = el('div', { class: 'thin' });
+    line.append(document.createTextNode(
+      label + ': ' + money(priorIncome) + ' from ' + plural(priorShifts, 'shift') + '  '));
+    const sign = delta >= 0 ? '+' : '−';
+    line.append(el('span', {
+      class: delta >= 0 ? 'pos' : 'neg',
+      text: sign + money(Math.abs(delta))
+    }));
+    return line;
+  };
+
+  const barRow = (label, value, pct, opts = {}) => {
+    const row = el('div', { class: 'bar-row' }, [
+      el('div', { class: 'bar-line' }, [
+        el('span', { text: label }),
+        el('span', { class: 'num', text: value })
+      ])
+    ]);
+    row.append(opts.empty
+      ? el('div', { class: 'bar-empty' })
+      : el('div', { class: 'bar-track' },
+          el('div', { class: 'bar-fill' + (opts.muted ? ' muted' : ''), style: 'width:' + Math.max(0, Math.min(100, pct)) + '%' })));
+    return row;
+  };
+
+  function render(d) {
+    const out = [];
+
+    // ---- freshness ------------------------------------------------------
+    // Without this, "last shift Tuesday" on a Thursday morning reads the same
+    // whether he did not drive or the Pixit push stopped working.
+    if (d.freshness && d.freshness.hoursAgo !== null) {
+      const h = d.freshness.hoursAgo;
+      const wd = d.freshness.weekdaysAgo;
+      const stale = wd === null ? h > 36 : wd >= 2;
+      const when = h < 1 ? 'just now' : h < 48 ? Math.round(h) + 'h ago' : Math.round(h / 24) + ' days ago';
+      out.push(el('div', { class: 'foot' + (stale ? ' stale' : ''), style: 'margin:0 0 10px' },
+        'Last record added ' + when + (stale ? ' — nothing new since' : '')));
+    }
+
+    // ---- needs a minute -------------------------------------------------
+    // Above the money because it is the only thing here he can act on, it is
+    // time-sensitive, and it is why every hourly figure in the app runs high.
+    const a = d.attention || {};
+    const fixes = [];
+    if (a.openShift) {
+      const t = a.openShift.clock_in ? new Date(a.openShift.clock_in) : null;
+      fixes.push({
+        what: 'Still clocked in' + (t ? ' since ' + t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''),
+        sub: a.openShift.record_no + ' · ' + money(a.openShift.total_income) + ' so far'
+      });
+    }
+    if (a.needsClockOut) {
+      fixes.push({
+        what: plural(a.needsClockOut.count, 'shift') + ' need a clock-out',
+        sub: money(a.needsClockOut.income) + ' of earnings · ' +
+             shortDay(a.needsClockOut.from) + ' to ' + shortDay(a.needsClockOut.to)
+      });
+    }
+    if (a.neverClocked) {
+      fixes.push({
+        what: plural(a.neverClocked.count, 'shift') + ' still need their times',
+        sub: money(a.neverClocked.income) + ' of earnings'
+      });
+    }
+    if (a.unlinked) {
+      const bits = [];
+      if (a.unlinked.income) bits.push(plural(a.unlinked.income, 'income record'));
+      if (a.unlinked.expenses) bits.push(plural(a.unlinked.expenses, 'expense'));
+      // Say the money, not just the count: unlinked income is counted by the
+      // per-service card but by none of the period totals, so it is the one state
+      // that makes two figures on this page disagree.
+      const amt = Number(a.unlinked.income_amount || 0);
+      fixes.push({
+        what: 'Not attached to a shift',
+        sub: bits.join(' and ') + (amt > 0 ? ' · ' + money(amt) + ' not in the totals above' : '')
+      });
+    }
+    if (fixes.length) {
+      const rows = fixes.slice(0, 3).map(f =>
+        el('a', { class: 'row', href: '/records' }, [
+          el('div', {}, [
+            el('div', { class: 'what', text: f.what }),
+            el('div', { style: 'font-size:12px;opacity:.85', text: f.sub })
+          ]),
+          el('span', { class: 'go', text: '›' })
+        ]));
+      out.push(card([K('Needs a minute'), ...rows], 'fix'));
+    }
+
+    // ---- the hero -------------------------------------------------------
+    // Deliberately the last shift, not "today" and not "yesterday". He checks
+    // this in the morning before driving, so today is almost always empty; and
+    // there is not a single weekend shift on record, so yesterday is blank every
+    // Monday. The last shift is always a real number.
+    // Pick the hero. Today counts the moment it has money on it; a today row with
+    // nothing yet is a day not started, not a zero, so we step past it to the last
+    // shift that happened. A PAST shift that earned nothing is shown as itself.
+    const recents = d.recentShifts || [];
+    let hero = recents[0] || null;
+    if (hero && String(hero.shift_date).slice(0, 10) === d.today && Number(hero.total_income) === 0) {
+      hero = recents.find(s => String(s.shift_date).slice(0, 10) !== d.today) || hero;
+    }
+    const after = hero ? recents.filter(s => s.id !== hero.id && String(s.shift_date).slice(0, 10) !== String(hero.shift_date).slice(0, 10)) : [];
+    d.lastShift = hero;
+    d.prevShift = after[0] || null;
+
+    if (d.lastShift) {
+      const isToday = String(d.lastShift.shift_date).slice(0, 10) === d.today;
+      const kids = [
+        K(isToday ? 'Today so far' : 'Last shift'),
+        V(money(d.lastShift.total_income), true),
+        S(dayLabel(d.lastShift.shift_date) + '  ·  ' + d.lastShift.record_no)
+      ];
+      const pills = [];
+      if (Number(d.lastShift.shift_hours) === 0 && !d.lastShift.is_open && d.lastShift.clock_out) {
+        pills.push('no clock-out');
+      }
+      if (Number(d.lastShift.total_income) === 0 && !d.lastShift.is_open) pills.push('no income recorded');
+      if (pills.length) {
+        kids.push(el('div', { style: 'margin-top:7px' },
+          pills.map(t => el('span', { class: 'pill warn', style: 'margin-right:6px', text: t }))));
+      }
+      if (isToday && d.prevShift) {
+        kids.push(T('Before that: ' + dayLabel(d.prevShift.shift_date) + ', ' + money(d.prevShift.total_income)));
+      }
+      out.push(card(kids));
+    } else {
+      out.push(card([K('Last shift'), V('—'), S('No shifts recorded yet')]));
+    }
+
+    // ---- this week ------------------------------------------------------
+    // Compared against the same elapsed days of last week. A partial week beside
+    // a finished one always reads as a collapse.
+    const w = d.week;
+    const weekLead = Number(w.income) > 0;
+    out.push(card([
+      K('This week so far'),
+      V(weekLead ? money(w.income) : '—'),
+      S(weekLead
+        ? 'Day ' + w.dayOfWeek + ' of 7  ·  ' + plural(w.shifts, 'shift')
+        : 'Day ' + w.dayOfWeek + ' of 7  ·  no shifts yet'),
+      deltaLine('Same days last week', w.prior.income, w.delta, w.prior.shifts)
+    ]));
+
+    // ---- this month -----------------------------------------------------
+    const m = d.month;
+    out.push(card([
+      K(d.monthName + ' so far'),
+      V(Number(m.income) > 0 ? money(m.income) : '—'),
+      S('Day ' + m.dayOfMonth + ' of ' + m.daysInMonth + '  ·  ' + plural(m.shifts, 'shift')),
+      deltaLine('Same days last month', m.prior.income, m.delta, m.prior.shifts)
+    ]));
+
+    // ---- per shift ------------------------------------------------------
+    // The honest rate. Every shift row exists and every income record is attached
+    // to one, so this figure has no denominator that can go missing - unlike an
+    // hourly rate, which breaks on any shift with no clock-out.
+    const ps = d.perShift;
+    // Ten, not four. At four one good day moves the headline by a fifth - September
+    // reads $83.70, or $70.19 without its single best shift - while the stable
+    // 82-shift figure gets demoted to grey text underneath.
+    const showMonth = ps.monthShifts >= 10 && ps.month !== null;
+    out.push(card([
+      K('Per shift'),
+      V(showMonth ? money(ps.month) : money(ps.allTime)),
+      S(showMonth
+        ? 'from ' + plural(ps.monthShifts, 'shift') + ' in ' + d.monthName
+        : 'across all ' + plural(ps.allShifts, 'shift')),
+      showMonth ? T(money(ps.allTime) + ' across all ' + plural(ps.allShifts, 'shift')) : null
+    ]));
+
+    // ---- per hour clocked in --------------------------------------------
+    // One rate, labelled with exactly what it divides, and gated: below the floors
+    // it says so rather than printing a number. It divides only income from shifts
+    // that recorded hours, so a missed clock-out cannot inflate it.
+    const ph = d.perHour;
+    out.push(card(ph.rate !== null ? [
+      K('Per hour clocked in'),
+      V(money(ph.rate)),
+      S(ph.hours.toFixed(1) + ' hours across the ' + ph.shiftsWithHours + ' of ' +
+        ph.shifts + ' shifts with a clock-out'),
+      T('Covers ' + money0(ph.incomeWithHours) + ' of the ' + money0(ph.income) +
+        ' earned — ' + ph.coverage + '% of it')
+    ] : [
+      K('Per hour clocked in'),
+      V('—'),
+      S('Not enough time recorded to say'),
+      T('Only ' + ph.coverage + '% of earnings sit on a shift with hours')
+    ]));
+
+    // ---- where the money comes from --------------------------------------
+    // Per delivery, never per hour: DoorDash time is the whole dash and Uber time
+    // is per delivery, so an hourly comparison between them is two clocks.
+    const src = (d.bySource || []).filter(b => Number(b.deliveries) > 0);
+    if (src.length) {
+      const kids = [K('Where the money comes from')];
+      if (d.scope && d.scope.since) {
+        kids.push(S('Everything since ' + withYear(d.scope.since)));
+      }
+      const top = src.slice(0, 2);
+      for (const b of top) {
+        kids.push(barRow(b.source, money0(b.income) + '  ·  ' + money(b.perDelivery) + ' each', b.share));
+        kids.push(el('div', { class: 'thin', style: 'margin-top:3px',
+          text: plural(b.deliveries, 'delivery').replace('deliverys', 'deliveries') + '  ·  ' + b.share + '% of the money' }));
+      }
+      for (const b of src.slice(2)) {
+        kids.push(T(b.source + ': ' + money(b.income) + ' across ' + plural(b.deliveries, 'delivery').replace('deliverys', 'deliveries')));
+      }
+      out.push(card(kids));
+    }
+
+    // ---- last 6 months ---------------------------------------------------
+    // Drawn on a generated calendar axis. A month with no records shows as an
+    // empty slot saying so: dropping it would put May next to July and turn a
+    // nine-week stop into a smooth decline, and drawing it as $0 would claim he
+    // earned nothing when in truth nothing was entered.
+    const ms = d.months || [];
+    const complete = ms.filter(x => !x.current && x.income !== null).map(x => Number(x.income));
+    const scale = complete.length ? Math.max(...complete) : Math.max(1, ...ms.map(x => Number(x.income) || 0));
+    if (ms.length) {
+      const kids = [K('Last 6 months')];
+      for (const x of ms) {
+        if (x.income === null) {
+          kids.push(barRow(x.label, 'no records', 0, { empty: true }));
+        } else {
+          // The first month on record is as partial as the current one - tracking
+          // began on the 21st - and it sets the eye's baseline for the whole strip.
+          const startsMidMonth = d.scope && d.scope.since &&
+            String(d.scope.since).slice(0, 7) === String(x.monthStart).slice(0, 7) &&
+            parseDay(d.scope.since).getDate() > 1;
+          kids.push(barRow(
+            x.label + (x.current ? ' (so far)'
+              : startsMidMonth ? ' (from the ' + ordinal(parseDay(d.scope.since).getDate()) + ')' : ''),
+            money0(x.income) + '  ·  ' + plural(x.shifts, 'shift'),
+            scale > 0 ? (Number(x.income) / scale) * 100 : 0,
+            { muted: x.current || startsMidMonth }
+          ));
+        }
+      }
+      out.push(card(kids));
+    }
+
+    // ---- costs ------------------------------------------------------------
+    // No net profit anywhere. Nothing is logged for tolls, tyres, maintenance,
+    // insurance or tax, so income minus the food and charging that happened to be
+    // recorded is not profit, it is income wearing a better label.
+    const c = d.costs || {};
+    const costKids = [K('Costs in ' + d.monthName)];
+    if (Number(c.month) > 0) {
+      costKids.push(V(money(c.month)));
+      costKids.push(S(c.categories.map(x => x.type.toLowerCase()).join(', ')));
+    } else {
+      costKids.push(V('—'));
+      costKids.push(S('Nothing logged this month'));
+    }
+    if (c.chargingDaysAgo !== null && c.chargingDaysAgo > 30) {
+      costKids.push(T('Last charging cost was ' + c.chargingDaysAgo + ' days ago, ' + shortDay(c.lastCharging)));
+    }
+    out.push(card(costKids));
+
+    // ---- scope -------------------------------------------------------------
+    // The word "total" appears nowhere on this page. It would be wrong by $41,359.
+    const sc = d.scope || {};
+    const foot = el('div', { class: 'foot' });
+    if (sc.since) {
+      foot.append(el('div', { text:
+        'Since shift tracking began, ' + withYear(sc.since) + ' — ' +
+        money(sc.income) + ' across ' + plural(sc.shifts, 'shift') + '.' }));
+    }
+    if (sc.excluded) {
+      foot.append(el('div', { text:
+        'Earlier records, not counted above: ' + money0(sc.excluded.income) + ' (' +
+        sc.excluded.records + ' records, ' + withYear(sc.excluded.from) + ' to ' +
+        withYear(sc.excluded.to) + ').' }));
+    }
+    out.push(foot);
+
+    $('#app').replaceChildren(...out.filter(Boolean));
+  }
+
+  (async () => {
+    try {
+      const r = await fetch('/api/records/dashboard');
+      if (r.status === 401) { location.href = '/login.html'; return; }
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Request failed (' + r.status + ')');
+      render(data);
+    } catch (e) {
+      // A page of zeroes would be indistinguishable from a very bad week.
+      $('#app').replaceChildren(card([
+        K('Cannot reach Patforce'),
+        V('—'),
+        S(e.message),
+        el('div', { style: 'margin-top:10px' }, el('a', { href: '/records', text: 'Open the records →' }))
+      ]));
+    }
+  })();
+})();
+</script>
+</body>
+</html>

@@ -694,6 +694,258 @@ router.get('/excluded', handle(async (_req, res) => {
   });
 }));
 
+/**
+ * Everything the dashboard shows, in one request.
+ *
+ * One endpoint rather than ten, because this is the first thing loaded on a phone
+ * on mobile data, and ten round trips is the difference between a glance and a wait.
+ *
+ * Four rules run through all of it, each one a figure this dataset would otherwise
+ * get confidently wrong:
+ *
+ * 1. No rate is ever read from a view column. earnings_per_shift_hour and friends
+ *    are CASE ... ELSE 0, so a missing denominator arrives as a confident zero -
+ *    WCF-0010 serves 0 against a real $224.06 week. Every rate here is computed
+ *    from its raw pair, and is null when the denominator is missing.
+ *
+ * 2. Comparisons are same-elapsed-days. A month that is nine days old is compared
+ *    against the first nine days of last month, never against a finished one.
+ *
+ * 3. An hourly figure divides only income from shifts that actually have hours.
+ *    Seven shifts carry earnings with no clock-out; counting their money in the
+ *    numerator and not their hours in the denominator inflates the rate, and does
+ *    so further every time one is missed.
+ *
+ * 4. Shifts and days are counted separately. Two shifts share 2026-08-25, so
+ *    count(*) is shifts and count(distinct shift_date) is days. Calling either
+ *    "days worked" reports 39 days in a 31-day May.
+ */
+router.get('/dashboard', handle(async (_req, res) => {
+  const { rows: [d] } = await pool.query(
+    `select (now() at time zone $1)::date                                        as today,
+            date_trunc('week',  (now() at time zone $1)::date)::date            as week_start,
+            date_trunc('week',  (now() at time zone $1)::date)::date - 7        as prev_week_start,
+            date_trunc('month', (now() at time zone $1)::date)::date            as month_start,
+            (date_trunc('month', (now() at time zone $1)::date) - interval '1 month')::date as prev_month_start,
+            ((now() at time zone $1)::date - date_trunc('week',  (now() at time zone $1)::date)::date)::int  as into_week,
+            ((now() at time zone $1)::date - date_trunc('month', (now() at time zone $1)::date)::date)::int  as into_month,
+            extract(day from (date_trunc('month', (now() at time zone $1)::date) + interval '1 month - 1 day'))::int as days_in_month,
+            to_char((now() at time zone $1)::date, 'FMMonth')                   as month_name`,
+    [TZ]);
+
+  const iso = v => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
+  const shift = (isoDate, n) => {
+    const x = new Date(isoDate + 'T00:00:00Z');
+    x.setUTCDate(x.getUTCDate() + n);
+    return x.toISOString().slice(0, 10);
+  };
+
+  const today = iso(d.today);
+  const weekStart = iso(d.week_start);
+  const prevWeekStart = iso(d.prev_week_start);
+  const monthStart = iso(d.month_start);
+  const prevMonthStart = iso(d.prev_month_start);
+
+  /** Money and counts for a date range. Rates are computed, never read. */
+  const window = async (from, to) => {
+    const { rows: [r] } = await pool.query(
+      `select round(coalesce(sum(total_income), 0), 2)                          as income,
+              round(coalesce(sum(total_expenses), 0), 2)                        as expenses,
+              count(*)::int                                                     as shifts,
+              count(distinct shift_date)::int                                   as days,
+              round(coalesce(sum(shift_hours_exact), 0), 2)                     as hours,
+              -- Only the money whose shift actually recorded hours. Rule 3.
+              round(coalesce(sum(total_income) filter (where shift_hours_exact > 0), 0), 2) as income_with_hours,
+              -- Named separately from the shift count because the hourly figure
+              -- these only: calling 184.71 hours "across every shift" when seven of
+              -- the 82 contributed none is the exact overstatement this page exists
+              -- to avoid.
+              count(*) filter (where shift_hours_exact > 0)::int              as shifts_with_hours
+         from v_daily_cash_flow_raw
+        where not is_placeholder and shift_date between $1 and $2`, [from, to]);
+    return { ...r, from, to };
+  };
+
+  const [week, weekPrior, month, monthPrior, allTime] = await Promise.all([
+    window(weekStart, today),
+    window(prevWeekStart, shift(prevWeekStart, d.into_week)),
+    window(monthStart, today),
+    // least() so a 31st-of-the-month view cannot spill past the end of a short month.
+    pool.query(`select least($1::date + $2::int, (date_trunc('month', $1::date) + interval '1 month - 1 day')::date)::date as e`,
+      [prevMonthStart, d.into_month]).then(r => window(prevMonthStart, iso(r.rows[0].e))),
+    window('2000-01-01', today)
+  ]);
+
+  // The hero. The shift row itself, not the day: DCF-0092 and DCF-0093 share
+  // 2026-08-25, and summing them under the label "last shift" prints a day.
+  // No income filter: a shift that genuinely earned nothing is a real shift, and
+  // skipping it puts an older one under a label reading "last shift". The page
+  // decides what to lead with; today with nothing on it yet is the one case it
+  // steps past, because at 7am that is not a zero, it is a day not started.
+  const { rows: lastShifts } = await pool.query(
+    `select id, record_no, shift_date, day_of_week, is_open, clock_in, clock_out,
+            shift_hours, total_income
+       from v_daily_cash_flow
+      order by shift_date desc, clock_in desc nulls last, id desc
+      limit 4`);
+
+  // Per service. Delivery count and income are measured identically for every
+  // service; hours are not, so $ per delivery is the only fair cross-app rate.
+  const { rows: bySource } = await pool.query(
+    `select source,
+            round(sum(income), 2) as income,
+            sum(deliveries)::int  as deliveries
+       from v_income_by_source_day
+      group by source order by 2 desc`);
+  const sourceTotal = bySource.reduce((a, b) => a + Number(b.income), 0);
+
+  // Six months on a generated axis. Without generate_series, June 2026 - which has
+  // no row at all - simply vanishes and May sits next to July, turning a nine-week
+  // stop into a smooth decline.
+  const { rows: months } = await pool.query(
+    `select to_char(m, 'Mon') as label, m::date as month_start,
+            v.total_income as income, v.days_worked as shifts,
+            (m = date_trunc('month', $1::date)) as current
+       from generate_series(date_trunc('month', $1::date) - interval '5 months',
+                            date_trunc('month', $1::date), interval '1 month') m
+       left join v_month_cash_flow v on v.month_start = m::date
+      order by m`, [today]);
+
+  // Costs read expense_record directly over the same range the tile names, so the
+  // figure reconciles with the Expenses tab. v_month_cash_flow's month rows sum to
+  // less than the expenses logged, because some fall on no month row at all.
+  const { rows: costCats } = await pool.query(
+    `select coalesce(type, 'uncategorised') as type, round(sum(amount), 2) as amount
+       from expense_record where expense_date between $1 and $2
+      group by 1 order by 2 desc`, [monthStart, today]);
+  const { rows: [charging] } = await pool.query(
+    `select max(expense_date) as last_date,
+            ($1::date - max(expense_date))::int as days_ago
+       from expense_record where type = 'Charging'`, [today]);
+
+  // Things worth a minute. Each is a real state, and the wording of each depends on
+  // which one it is: a shift still running is not a shift someone forgot to close.
+  const { rows: needsClockOut } = await pool.query(
+    `select record_no, shift_date, total_income
+       from v_daily_cash_flow
+      where not is_open and clock_out is not null
+        and shift_hours = 0 and total_income > 0
+      order by shift_date desc`);
+  const { rows: neverClocked } = await pool.query(
+    `select record_no, shift_date, total_income
+       from v_daily_cash_flow
+      where clock_in is null and clock_out is null and total_income > 0
+      order by shift_date desc`);
+  const { rows: [open] } = await pool.query(
+    `select record_no, shift_date, clock_in, total_income
+       from v_daily_cash_flow where is_open limit 1`);
+  // The amount matters, not just the count. Income with no shift is counted by
+  // v_income_by_source_day (which joins loosely) but invisible to every figure
+  // derived from v_daily_cash_flow_raw, so an unlinked record makes two totals on
+  // this page disagree. Surfacing the money is what makes that legible.
+  const { rows: [unlinked] } = await pool.query(
+    `select (select count(*)::int from income_record where daily_cash_flow_id is null)  as income,
+            (select count(*)::int from expense_record where daily_cash_flow_id is null) as expenses,
+            (select round(coalesce(sum(total_earnings), 0), 2) from income_record
+              where daily_cash_flow_id is null)                                          as income_amount`);
+
+  // Freshness. Without it, "last shift Tuesday" on a Thursday reads the same whether
+  // he did not drive or the push pipeline is down.
+  // Counted in weekdays, because he has never worked a weekend: measured in clock
+  // hours, every Monday morning is 60 hours past Friday and the page would cry
+  // "nothing new since" when nothing is wrong.
+  const { rows: [fresh] } = await pool.query(
+    `with last as (select max(created_at) as ts from income_record)
+     select ts as last_record,
+            round(extract(epoch from (now() - ts)) / 3600.0, 1) as hours_ago,
+            (select count(*) from generate_series((ts at time zone $1)::date, $2::date, interval '1 day') d
+              where extract(isodow from d) < 6)::int - 1 as weekdays_ago
+       from last`, [TZ, today]);
+
+  const { rows: excluded } = await pool.query('select * from v_excluded_bulk_import');
+  const { rows: [firstDay] } = await pool.query(
+    `select min(shift_date) as since from daily_cash_flow where not is_placeholder`);
+
+  const rate = (num, den) => (Number(den) > 0 ? Number((Number(num) / Number(den)).toFixed(2)) : null);
+  const sum = (rows, k) => rows.reduce((a, r) => a + Number(r[k] || 0), 0);
+
+  // The hourly figure is gated, not caveated away. Below either floor it is not a
+  // rate, and the page says so instead of printing one.
+  const coverage = Number(allTime.income) > 0
+    ? Math.round(100 * Number(allTime.income_with_hours) / Number(allTime.income)) : 0;
+  const hourly = (Number(allTime.hours) >= 1 && coverage >= 60)
+    ? rate(allTime.income_with_hours, allTime.hours) : null;
+
+  res.json({
+    today,
+    monthName: d.month_name,
+    freshness: {
+      lastRecord: fresh.last_record,
+      hoursAgo: fresh.hours_ago === null ? null : Number(fresh.hours_ago),
+      weekdaysAgo: fresh.weekdays_ago === null ? null : Math.max(0, Number(fresh.weekdays_ago))
+    },
+    recentShifts: lastShifts,
+    week: {
+      ...week, dayOfWeek: d.into_week + 1, prior: weekPrior,
+      delta: Number((Number(week.income) - Number(weekPrior.income)).toFixed(2))
+    },
+    month: {
+      ...month, dayOfMonth: d.into_month + 1, daysInMonth: d.days_in_month, prior: monthPrior,
+      delta: Number((Number(month.income) - Number(monthPrior.income)).toFixed(2))
+    },
+    perShift: {
+      month: rate(month.income, month.shifts), monthShifts: month.shifts,
+      allTime: rate(allTime.income, allTime.shifts), allShifts: allTime.shifts
+    },
+    perHour: {
+      rate: hourly, coverage, hours: Number(allTime.hours),
+      shiftsWithHours: allTime.shifts_with_hours, shifts: allTime.shifts,
+      incomeWithHours: Number(allTime.income_with_hours), income: Number(allTime.income)
+    },
+    bySource: bySource.map(b => ({
+      ...b,
+      perDelivery: rate(b.income, b.deliveries),
+      share: sourceTotal > 0 ? Math.round(100 * Number(b.income) / sourceTotal) : 0
+    })),
+    months: months.map(m => ({
+      label: m.label, monthStart: iso(m.month_start), current: m.current,
+      income: m.income === null ? null : Number(m.income),
+      shifts: m.shifts === null ? null : Number(m.shifts)
+    })),
+    costs: {
+      month: Number(sum(costCats, 'amount').toFixed(2)),
+      categories: costCats,
+      lastCharging: charging.last_date ? iso(charging.last_date) : null,
+      chargingDaysAgo: charging.days_ago === null ? null : Number(charging.days_ago)
+    },
+    attention: {
+      needsClockOut: needsClockOut.length ? {
+        count: needsClockOut.length,
+        income: Number(sum(needsClockOut, 'total_income').toFixed(2)),
+        from: iso(needsClockOut[needsClockOut.length - 1].shift_date),
+        to: iso(needsClockOut[0].shift_date)
+      } : null,
+      neverClocked: neverClocked.length ? {
+        count: neverClocked.length,
+        income: Number(sum(neverClocked, 'total_income').toFixed(2))
+      } : null,
+      openShift: open || null,
+      unlinked: (unlinked.income || unlinked.expenses)
+        ? { ...unlinked, income_amount: Number(unlinked.income_amount) } : null
+    },
+    scope: {
+      since: firstDay.since ? iso(firstDay.since) : null,
+      income: Number(allTime.income), shifts: allTime.shifts,
+      excluded: excluded.length ? {
+        income: Number(sum(excluded, 'income').toFixed(2)),
+        records: excluded.reduce((a, r) => a + Number(r.records), 0),
+        from: iso(excluded.map(r => iso(r.first_date)).sort()[0]),
+        to: iso(excluded.map(r => iso(r.last_date)).sort().slice(-1)[0])
+      } : null
+    }
+  });
+}));
+
 router.get('/months', handle(async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 36, 120);
   const { rows } = await pool.query(

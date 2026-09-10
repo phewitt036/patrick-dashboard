@@ -42,7 +42,8 @@ if (PATFORCE_ONLY) {
   const BLOCKED_APIS = ['/api/pimax', '/api/pixit'];
   app.use((req, res, next) => {
     // The records screen is the front page here, not a link buried in a menu.
-    if (req.path === '/') return res.redirect('/records');
+    // The dashboard is the front page. Registered further down with the other
+    // rewritten pages so it picks up the icon, manifest and service worker too.
     if (BLOCKED_PAGES.has(req.path)) return res.status(404).send('Not found');
     if (BLOCKED_APIS.some(a => req.path === a || req.path.startsWith(a + '/'))) {
       return res.status(404).json({ error: 'Not found' });
@@ -93,14 +94,17 @@ if (PATFORCE_ONLY) {
       out = out.split("<span class=\"icon\">⌘</span>").join(
         "<span class=\"icon\"><img src=\"/patforce/favicon.svg\" alt=\"\" width=\"56\" height=\"56\" style=\"vertical-align:middle\"></span>");
 
-      // There is no dashboard behind this hostname, so the link back to it
-      // would 404 and, more to the point, should not be here at all. Matched
-      // on the tag rather than its text: the markup uses an HTML entity for
-      // the arrow, which an exact-text match missed.
-      const backAt = out.indexOf("<a class=\"back\"");
+      // '/' used to mean the command centre, so this link was stripped. It now
+      // means the Patforce dashboard, so it is relabelled and kept: the records
+      // page otherwise has no way back to the morning view.
+      const backAt = out.indexOf('<a class="back"');
       if (backAt >= 0) {
-        const closeAt = out.indexOf("</a>", backAt);
-        if (closeAt >= 0) out = out.slice(0, backAt) + out.slice(closeAt + 4);
+        const closeAt = out.indexOf('</a>', backAt);
+        if (closeAt >= 0) {
+          out = out.slice(0, backAt) +
+                '<a class="back" href="/">&larr; Dashboard</a>' +
+                out.slice(closeAt + 4);
+        }
       }
 
       // Drop the dashboard icon rather than leave two competing ones.
@@ -113,6 +117,11 @@ if (PATFORCE_ONLY) {
       res.type('html').send(out);
     });
   };
+
+  // The morning view, and the front page. Served through the same rewriter as
+  // everything else so it carries the manifest, the icon and the worker.
+  app.get(['/', '/dashboard', '/dashboard.html'], requireAuth,
+    patforcePage('dashboard.html', 'Patforce', 'Patforce'));
 
   app.get(['/records', '/records.html'], requireAuth,
     patforcePage('records.html', 'Patforce', 'Patforce · Gig Records'));
