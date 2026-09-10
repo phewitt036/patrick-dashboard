@@ -232,7 +232,10 @@
   .dlg-head h2 { font-size: 16px; font-weight: 620; margin: 0; letter-spacing: -0.015em; }
   .dlg-body { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   #detail-body { display: block; }
-  #detail {
+  /* [open] matters. A bare #detail { display: flex } overrides the browser rule
+     that hides a closed dialog, so after the first Close it stayed on the page
+     with no backdrop, sitting over the table in normal flow. */
+  #detail[open] {
     /* Never taller than the screen: long shifts scroll inside the dialog
        rather than making the page itself scroll behind it. */
     max-height: min(86vh, 900px);
