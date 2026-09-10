@@ -76,7 +76,7 @@
     display: inline-flex; gap: 2px;
     max-width: 1180px; margin: 0 auto; padding: 0 20px 12px;
   }
-  .tabs { display: flex; }
+  .tabs { display: flex; flex-wrap: wrap; row-gap: 6px; }
   .tab {
     font-family: inherit; font-size: 13px; font-weight: 500;
     background: none; border: 1px solid transparent; color: var(--muted);
@@ -228,6 +228,17 @@
   }
   .dlg-head h2 { font-size: 16px; font-weight: 620; margin: 0; letter-spacing: -0.015em; }
   .dlg-body { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  #detail-body { display: block; }
+  #detail {
+    /* Never taller than the screen: long shifts scroll inside the dialog
+       rather than making the page itself scroll behind it. */
+    max-height: min(86vh, 900px);
+    display: flex; flex-direction: column;
+  }
+  #detail .dlg-head { flex: 0 0 auto; }
+  #detail-body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  #detail .dlg-head { display: flex; align-items: center; gap: 10px; }
+  #detail .dlg-head h2 { flex: 1; min-width: 0; font-size: 15px; }
   .dlg-body .full { grid-column: 1 / -1; }
   .dlg-foot {
     display: flex; gap: 10px; justify-content: flex-end;
@@ -254,6 +265,69 @@
   #toast.bad { background: var(--neg); border-color: var(--neg); }
 
   #filter-toggle { display: none; }
+
+  html, body { max-width: 100%; overflow-x: hidden; }
+  .rpt-table-wrap { overflow-x: auto; }
+
+  @media (max-width: 640px) {
+    /* Tabs are the navigation; on a phone they wrap onto two rows so every one
+       of them is reachable without dragging. */
+    /* Most columns are hidden at this width, so the 760px floor only buys a
+       sideways scroll across empty space. The visible columns fit exactly. */
+    #tbl { min-width: 0; }
+    #tbl :is(th, td) { white-space: normal; padding-left: 10px; padding-right: 10px; }
+    .tabs { padding-left: 12px; padding-right: 12px; }
+    .tab { padding: 7px 11px; font-size: 12.5px; }
+    .cards { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; }
+    .card { padding: 10px 11px; }
+    .card .v { font-size: 17px; }
+    /* A two-column definition list is unreadable at this width. */
+    .kv { grid-template-columns: 1fr; gap: 2px 0; }
+    .kv dt { margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+    .kv dd { font-size: 14px; }
+    .child .top { flex-wrap: wrap; }
+
+    /* Report tables stack into label/value rows. A five-column table cannot fit
+       375px, and clipping it silently loses the per-hour figure. */
+    /* The rows are blocks, but a display:table parent still sizes itself from
+       the original cell widths and overflows. The whole table has to collapse. */
+    /* The page-wide table rules set a 760px min-width and nowrap cells, which
+       is right for the record grid in its scrolling box and fatal for a table
+       meant to stack. Both are undone here, not globally. */
+    .rpt-table { display: block; width: 100%; min-width: 0; }
+    .rpt-table td { white-space: normal; }
+    .rpt-table tbody { display: block; width: 100%; }
+    .rpt-table thead { display: none; }
+    .rpt-table tr { display: block; padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .rpt-table tr:last-child { border-bottom: 0; }
+    .rpt-table td {
+      display: flex; align-items: baseline; justify-content: flex-end; gap: 8px;
+      border: 0; padding: 3px 2px; text-align: right;
+    }
+    .rpt-table td::before {
+      content: attr(data-label);
+      color: var(--muted); font-size: 11px; text-transform: uppercase;
+      letter-spacing: .05em; text-align: left; flex: 0 0 auto;
+      /* Pushes every value to the right edge. Without it a cell holding both a
+         figure and its coverage note spreads three items across the row and the
+         figure stops lining up with the ones above it. */
+      margin-right: auto;
+    }
+    .rpt-table td[data-label="Service"] { padding-bottom: 5px; }
+    .rpt-table td .thin { display: inline; margin-left: 6px; }
+
+    /* Weeks and Months carry eight columns each. The older tabs already drop
+       their secondary ones at this width; these now do the same rather than
+       scroll inside a box. */
+    #tbl[data-tab="weeks"]  :is(th,td):nth-child(2),
+    #tbl[data-tab="weeks"]  :is(th,td):nth-child(4),
+    #tbl[data-tab="weeks"]  :is(th,td):nth-child(6),
+    #tbl[data-tab="weeks"]  :is(th,td):nth-child(7),
+    #tbl[data-tab="months"] :is(th,td):nth-child(2),
+    #tbl[data-tab="months"] :is(th,td):nth-child(4),
+    #tbl[data-tab="months"] :is(th,td):nth-child(6),
+    #tbl[data-tab="months"] :is(th,td):nth-child(8) { display: none; }
+  }
 
   @media (max-width: 640px) {
     .dlg-body { grid-template-columns: 1fr; }
@@ -611,19 +685,21 @@
         card('Per mile', money(t.earnings_per_mile), numOrDash(t.shift_miles, 1) + ' miles')
       ]);
 
+      // data-label is what the stacked phone layout prints in place of the
+      // header row, so no column can be lost to a narrow screen.
       const src = el('table', { class: 'rpt-table' }, [
         el('thead', {}, el('tr', {}, ['Service', 'Income', 'Deliveries', 'Hours', 'Per hour'].map((h, i) =>
           el('th', { class: i ? 'num' : '', text: h })))),
         el('tbody', {}, d.bySource.length
           ? d.bySource.map(b => el('tr', {}, [
-              el('td', {}, el('span', {
+              el('td', { 'data-label': 'Service' }, el('span', {
                 class: 'pill ' + (b.source === 'Doordash' ? 'dd' : b.source.startsWith('Uber') ? 'uber' : ''),
                 text: b.source
               })),
-              el('td', { class: 'num', text: money(b.income) }),
-              el('td', { class: 'num', text: String(b.deliveries) }),
-              el('td', { class: 'num', text: numOrDash(b.hours, 2) }),
-              el('td', { class: 'num' }, [
+              el('td', { class: 'num', 'data-label': 'Income', text: money(b.income) }),
+              el('td', { class: 'num', 'data-label': 'Deliveries', text: String(b.deliveries) }),
+              el('td', { class: 'num', 'data-label': 'Hours', text: numOrDash(b.hours, 2) }),
+              el('td', { class: 'num', 'data-label': 'Per hour' }, [
                 el('span', { text: b.per_hour === null ? '—' : money(b.per_hour) }),
                 el('div', { class: 'thin', text: coverageNote(b.coverage).trim() })
               ])
@@ -635,9 +711,9 @@
         el('thead', {}, el('tr', {}, ['Category', 'Count', 'Amount'].map((h, i) =>
           el('th', { class: i ? 'num' : '', text: h })))),
         el('tbody', {}, d.expensesByType.map(e => el('tr', {}, [
-          el('td', { text: e.type || 'Uncategorised' }),
-          el('td', { class: 'num', text: String(e.count) }),
-          el('td', { class: 'num', text: money(e.amount) })
+          el('td', { 'data-label': 'Category', text: e.type || 'Uncategorised' }),
+          el('td', { class: 'num', 'data-label': 'Count', text: String(e.count) }),
+          el('td', { class: 'num', 'data-label': 'Amount', text: money(e.amount) })
         ])))
       ]) : el('div', { class: 'muted', text: 'No expenses in this period.' });
 
