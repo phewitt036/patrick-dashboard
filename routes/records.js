@@ -145,6 +145,68 @@ async function shiftForDate(client, date) {
 }
 
 /** Weeks are created on demand so a backfilled shift always has a parent. */
+/**
+ * The shift for a date, opening one if there is none.
+ *
+ * Until now a record landing on a day with no shift stayed unlinked, on the
+ * principle that inventing a shift produces the empty records the Salesforce
+ * history is full of. That principle held when shifts were typed by hand. It
+ * stopped holding once Pixit became the way records arrive: the first delivery
+ * of a day would land with nowhere to go, and its hours, miles and rates would
+ * belong to nothing.
+ *
+ * Two rules keep it honest.
+ *
+ * A clock-in is only invented for TODAY, where "now" is a true statement about
+ * when the shift started. For any other date the shift is created with no times
+ * at all rather than a fabricated one - it exists, the record links to it, the
+ * week rolls it up, and nothing claims to know hours nobody recorded. That is
+ * the same shape the imported history already uses.
+ *
+ * The schema permits exactly one open shift, so opening today's means closing
+ * anything left open on an earlier day. It is closed at its own last income
+ * record, or at its clock-in if it has none - the same repair the installer
+ * applies to abandoned shifts, and the caller is told it happened.
+ */
+async function shiftForDateOrOpen(client, date) {
+  const existing = await shiftForDate(client, date);
+  if (existing) return { id: existing, createdShift: false, closedAbandoned: null };
+
+  const { rows: todayRows } = await client.query(
+    `select (now() at time zone $1)::date = $2::date as is_today`, [TZ, date]);
+  const isToday = todayRows[0].is_today;
+
+  let closedAbandoned = null;
+  if (isToday) {
+    const { rows: open } = await client.query(
+      `select id, record_no, clock_in from daily_cash_flow
+        where clock_in is not null and clock_out is null and not is_placeholder
+        limit 1`);
+    if (open.length) {
+      // Closed at its own clock-in, so it records zero hours rather than a
+      // fabricated duration. The obvious alternative - the last income record on
+      // it - is a row insert time, not when the delivery happened, and a shift
+      // clocked in yesterday whose records were pushed tonight came out at 37.52
+      // hours in testing. A shift with no measured hours is already a shape this
+      // system understands and flags; an invented 37-hour shift is not.
+      const { rows: closed } = await client.query(
+        `update daily_cash_flow
+            set clock_out = clock_in
+          where id = $1
+          returning record_no, clock_out`, [open[0].id]);
+      closedAbandoned = closed[0] || null;
+    }
+  }
+
+  const weekId = await weekForDate(client, date);
+  const { rows } = await client.query(
+    `insert into daily_cash_flow (weekly_cash_flow_id, shift_date, clock_in)
+     values ($1, $2, case when $3::boolean then now() else null end)
+     returning id`, [weekId, date, isToday]);
+
+  return { id: rows[0].id, createdShift: true, openedNow: isToday, closedAbandoned };
+}
+
 async function weekForDate(client, date) {
   const { rows } = await client.query(
     `insert into weekly_cash_flow (start_date)
@@ -229,9 +291,12 @@ function incomeFields(body) {
 router.post('/income', handle(async (req, res) => {
   const f = incomeFields(req.body || {});
   const record = await withTransaction(async (client) => {
-    const shiftId = req.body.dailyCashFlowId !== undefined
-      ? id(req.body.dailyCashFlowId)
-      : await shiftForDate(client, f.income_date);
+    // An explicit dailyCashFlowId still wins, including an explicit null for
+    // anyone who deliberately wants a loose record.
+    const link = req.body.dailyCashFlowId !== undefined
+      ? { id: id(req.body.dailyCashFlowId), createdShift: false, closedAbandoned: null }
+      : await shiftForDateOrOpen(client, f.income_date);
+    const shiftId = link.id;
     const cols = Object.keys(f).concat('daily_cash_flow_id');
     const vals = Object.values(f).concat(shiftId);
     const { rows } = await client.query(
@@ -240,10 +305,10 @@ router.post('/income', handle(async (req, res) => {
        returning id`,
       vals
     );
-    return rows[0].id;
+    return { id: rows[0].id, link };
   });
-  const { rows } = await pool.query('select * from v_income_record where id = $1', [record]);
-  res.status(201).json(rows[0]);
+  const { rows } = await pool.query('select * from v_income_record where id = $1', [record.id]);
+  res.status(201).json({ ...rows[0], shift: record.link });
 }));
 
 router.patch('/income/:id', handle(async (req, res) => {
@@ -710,6 +775,7 @@ module.exports = router;
 module.exports.incomeFields = incomeFields;
 module.exports.expenseFields = expenseFields;
 module.exports.shiftForDate = shiftForDate;
+module.exports.shiftForDateOrOpen = shiftForDateOrOpen;
 module.exports.weekForDate = weekForDate;
 module.exports.explain = explain;
 module.exports.BadRequest = BadRequest;

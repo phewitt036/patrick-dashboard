@@ -89,7 +89,17 @@ record rejects the whole request with `record 3: amount is required`, and
 nothing in it is written.
 
 Records link themselves to that day's shift the same way a typed one does, and
-do not invent a shift when there is none.
+**open one when there is none**. A whole dash pushed at once opens a single
+shift, not one per delivery.
+
+A clock-in is only invented for today, where `now` is a true statement about
+when the shift began. A record for any other date gets a shift with no times
+at all: it exists, the record links to it, the week rolls it up, and nothing
+claims to know hours nobody recorded.
+
+The schema permits one open shift, so opening today's closes anything left
+open on an earlier day, at its own clock-in and therefore at zero hours. The
+reply says so in `shifts` when it happens.
 
 ## POST /api/ingest/expenses
 

@@ -28,8 +28,8 @@ const router = express.Router();
 const { pool, withTransaction, requireDatabase } = require('../lib/db');
 const records = require('./records');
 
-const { incomeFields, expenseFields, shiftForDate, weekForDate, explain,
-        BadRequest, requiredDate, optionalNumber } = records;
+const { incomeFields, expenseFields, shiftForDate, shiftForDateOrOpen, weekForDate,
+        explain, BadRequest, requiredDate, optionalNumber } = records;
 
 const MAX_BATCH = 200;
 
@@ -118,6 +118,9 @@ async function insertOnce(client, table, fields, extId, shiftId) {
 
 async function ingestBatch(req, { table, view, fieldsOf, dateKey }) {
   const list = asBatch(req.body);
+  // What the batch had to do to the shifts, so the caller is told rather than
+  // finding out later that a shift appeared or an old one was closed.
+  const shiftNotes = [];
   const results = await withTransaction(async (client) => {
     const out = [];
     for (const [i, row] of list.entries()) {
@@ -131,8 +134,13 @@ async function ingestBatch(req, { table, view, fieldsOf, dateKey }) {
       }
       const date = fields[dateKey];
       // A pushed record links to the shift on its date the same way a typed one
-      // does, and does not invent a shift when there is none.
-      const shiftId = await shiftForDate(client, date);
+      // does - and, as of the auto-open change, opens one when there is none.
+      // Income only: an expense is not evidence that a shift was worked.
+      const link = table === 'income_record'
+        ? await shiftForDateOrOpen(client, date)
+        : { id: await shiftForDate(client, date) };
+      const shiftId = link.id;
+      if (link.createdShift) shiftNotes.push(link);
       const r = extId
         ? await insertOnce(client, table, fields, extId, shiftId)
         : await (async () => {
@@ -148,10 +156,13 @@ async function ingestBatch(req, { table, view, fieldsOf, dateKey }) {
     return out;
   });
 
+  results.shiftNotes = shiftNotes;
   const ids = results.map(r => r.id);
   const { rows } = await pool.query(`select * from ${view} where id = any($1::bigint[])`, [ids]);
   const byId = new Map(rows.map(r => [String(r.id), r]));
-  return results.map(r => ({ ...byId.get(String(r.id)), duplicate: r.duplicate }));
+  const mapped = results.map(r => ({ ...byId.get(String(r.id)), duplicate: r.duplicate }));
+  mapped.shiftNotes = shiftNotes;
+  return mapped;
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +182,10 @@ router.post('/income', handle(async (req, res) => {
     fieldsOf: incomeFields, dateKey: 'income_date'
   });
   const created = out.filter(r => !r.duplicate).length;
-  res.status(created ? 201 : 200).json({ created, duplicates: out.length - created, records: out });
+  res.status(created ? 201 : 200).json({
+    created, duplicates: out.length - created, records: out,
+    ...(out.shiftNotes && out.shiftNotes.length ? { shifts: out.shiftNotes } : {})
+  });
 }));
 
 router.post('/expenses', handle(async (req, res) => {
