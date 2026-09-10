@@ -650,13 +650,25 @@
             () => openDetail('shift', sh.id)))
         : [el('div', { class: 'muted', text: 'No shifts in this period.' })]);
 
+      const excludedNote = el('div', { class: 'thin', style: 'margin-top:18px' });
       body.replaceChildren(
         el('div', { class: 'rpt-h', text: d.label + '   (' + d.start + ' to ' + d.end + ')' }),
         cards,
         el('div', { class: 'rpt-h', text: 'By service' }), src,
         el('div', { class: 'rpt-h', text: 'Expenses by category' }), exp,
-        el('div', { class: 'rpt-h', text: 'Shifts' }), shifts
+        el('div', { class: 'rpt-h', text: 'Shifts' }), shifts,
+        excludedNote
       );
+
+      // Said once, at the foot of the page: the reported totals are smaller than
+      // the lifetime figure on purpose, and this is by how much and why.
+      api('GET', '/excluded').then(x => {
+        if (!x.records) return;
+        excludedNote.textContent =
+          `Excludes ${x.records} bulk-imported records (${money(x.income)}, ` +
+          `${x.first_date} to ${x.last_date}) held on a placeholder shift with no hours. ` +
+          `They are kept in the database and in reconciliation, but no rate can be drawn from them.`;
+      }).catch(() => {});
     }).catch(e => body.replaceChildren(el('div', { class: 'empty', text: e.message })));
   }
 

@@ -580,6 +580,24 @@ router.get('/income/:id', handle(async (req, res) => {
   res.json({ income: rows[0], shift });
 }));
 
+/**
+ * What the reporting deliberately leaves out. The pre-shift bulk import is real
+ * money Patrick earned, but it hangs off one placeholder shift with no hours, so
+ * including it made every rate meaningless. Reported here so the difference
+ * between this and total income is explainable rather than a silent gap.
+ */
+router.get('/excluded', handle(async (_req, res) => {
+  const { rows } = await pool.query('select * from v_excluded_bulk_import order by income desc');
+  const total = rows.reduce((a, r) => a + Number(r.income), 0);
+  res.json({
+    bySource: rows,
+    records: rows.reduce((a, r) => a + Number(r.records), 0),
+    income: Number(total.toFixed(2)),
+    first_date: rows.length ? rows.map(r => r.first_date).sort()[0] : null,
+    last_date: rows.length ? rows.map(r => r.last_date).sort().slice(-1)[0] : null
+  });
+}));
+
 router.get('/months', handle(async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 36, 120);
   const { rows } = await pool.query(
