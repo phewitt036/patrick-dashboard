@@ -490,7 +490,19 @@
     return data;
   }
 
-  const state = { tab: 'income', meta: null, filter: {}, offset: 0, limit: 50, editing: null };
+  // Arriving from the dashboard's fix-it row, which links to a specific tab and
+  // filter. Without this the link lands on Income and he has to go hunting for
+  // the thing the row just told him about.
+  const startup = new URLSearchParams(location.search);
+  const startTab = ['income', 'expenses', 'shifts', 'weeks', 'months', 'report'].includes(startup.get('tab'))
+    ? startup.get('tab') : 'income';
+  const startFilter = {};
+  if (startup.get('needs') === 'clockout') startFilter.needsClockOut = '1';
+  for (const k of ['from', 'to', 'source', 'type', 'q']) {
+    if (startup.get(k)) startFilter[k] = startup.get(k);
+  }
+
+  const state = { tab: startTab, meta: null, filter: startFilter, offset: 0, limit: 50, editing: null };
 
   // -------------------------------------------------------------- tab config
   // Coverage is how much of a period's money actually has time recorded against
@@ -559,7 +571,7 @@
       columns: ['Date', 'In', 'Out', 'Hours', 'Income', 'Expenses', 'Net', '$/hr', 'Miles', 'Records', ''],
       load: async () => {
         const p = new URLSearchParams({ limit: 200 });
-        for (const [k, v] of Object.entries(state.filter)) if (v && k !== 'source' && k !== 'q') p.set(k, v);
+        for (const [k, v] of Object.entries(state.filter)) if (v && k !== 'source' && k !== 'q' && k !== 'type') p.set(k, v);
         const d = await api('GET', '/shifts?' + p);
         return { records: d.shifts, total: d.shifts.length };
       },
@@ -945,6 +957,18 @@
         })
       ]));
     }
+    if (state.tab === 'shifts') {
+      f.append(el('div', { class: 'field' }, [
+        el('label', { text: 'Show', for: 'f-needs' }),
+        el('select', {
+          id: 'f-needs',
+          onchange: e => { state.filter.needsClockOut = e.target.value; state.offset = 0; load(); }
+        }, [
+          el('option', { value: '', text: 'All shifts', selected: state.filter.needsClockOut ? null : 'selected' }),
+          el('option', { value: '1', text: 'Needs a clock-out', selected: state.filter.needsClockOut ? 'selected' : null })
+        ])
+      ]));
+    }
     if (state.tab === 'expenses') {
       f.append(el('div', { class: 'field' }, [
         el('label', { text: 'Type', for: 'f-type' }),
@@ -1184,7 +1208,16 @@
       })));
       return;
     }
+    // The markup hard-codes Income as the selected tab; arriving on another one
+    // loaded the right data under the wrong highlight.
+    document.querySelectorAll('.tab').forEach(t =>
+      t.setAttribute('aria-selected', String(t.dataset.tab === state.tab)));
     renderFilters();
+    if (Object.keys(startFilter).length) {
+      const bar = $('#filters'), toggle = $('#filter-toggle');
+      if (bar) bar.classList.add('open');
+      if (toggle) toggle.setAttribute('aria-expanded', 'true');
+    }
     load();
   })();
 })();

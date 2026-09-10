@@ -459,6 +459,12 @@ router.get('/shifts', handle(async (req, res) => {
   const f = filters();
   if (from) f.add('shift_date >= $', requiredDate(from, 'from'));
   if (to) f.add('shift_date <= $', requiredDate(to, 'to'));
+  // Earned money, closed, and no recorded hours: a forgotten clock-out.
+  // Deliberately not is_open - every one of these reads false, because a clock_out
+  // exists and equals the clock_in, which is why nothing has ever surfaced them.
+  if (req.query.needsClockOut === '1') {
+    f.add('(not is_open and clock_out is not null and shift_hours = 0 and total_income > $)', 0);
+  }
   const { clause, params } = f;
 
   const { rows } = await pool.query(

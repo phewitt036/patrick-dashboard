@@ -214,14 +214,16 @@
       const t = a.openShift.clock_in ? new Date(a.openShift.clock_in) : null;
       fixes.push({
         what: 'Still clocked in' + (t ? ' since ' + t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''),
-        sub: a.openShift.record_no + ' · ' + money(a.openShift.total_income) + ' so far'
+        sub: a.openShift.record_no + ' · ' + money(a.openShift.total_income) + ' so far',
+        href: '/records?tab=shifts'
       });
     }
     if (a.needsClockOut) {
       fixes.push({
         what: plural(a.needsClockOut.count, 'shift') + ' need a clock-out',
         sub: money(a.needsClockOut.income) + ' of earnings · ' +
-             shortDay(a.needsClockOut.from) + ' to ' + shortDay(a.needsClockOut.to)
+             shortDay(a.needsClockOut.from) + ' to ' + shortDay(a.needsClockOut.to),
+        href: '/records?tab=shifts&needs=clockout'
       });
     }
     if (a.neverClocked) {
@@ -240,12 +242,13 @@
       const amt = Number(a.unlinked.income_amount || 0);
       fixes.push({
         what: 'Not attached to a shift',
-        sub: bits.join(' and ') + (amt > 0 ? ' · ' + money(amt) + ' not in the totals above' : '')
+        sub: bits.join(' and ') + (amt > 0 ? ' · ' + money(amt) + ' not in the totals above' : ''),
+        href: '/records?tab=' + (a.unlinked.income ? 'income' : 'expenses')
       });
     }
     if (fixes.length) {
       const rows = fixes.slice(0, 3).map(f =>
-        el('a', { class: 'row', href: '/records' }, [
+        el('a', { class: 'row', href: f.href || '/records' }, [
           el('div', {}, [
             el('div', { class: 'what', text: f.what }),
             el('div', { style: 'font-size:12px;opacity:.85', text: f.sub })
