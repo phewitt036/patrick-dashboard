@@ -28,7 +28,7 @@ const router = express.Router();
 const { pool, withTransaction, requireDatabase } = require('../lib/db');
 const records = require('./records');
 
-const { incomeFields, expenseFields, shiftForDate, shiftForDateOrOpen, weekForDate,
+const { incomeFields, expenseFields, shiftForDate, shiftForDateOrOpen, shiftForExpense, weekForDate,
         explain, BadRequest, requiredDate, optionalNumber } = records;
 
 const MAX_BATCH = 200;
@@ -138,7 +138,7 @@ async function ingestBatch(req, { table, view, fieldsOf, dateKey }) {
       // Income only: an expense is not evidence that a shift was worked.
       const link = table === 'income_record'
         ? await shiftForDateOrOpen(client, date)
-        : { id: await shiftForDate(client, date) };
+        : { id: await shiftForExpense(client, date) };
       const shiftId = link.id;
       if (link.createdShift) shiftNotes.push(link);
       const r = extId

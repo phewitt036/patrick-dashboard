@@ -207,6 +207,37 @@ async function shiftForDateOrOpen(client, date) {
   return { id: rows[0].id, createdShift: true, openedNow: isToday, closedAbandoned };
 }
 
+/**
+ * The shift an expense belongs to.
+ *
+ * An expense is bought during a shift, not on a date: the coffee at 11pm and the
+ * charge at 1am belong to the shift that is running, whatever the calendar says.
+ * So the open shift wins outright when there is one.
+ *
+ * With nothing open it falls to the most recently clocked-out shift, which is
+ * the one just finished. That search is capped at the expense's own date so a
+ * backdated receipt cannot attach itself to a shift worked afterwards - "most
+ * recent" has to mean most recent as of the expense, not as of now.
+ *
+ * Unlike income this never creates a shift. Buying something is not evidence
+ * that a shift was worked, and a shift invented from a receipt would carry
+ * expenses against no earnings at all.
+ */
+async function shiftForExpense(client, date) {
+  const { rows: open } = await client.query(
+    `select id from daily_cash_flow
+      where clock_in is not null and clock_out is null and not is_placeholder
+      limit 1`);
+  if (open.length) return open[0].id;
+
+  const { rows } = await client.query(
+    `select id from daily_cash_flow
+      where not is_placeholder and shift_date <= $1
+      order by clock_out desc nulls last, shift_date desc, id desc
+      limit 1`, [date]);
+  return rows[0]?.id ?? null;
+}
+
 async function weekForDate(client, date) {
   const { rows } = await client.query(
     `insert into weekly_cash_flow (start_date)
@@ -382,7 +413,7 @@ router.post('/expenses', handle(async (req, res) => {
   const rid = await withTransaction(async (client) => {
     const shiftId = req.body.dailyCashFlowId !== undefined
       ? id(req.body.dailyCashFlowId)
-      : await shiftForDate(client, f.expense_date);
+      : await shiftForExpense(client, f.expense_date);
     const cols = Object.keys(f).concat('daily_cash_flow_id');
     const { rows } = await client.query(
       `insert into expense_record (${cols.join(', ')})
@@ -776,6 +807,7 @@ module.exports.incomeFields = incomeFields;
 module.exports.expenseFields = expenseFields;
 module.exports.shiftForDate = shiftForDate;
 module.exports.shiftForDateOrOpen = shiftForDateOrOpen;
+module.exports.shiftForExpense = shiftForExpense;
 module.exports.weekForDate = weekForDate;
 module.exports.explain = explain;
 module.exports.BadRequest = BadRequest;
