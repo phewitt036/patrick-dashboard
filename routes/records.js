@@ -169,42 +169,68 @@ async function shiftForDate(client, date) {
  * applies to abandoned shifts, and the caller is told it happened.
  */
 async function shiftForDateOrOpen(client, date) {
-  const existing = await shiftForDate(client, date);
-  if (existing) return { id: existing, createdShift: false, closedAbandoned: null };
-
-  const { rows: todayRows } = await client.query(
+  const { rows: [today] } = await client.query(
     `select (now() at time zone $1)::date = $2::date as is_today`, [TZ, date]);
-  const isToday = todayRows[0].is_today;
+  const isToday = today.is_today;
 
+  // What is running right now, and whether it belongs to this record's day.
+  const { rows: openRows } = await client.query(
+    `select id, record_no, shift_date = $1::date as same_day
+       from daily_cash_flow
+      where clock_in is not null and clock_out is null and not is_placeholder
+      limit 1`, [date]);
+  const open = openRows[0] || null;
+
+  // A shift that is clocked in takes the record, always. This is the ordinary
+  // case: the first delivery of a shift opens it and every one after joins it.
+  if (open && open.same_day) {
+    return { id: open.id, createdShift: false, closedAbandoned: null };
+  }
+
+  // Not today, so there is no "now" to clock in. Join a shift already on that
+  // date if there is one, otherwise make an untimed one: the record needs
+  // somewhere to live and the week needs to roll it up, but inventing a
+  // clock-in for a day that has already happened would be a lie.
+  if (!isToday) {
+    const existing = await shiftForDate(client, date);
+    if (existing) return { id: existing, createdShift: false, closedAbandoned: null };
+    const weekId = await weekForDate(client, date);
+    const { rows } = await client.query(
+      `insert into daily_cash_flow (weekly_cash_flow_id, shift_date)
+       values ($1, $2) returning id`, [weekId, date]);
+    return { id: rows[0].id, createdShift: true, openedNow: false, closedAbandoned: null };
+  }
+
+  // Today, with nothing clocked in. A new shift starts, even when the day
+  // already holds a finished one - two shifts in a day is normal, and the
+  // alternative is what went wrong before: income from an afternoon shift
+  // silently joining the morning's closed record, stretching its hours and
+  // flattering its rate.
+  //
+  // The cost of this rule, deliberately accepted: uploading a straggler
+  // screenshot after clocking out opens a shift rather than joining the one
+  // just finished. That shows up immediately on the dashboard as "Still clocked
+  // in", which is visible and fixable, where the old behaviour was silent.
   let closedAbandoned = null;
-  if (isToday) {
-    const { rows: open } = await client.query(
-      `select id, record_no, clock_in from daily_cash_flow
-        where clock_in is not null and clock_out is null and not is_placeholder
-        limit 1`);
-    if (open.length) {
-      // Closed at its own clock-in, so it records zero hours rather than a
-      // fabricated duration. The obvious alternative - the last income record on
-      // it - is a row insert time, not when the delivery happened, and a shift
-      // clocked in yesterday whose records were pushed tonight came out at 37.52
-      // hours in testing. A shift with no measured hours is already a shape this
-      // system understands and flags; an invented 37-hour shift is not.
-      const { rows: closed } = await client.query(
-        `update daily_cash_flow
-            set clock_out = clock_in
-          where id = $1
-          returning record_no, clock_out`, [open[0].id]);
-      closedAbandoned = closed[0] || null;
-    }
+  if (open) {
+    // Something is open from another day. Closed at its own clock-in, so it
+    // records zero hours rather than a fabricated duration: the obvious
+    // alternative, its last income record, is a row insert time rather than
+    // when the delivery happened, and produced a 37-hour shift in testing.
+    const { rows: closed } = await client.query(
+      `update daily_cash_flow
+          set clock_out = clock_in
+        where id = $1
+        returning record_no, clock_out`, [open.id]);
+    closedAbandoned = closed[0] || null;
   }
 
   const weekId = await weekForDate(client, date);
   const { rows } = await client.query(
     `insert into daily_cash_flow (weekly_cash_flow_id, shift_date, clock_in)
-     values ($1, $2, case when $3::boolean then now() else null end)
-     returning id`, [weekId, date, isToday]);
+     values ($1, $2, now()) returning id`, [weekId, date]);
 
-  return { id: rows[0].id, createdShift: true, openedNow: isToday, closedAbandoned };
+  return { id: rows[0].id, createdShift: true, openedNow: true, closedAbandoned };
 }
 
 /**
