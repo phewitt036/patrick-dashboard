@@ -476,6 +476,8 @@
   const money = v => (v === null || v === undefined) ? '—'
     : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const numOrDash = (v, d = 1) => (v === null || v === undefined || v === '') ? '—' : Number(v).toFixed(d);
+  // Four digits of record count read as a year without a separator.
+  const count = v => Number(v).toLocaleString('en-US');
   const dayName = s => (s || '').replace(/^\d+\.\s*/, '');
   // A datetime-local input has no zone; the browser's own offset is the right
   // one, because Patrick is standing where the shift happened.
@@ -557,7 +559,19 @@
           el('button', { class: 'danger', onclick: () => remove('income', r.id, r.record_no), text: 'Delete' })
         ])
       ]),
-      summary: d => [`${d.total} record${d.total === 1 ? '' : 's'}`, `${money(d.sumEarnings)} earned`]
+      // Two tiles for what the list holds, and a third only when the bulk
+      // import is part of it - so the figure that agrees with the dashboard is
+      // on screen beside the one that does not, rather than the two silently
+      // contradicting each other on different tabs.
+      summary: d => {
+        const bits = [`${count(d.total)} record${d.total === 1 ? '' : 's'}`, `${money(d.sumEarnings)} earned`];
+        const bulk = d.bulkImport;
+        if (bulk && bulk.count) {
+          bits.push(`${money(Number(d.sumEarnings) - Number(bulk.earnings))} counted in reports`);
+          bits.push(`${count(bulk.count)} bulk-imported, not counted`);
+        }
+        return bits;
+      }
     },
 
     expenses: {

@@ -368,14 +368,25 @@ router.get('/income', handle(async (req, res) => {
         limit ${limit} offset ${offset}`,
       params
     ),
-    pool.query(`select count(*)::int as n, coalesce(sum(total_earnings),0) as total
-                  from v_income_record r ${clause}`, params)
+    // The WCF-0000 bulk import is six months of history dropped in as one
+    // placeholder shift. It is excluded from every rate and every period figure
+    // in the app, so the earnings total on this list disagreed with the
+    // dashboard by $41,359 and nothing on screen said why. Measured under the
+    // same filter, so narrowing to a real date range simply zeroes it.
+    pool.query(`select count(*)::int as n,
+                       coalesce(sum(r.total_earnings), 0) as total,
+                       count(*) filter (where d.is_placeholder)::int as bulk_n,
+                       coalesce(sum(r.total_earnings) filter (where d.is_placeholder), 0) as bulk_total
+                  from v_income_record r
+                  left join daily_cash_flow d on d.id = r.daily_cash_flow_id
+                  ${clause}`, params)
   ]);
 
   res.json({
     records: rows.rows,
     total: count.rows[0].n,
     sumEarnings: count.rows[0].total,
+    bulkImport: { count: count.rows[0].bulk_n, earnings: count.rows[0].bulk_total },
     limit, offset
   });
 }));
