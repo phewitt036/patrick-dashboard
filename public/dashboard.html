@@ -40,6 +40,13 @@
   }
   .head-row { display: flex; align-items: baseline; gap: 12px; max-width: 1180px; margin: 0 auto; }
   h1 { font-size: 19px; margin: 0; letter-spacing: -0.01em; }
+  /* The app mark, beside the name on every page. Sized from the heading so it
+     tracks the smaller phone title without a second rule. */
+  h1 .mark {
+    width: 1.15em; height: 1.15em; vertical-align: -0.22em;
+    margin-right: 8px; border-radius: 26%;
+  }
+
   .spacer { flex: 1; }
   header a {
     color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 500;
@@ -112,7 +119,14 @@
 
 <header>
   <div class="head-row">
-    <h1>Patforce</h1>
+    <h1><svg class="mark" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+      <rect width="512" height="512" rx="112" fill="#d97706"/>
+      <g fill="#fffbeb">
+        <rect x="122" y="252" width="68" height="120" rx="16"/>
+        <rect x="222" y="182" width="68" height="190" rx="16"/>
+        <rect x="322" y="112" width="68" height="260" rx="16"/>
+      </g>
+    </svg>Patforce</h1>
     <span class="spacer"></span>
     <a href="/records">Records &rarr;</a>
   </div>

@@ -697,10 +697,7 @@ router.get('/meta', handle(async (req, res) => {
 router.get('/weeks', handle(async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 60, 200);
   const { rows } = await pool.query(
-    `select w.*,
-            (select count(*)::int from daily_cash_flow d
-              where d.weekly_cash_flow_id = w.id and not d.is_placeholder) as shift_count
-       from v_weekly_cash_flow w
+    `select w.* from v_weekly_cash_flow w
       order by start_date desc
       limit ${limit}`);
   res.json({ weeks: rows });
@@ -897,7 +894,7 @@ router.get('/dashboard', handle(async (_req, res) => {
   // stop into a smooth decline.
   const { rows: months } = await pool.query(
     `select to_char(m, 'Mon') as label, m::date as month_start,
-            v.total_income as income, v.days_worked as shifts,
+            v.total_income as income, v.shifts_worked as shifts,
             (m = date_trunc('month', $1::date)) as current
        from generate_series(date_trunc('month', $1::date) - interval '5 months',
                             date_trunc('month', $1::date), interval '1 month') m
@@ -1087,7 +1084,11 @@ router.get('/period', handle(async (req, res) => {
             round(coalesce(sum(shift_hours), 0), 2)             as shift_hours,
             round(coalesce(sum(total_active_time_hours), 0), 2) as active_hours,
             round(coalesce(sum(total_shift_miles), 0), 2)       as shift_miles,
-            count(*)::int                                       as days_worked
+            -- Dates driven, not clock-ins. count(*) here read 39 days out of a
+            -- 31-day May, because a second shift on a date is a second shift,
+            -- not a second day.
+            count(distinct shift_date)::int                      as days_worked,
+            count(*)::int                                        as shifts_worked
        from v_daily_cash_flow_raw
       where not is_placeholder and shift_date between $1 and $2`, [start, end]);
 

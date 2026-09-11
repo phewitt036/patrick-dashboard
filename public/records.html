@@ -69,6 +69,13 @@
     font-size: 19px; font-weight: 640; margin: 0;
     letter-spacing: -0.021em;
   }
+  /* The app mark, beside the name on every page. Sized from the heading so it
+     tracks the smaller phone title without a second rule. */
+  h1 .mark {
+    width: 1.15em; height: 1.15em; vertical-align: -0.22em;
+    margin-right: 8px; border-radius: 26%;
+  }
+
   .back { font-size: 13px; color: var(--muted); }
   .back:hover { color: var(--text); text-decoration: none; }
   .spacer { flex: 1; }
@@ -394,7 +401,14 @@
 
 <header>
   <div class="head-row">
-    <h1>Patforce</h1>
+    <h1><svg class="mark" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+      <rect width="512" height="512" rx="112" fill="#d97706"/>
+      <g fill="#fffbeb">
+        <rect x="122" y="252" width="68" height="120" rx="16"/>
+        <rect x="222" y="182" width="68" height="190" rx="16"/>
+        <rect x="322" y="112" width="68" height="260" rx="16"/>
+      </g>
+    </svg>Patforce</h1>
     <a class="back" href="/">&larr; dashboard</a>
     <span class="spacer"></span>
     <button id="filter-toggle" aria-expanded="false" aria-controls="filters">Filters</button>
@@ -630,7 +644,7 @@
         el('div', { text: w.start_date + '  to  ' + w.end_date }),
         el('div', { class: 'rec', text: w.record_no })
       ]),
-      el('td', { class: 'num', text: String(w.shift_count) }),
+      el('td', { class: 'num', text: String(w.days_worked) }),
       el('td', { class: 'num', text: money(w.weekly_total_income) }),
       el('td', { class: 'num', text: money(w.weekly_total_expenses) }),
       el('td', { class: 'num', text: money(w.net_profit) }),
@@ -668,6 +682,15 @@
     }
   };
 
+  // "6 days worked" when a day held one shift each, "6 days worked · 9 shifts"
+  // when some held two. The shift count is only shown when it differs, so the
+  // caption stays short on the ordinary week.
+  const daysLine = t => {
+    const d = Number(t.days_worked), s = Number(t.shifts_worked);
+    const days = d + ' day' + (d === 1 ? '' : 's') + ' worked';
+    return s > d ? days + '  ·  ' + s + ' shifts' : days;
+  };
+
   // ------------------------------------------------------------------ report
   const report = { grain: 'month', date: null };
 
@@ -695,7 +718,7 @@
     api('GET', `/period?grain=${report.grain}&date=${report.date}`).then(d => {
       const t = d.totals;
       const cards = el('div', { class: 'cards' }, [
-        card('Income', money(t.total_income), `${t.days_worked} day${t.days_worked === 1 ? '' : 's'} worked`),
+        card('Income', money(t.total_income), daysLine(t)),
         card('Expenses', money(t.total_expenses)),
         card('Net profit', money(t.net_profit)),
         card('Per shift hour', money(t.earnings_per_shift_hour), numOrDash(t.shift_hours, 2) + ' shift hrs'),
@@ -875,7 +898,8 @@
         ['Per active hour', money(w.earnings_per_active_hour)],
         ['Per shift hour', money(w.earnings_per_shift_hour)],
         ['Per mile', money(w.true_earnings_per_mile)],
-        ['Days worked', w.day_count]
+        ['Days worked', w.days_worked],
+        ['Shifts', w.shifts_worked]
       ]),
       el('div', { class: 'rpt-h', text: 'By service' })
     ];
