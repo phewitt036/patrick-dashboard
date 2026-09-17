@@ -1383,7 +1383,10 @@
     // the Pis'. Measured 35C idle. Its Disk gauge is the Proxmox root LV, not the thin pool
     // the VMs live in — pool usage is watched by backup-watch.sh on bee instead.
     bee:    { desc: 'Mini PC · Proxmox VE', tempMax: 100, tempWarn: 80, tempCrit: 90 },
-    x8:     { desc: 'Mini PC · Windows 11', tempMax: 90, tempWarn: 78, tempCrit: 85 }
+    x8:     { desc: 'Mini PC · Windows 11', tempMax: 90, tempWarn: 78, tempCrit: 85 },
+    // boss (Bosgame E5, Ryzen 3 5300U) reads k10temp Tctl via lm-sensors. The 5300U's limit is
+    // 105C, so it shares bee's scale. Measured 39C idle.
+    boss:   { desc: 'Mini PC · Ubuntu Server', tempMax: 100, tempWarn: 80, tempCrit: 90 }
   };
 
   // Semicircle of radius 42 centred at (50,56); the fill is the same path revealed
@@ -1652,7 +1655,8 @@
 
   // x8 is ~96% of the hashrate, so it leads; the rest follow in descending size. Any
   // node agent-hub reports but this list does not name still shows, on the end.
-  const MINING_NODE_ORDER = ['x8', 'bee', 'pimax', 'pihole'];
+  // pihole stopped mining 2026-09-16 and boss (~1,440 H/s, ahead of bee) replaced it.
+  const MINING_NODE_ORDER = ['x8', 'boss', 'bee', 'pimax'];
 
   function miningNodeFresh(n) {
     return n && Date.now() - new Date(n.at).getTime() <= MINING_STALE_MS;
