@@ -11,7 +11,8 @@ the connection string as a command-line argument, so the password was visible
 to every user on the machine, every night at 3:15, unattended. Confirmed by
 catching the running process — it was there in full. It now travels in
 `PGPASSWORD`, and a process environment is readable only by the same user and
-root. pimax is not a bare box; agent-hub and Ollama run beside this.
+root. The host is not a bare box: on pimax agent-hub and Pixit ran beside this,
+and on boss (since 2026-09-17) the fantasy advisor containers and a miner do.
 
 **The JWT algorithm was not pinned.** `jwt.verify` was called without naming an
 algorithm. The library rejects `none` by default, so this was not exploitable,

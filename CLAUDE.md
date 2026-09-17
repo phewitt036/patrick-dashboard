@@ -19,14 +19,12 @@ stop.
 stay on Salesforce; `DATABASE_URL` unset ⇒ `/api/records` and `/api/income`
 answer 503 with the reason; `INGEST_KEY` unset ⇒ `/api/ingest` answers 503.
 
-## The next thing to do
+## Where Patforce runs
 
-Install Patforce on pimax (Raspberry Pi 5, 2TB SSD; backups mirror to bee, a
-Proxmox mini PC). **`db/DEPLOY.md` is the whole procedure**, starting with a
-fresh Salesforce export. It reduces to one command:
-
-    npm run crm:install -- <export-dir>            # checks, reports, writes nothing
-    npm run crm:install -- <export-dir> --repair --cron
+Installed on pimax 2026-09-09, **moved to boss** (Bosgame E5, Ubuntu Server) on
+2026-09-17: systemd `patforce.service`, app in `/opt/patrick-dashboard`, Postgres 18,
+backups mirrored to bee. `db/DEPLOY.md` covers what runs where, how the move was
+made, and the original install (`npm run crm:install -- <export-dir> --repair --cron`).
 
 Still open: retrieving `DailyCashFlowHandler` and its nine-test Apex suite,
 which exist only inside the dev org and nowhere else.
@@ -35,10 +33,10 @@ which exist only inside the dev org and nowhere else.
 
 | Doc | Answers |
 |---|---|
-| `db/DEPLOY.md` | standing Patforce up on pimax |
+| `db/DEPLOY.md` | where Patforce runs (boss), moving it, and the first install |
 | `db/MAPPING.md` | every Salesforce field → Postgres, and every deliberate divergence |
 | `db/INGEST.md` | pointing Pixit at `/api/ingest` instead of Salesforce |
-| `db/BACKUP.md` | nightly backups, the pimax/bee arrangement, restoring |
+| `db/BACKUP.md` | nightly backups, the boss/bee arrangement, restoring |
 | `db/SECURITY.md` | what was fixed, what was checked, what is knowingly accepted |
 | `test/README.md` | which database each of the six suites expects |
 

@@ -23,21 +23,24 @@ All optional except `DATABASE_URL`, all read from `.env`:
 `BACKUP_DIR` must not be the only copy — one dead disk would take the database
 and its backups together. The script warns when it can tell they share a disk.
 
-## This setup: pimax holds it, bee holds the copy
+## This setup: boss holds it, bee holds the copy
 
-Postgres and the dashboard run on **pimax** (Pi 5, 2TB SSD). Backups are
-written locally there and mirrored to **bee**, so losing pimax entirely still
-leaves a verified dump on another machine.
+Postgres and Patforce run on **boss** (Bosgame E5 mini PC, Ubuntu Server) since
+2026-09-17; before that they ran on pimax (Pi 5). Backups are written locally on
+boss and mirrored to **bee**, so losing boss entirely still leaves a verified dump
+on another machine. The dumps from the pimax era are in the same bee folder.
 
-In `.env` on pimax:
+In `/opt/patrick-dashboard/.env` on boss:
 
     DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/gig
-    BACKUP_DIR=$HOME/gig-backups
+    BACKUP_DIR=/home/patrick/gig-backups
     BACKUP_MIRROR=/mnt/bee/gig-backups
     BACKUP_KEEP=30
 
-`BACKUP_MIRROR` needs bee mounted at that path — an NFS or SMB share from the
-Proxmox box, mounted in `/etc/fstab` so it survives a reboot. If the mount is
+`BACKUP_MIRROR` needs bee mounted at that path — an NFS share from the Proxmox
+box (`/srv/pimax-mirror`, exported to boss and pimax only), mounted in
+`/etc/fstab` with `_netdev,nofail,soft` so it survives a reboot and a bee outage
+cannot hang boss's boot. If the mount is
 missing when the backup runs, the script says which directory is absent,
 **keeps the verified local copy**, and exits 0 — a share that is down is not a
 reason to have no backup.
@@ -52,9 +55,12 @@ month of them covers a full billing cycle.
 
 ## Nightly
 
-On pimax, `crontab -e`, then one line:
+On boss, `crontab -e` as `patrick`, then one line:
 
-    15 3 * * * cd $HOME/patrick-dashboard && /usr/bin/node scripts/backup.js >> $HOME/gig-backup.log 2>&1
+    15 3 * * * cd /opt/patrick-dashboard && /usr/bin/node scripts/backup.js >> /home/patrick/gig-backup.log 2>&1
+
+Only one machine may run this against the mirror. pimax's old line is commented
+out; if both ran, each would prune the other's dumps from bee.
 
 3:15am, after any realistic end of a shift. Read the log occasionally; a failed
 run says so loudly and exits non-zero.

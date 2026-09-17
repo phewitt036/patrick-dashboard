@@ -1,8 +1,57 @@
-# Standing Patforce up on pimax
+# Standing Patforce up
 
-Patforce — the CRM replacing the Salesforce org. Everything below happens on
-**pimax**, over SSH from x8. One command does the work; the rest is getting the
-pieces onto the box.
+Patforce — the CRM replacing the Salesforce org. It was first installed on
+**pimax** (Raspberry Pi 5) on 2026-09-09 and **moved to boss** (Bosgame E5 mini PC,
+Ubuntu Server) on 2026-09-17. The first-install procedure further down is written
+for pimax, as it was done; the two sections below describe what runs now and how
+the move was made.
+
+## Where it runs now: boss
+
+| | |
+|---|---|
+| App | `/opt/patrick-dashboard`, a clone of this repo, `npm ci --omit=dev` |
+| Process | systemd `patforce.service` as user `patrick`, `PORT=3006`, `Restart=on-failure`. The unit lives in the homelab repo (`boss/patforce/patforce.service`) |
+| Config | `/opt/patrick-dashboard/.env` (mode 600) — `PATFORCE_ONLY=1`, `CRM_BACKEND=postgres`, `DATABASE_URL`, `INGEST_KEY`, `JWT_SECRET`, `RP_ID`/`ORIGIN`, `CREDENTIALS_FILE=/home/patrick/.config/patforce-credentials.json`, `BACKUP_*` |
+| Database | PostgreSQL 18 from Ubuntu, localhost only, database `gig` |
+| Public URL | `https://patforce.storystash.app`, through the storystash Cloudflare tunnel. That tunnel has connectors on pimax **and** bee, and both ingress rules point at boss — change one without the other and half of all requests fail |
+| Pixit | `PATFORCE_URL` in Pixit's `ecosystem.config.js` on pimax points at boss over the wired fleet link. Pixit reads dash time from, and pushes records to, `/api/ingest` there |
+| Backups | boss's crontab, 3:15am — see `db/BACKUP.md` |
+
+Logs: `journalctl -u patforce`. Restart: `sudo systemctl restart patforce`.
+Update: `git pull && npm ci --omit=dev && sudo systemctl restart patforce`, in
+`/opt/patrick-dashboard`, after testing against a scratch database.
+
+## Moving it to another machine
+
+What the pimax → boss move was, in order. The database is the only state that
+matters; everything else is config.
+
+1. On the new machine: install Node 22 and PostgreSQL, clone the repo, `npm ci --omit=dev`.
+2. Copy `.env` and the passkey credentials file across **directly between the two
+   machines** (never via a laptop's disk), mode 600. Fix any paths in `.env` that name
+   the old home directory (`BACKUP_DIR`, `CREDENTIALS_FILE`).
+3. Set the new Postgres's `postgres` password to the one in `DATABASE_URL`, and
+   `createdb gig`. Prove the app's own connection string works before going further.
+4. **Stop the old instance first**, so Pixit cannot write to it mid-copy.
+5. `pg_dump -Fc gig` on the old machine piped into `pg_restore -d gig --no-owner
+   --exit-on-error` on the new one. A 17 → 18 major-version jump restored cleanly.
+6. **Compare every table's row count** between the two before starting anything.
+7. Start the new instance, then repoint, in this order: Pixit's `PATFORCE_URL`, the
+   tunnel ingress on **both** connectors (restart them one at a time so the other keeps
+   serving), and the backup cron (comment the old machine's line out — two machines
+   pruning one mirror would delete each other's dumps).
+8. Test: Pixit's `GET /api/ingest/dash-time?date=<a day with a shift>` returns that
+   shift; the public URL answers; a manual `node scripts/backup.js` verifies and mirrors.
+9. Reboot the new machine once and check it all comes back unattended.
+
+Leave the old instance stopped but installed until the new one has run for a while.
+Rolling back means copying the *new* database back first — the data moves on from
+the moment the new instance takes its first write.
+
+---
+
+# First install (pimax, 2026-09-09)
 
 ## Why this cannot be done from a Claude Code web session
 
