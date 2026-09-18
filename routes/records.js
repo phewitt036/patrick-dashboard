@@ -9,10 +9,15 @@
  */
 
 const express = require('express');
+const path = require('path');
+const fsp = require('fs/promises');
 const router = express.Router();
 const { pool, withTransaction, requireDatabase } = require('../lib/db');
 
 router.use(requireDatabase);
+
+// Written by the screenshot ingest in routes/ingest.js; read here for the browser.
+const SHOT_DIR = process.env.PATFORCE_SHOT_DIR || '/srv/patforce-shots';
 
 const TZ = 'America/Chicago';
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -252,16 +257,34 @@ async function shiftForDateOrOpen(client, date, occurredAt) {
     return { id: rows[0].id, createdShift: true, openedNow: false, closedAbandoned: null };
   }
 
-  // Today, with nothing clocked in. A new shift starts, even when the day
-  // already holds a finished one - two shifts in a day is normal, and the
-  // alternative is what went wrong before: income from an afternoon shift
-  // silently joining the morning's closed record, stretching its hours and
-  // flattering its rate.
+  // Today, with nothing clocked in, and the day already holds a finished shift.
   //
-  // The cost of this rule, deliberately accepted: uploading a straggler
-  // screenshot after clocking out opens a shift rather than joining the one
-  // just finished. That shows up immediately on the dashboard as "Still clocked
-  // in", which is visible and fixable, where the old behaviour was silent.
+  // This used to open a second shift. The reason was sound: two shifts in a day
+  // is normal, and silently folding an afternoon's income into the morning's
+  // closed record credits those earnings to hours they were not earned in, which
+  // flatters that shift's rate. The cost was that a straggler screenshot uploaded
+  // after clocking out opened an empty shift instead of joining the one it came
+  // from - which is what happened on 2026-09-17 and had to be deleted by hand.
+  //
+  // Changed at Patrick's request (2026-09-17) to join the finished shift. The old
+  // objection was really to doing it *silently*, so this says so: `joinedClosed`
+  // travels back through the ingest's shiftNotes to whatever pushed the record.
+  // A delivery whose real time is known never reaches here - shiftContaining above
+  // has already placed it - so this only decides the genuinely ambiguous case,
+  // where nothing on the screenshot says when the delivery happened.
+  const { rows: finished } = await client.query(
+    `select id, record_no from daily_cash_flow
+      where shift_date = $1::date and not is_placeholder
+        and clock_in is not null and clock_out is not null
+      order by clock_out desc
+      limit 1`, [date]);
+  if (finished[0]) {
+    return {
+      id: finished[0].id, createdShift: false, closedAbandoned: null,
+      joinedClosed: finished[0].record_no
+    };
+  }
+
   let closedAbandoned = null;
   if (open) {
     // Something is open from another day. Closed at its own clock-in, so it
@@ -775,6 +798,31 @@ router.get('/income/:id', handle(async (req, res) => {
     shift = d.rows[0] || null;
   }
   res.json({ income: rows[0], shift });
+}));
+
+/**
+ * The screenshot an income record was read from.
+ *
+ * No column holds it: `external_id` is `pixit-<extraction id>-<row>` and the file
+ * is named for that extraction id, so the link is already in the data. Several
+ * records read off one screenshot therefore all resolve to the same image, which
+ * is the truth of it — one dash summary really is several deliveries.
+ */
+router.get('/income/:id/shot', handle(async (req, res) => {
+  const recordId = id(req.params.id);
+  const { rows } = await pool.query('select external_id from income_record where id = $1', [recordId]);
+  if (!rows.length) return res.status(404).json({ error: 'No such income record.' });
+
+  const extId = rows[0].external_id || '';
+  const m = extId.match(/^pixit-([0-9a-f-]{36})-\d+$/i);
+  if (!m) return res.status(404).json({ error: 'This record did not come from a screenshot.' });
+
+  const file = path.join(SHOT_DIR, `${m[1]}.jpg`);
+  try { await fsp.access(file); }
+  catch { return res.status(404).json({ error: 'No screenshot was kept for this record.' }); }
+
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.type('image/jpeg').sendFile(file);
 }));
 
 /**

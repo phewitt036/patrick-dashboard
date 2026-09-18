@@ -24,7 +24,13 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const path = require('path');
+const fsp = require('fs/promises');
 const router = express.Router();
+
+// Where the screenshots land. Local disk on purpose: the nightly pg_dump is
+// mirrored to bee and images have no business inflating it.
+const SHOT_DIR = process.env.PATFORCE_SHOT_DIR || '/srv/patforce-shots';
 const { pool, withTransaction, requireDatabase } = require('../lib/db');
 const records = require('./records');
 
@@ -140,7 +146,10 @@ async function ingestBatch(req, { table, view, fieldsOf, dateKey }) {
         ? await shiftForDateOrOpen(client, date, fields.occurred_at)
         : { id: await shiftForExpense(client, date) };
       const shiftId = link.id;
-      if (link.createdShift) shiftNotes.push(link);
+      // Joining a finished shift is reported for the same reason opening one is:
+      // it is a decision about where the money landed, and the pusher should hear
+      // about it rather than find it later on the dashboard.
+      if (link.createdShift || link.joinedClosed) shiftNotes.push(link);
       const r = extId
         ? await insertOnce(client, table, fields, extId, shiftId)
         : await (async () => {
@@ -279,5 +288,121 @@ router.post('/dash-time', handle(async (req, res) => {
   const { rows } = await pool.query('select * from v_daily_cash_flow where id = $1', [result.shiftId]);
   res.status(result.createdShift ? 201 : 200).json({ ...rows[0], createdShift: result.createdShift });
 }));
+
+/**
+ * Records that look like the one about to be pushed.
+ *
+ * externalId stops the same *push* being written twice, but not the same trip
+ * being uploaded twice — a second screenshot of it is a different image with a
+ * different extraction id, and lands as a second record. It also does not help
+ * with the common Uber Eats case, where the tip only appears a day later and the
+ * driver screenshots the same delivery again to capture it.
+ *
+ * Deliberately one rule, not a scoring function: same day, same platform, same
+ * base pay to the cent. That is specific enough to be worth showing and simple
+ * enough to explain. The caller decides what it means.
+ */
+router.get('/income/similar', handle(async (req, res) => {
+  const date = requiredDate(req.query.date, 'date');
+  const amount = optionalNumber(req.query.amount, 'amount', { min: 0 });
+  if (amount === null) throw new BadRequest('amount is required.', 'amount');
+  const source = req.query.source ? String(req.query.source) : null;
+
+  const { rows } = await pool.query(
+    `select record_no, external_id, income_date, source, store, amount, tips,
+            surge_bonus, total_earnings, miles_driven, created_at
+       from income_record
+      where income_date = $1
+        and ($2::text is null or source = $2)
+        and abs(amount - $3::numeric) < 0.005
+      order by created_at asc
+      limit 10`,
+    [date, source, amount]);
+
+  res.json({ matches: rows, rule: 'same day, same source, base pay within a cent' });
+}));
+
+/**
+ * Correct a record from its screenshot.
+ *
+ * The rest of this door is insert-once on purpose: a retried push must not write
+ * a second copy. But that also meant a record read wrong could never be put right
+ * from the screenshot it came from, only retyped by hand. This is the one way in
+ * that edits, and it is deliberately narrow — it addresses a record by the
+ * externalId Pixit already knows, validates through the same incomeFields as the
+ * form, and touches nothing else.
+ *
+ * A changed date moves the record to another day, so the shift link is redone the
+ * same way the insert does it rather than left pointing at the old shift.
+ */
+router.patch('/income/by-external/:externalId', handle(async (req, res) => {
+  const extId = String(req.params.externalId || '').trim();
+  if (!extId) throw new BadRequest('externalId is required.');
+  const f = incomeFields(req.body || {});
+
+  const updated = await withTransaction(async (client) => {
+    const { rows: before } = await client.query(
+      'select id, income_date, daily_cash_flow_id from income_record where external_id = $1 for update',
+      [extId]);
+    if (!before.length) return null;
+
+    const cols = Object.keys(f);
+    const vals = Object.values(f);
+    // Dates come back from pg as Date objects; compare as ISO days, not as objects.
+    const sameDay = String(before[0].income_date).slice(0, 10) === String(f.income_date).slice(0, 10);
+    if (!sameDay) {
+      const link = await shiftForDateOrOpen(client, f.income_date, f.occurred_at);
+      cols.push('daily_cash_flow_id');
+      vals.push(link.id);
+    }
+
+    await client.query(
+      `update income_record set ${cols.map((c, i) => `${c} = $${i + 2}`).join(', ')}
+        where id = $1`,
+      [before[0].id, ...vals]);
+    return { id: before[0].id, relinked: !sameDay };
+  });
+
+  if (!updated) return res.status(404).json({ error: 'No record with that externalId.' });
+  const { rows } = await pool.query('select * from v_income_record where id = $1', [updated.id]);
+  res.json({ updated: true, relinked: updated.relinked, record: rows[0] });
+}));
+
+// ---------------------------------------------------------------------------
+// The screenshot a record was read from.
+//
+// Patforce keeps its own copy rather than linking back to Pixit. They share a
+// machine today, but they have already lived on different ones this year, and a
+// record whose evidence disappears when another app moves is not evidence. The
+// file is named by the extraction id, which is already inside every pushed
+// record's external_id (`pixit-<extraction id>-<row>`), so no column is needed
+// to tie the two together.
+//
+// Raw bytes rather than base64 in JSON: express.json() only claims
+// application/json, so an image/jpeg body reaches this route untouched.
+router.post('/screenshot/:extractionId',
+  express.raw({ type: 'image/jpeg', limit: '6mb' }),
+  handle(async (req, res) => {
+    const id = String(req.params.extractionId || '').replace(/^pixit-/, '').replace(/-\d+$/, '');
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new BadRequest('extractionId must be a UUID.');
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      throw new BadRequest('Send the image as a raw image/jpeg body.');
+    }
+    // A JPEG starts FFD8FF. Checking it keeps the folder to what it claims to hold.
+    if (!(req.body[0] === 0xff && req.body[1] === 0xd8 && req.body[2] === 0xff)) {
+      throw new BadRequest('That is not a JPEG.');
+    }
+
+    await fsp.mkdir(SHOT_DIR, { recursive: true });
+    const file = path.join(SHOT_DIR, `${id}.jpg`);
+    let replaced = false;
+    try { await fsp.access(file); replaced = true; } catch {}
+    // Written beside and renamed, so a half-written file is never served.
+    const tmp = `${file}.part`;
+    await fsp.writeFile(tmp, req.body, { mode: 0o600 });
+    await fsp.rename(tmp, file);
+
+    res.status(replaced ? 200 : 201).json({ ok: true, extractionId: id, bytes: req.body.length, replaced });
+  }));
 
 module.exports = router;

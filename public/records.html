@@ -951,6 +951,20 @@
         ['Notes', i.notes]
       ])
     ];
+    // The screenshot this record was read from, when Pixit kept one. Requested
+    // unconditionally and removed if it 404s, so the view does not have to carry
+    // an extra field whose only job is to say whether an image exists.
+    const shotUrl = '/api/records/income/' + i.id + '/shot';
+    const shot = el('img', {
+      src: shotUrl,
+      alt: 'The screenshot this record was read from',
+      style: 'max-width:100%;border:1px solid var(--border);border-radius:8px;margin-top:8px;cursor:zoom-in',
+      onclick: () => window.open(shotUrl, '_blank', 'noopener')
+    });
+    const shotBlock = el('div', {}, [el('div', { class: 'rpt-h', text: 'Screenshot' }), shot]);
+    shot.addEventListener('error', () => shotBlock.remove());
+    parts.push(shotBlock);
+
     if (d.shift) {
       parts.push(el('div', { class: 'rpt-h', text: 'Shift' }));
       parts.push(childCard(d.shift.record_no + '  ·  ' + d.shift.shift_date, money(d.shift.total_income),
