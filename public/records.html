@@ -874,7 +874,7 @@
         ]);
 
         const notes = [
-          ...(rideScope.allTime ? [`Counted from ${r.since}, when the real driving records start.`] : []),
+          ...(rideScope.allTime && r.since ? [`Every Uber ride since ${r.since}, not counting the bulk import.`] : []),
           'Per hour is trip time from the receipt — the drive out to a reservation and any wait for the rider are not on it.'
         ];
         if (r.both) notes.push(`${r.both} ride${r.both === 1 ? ' was' : 's were'} both, and count in both rows.`);

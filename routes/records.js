@@ -1262,17 +1262,12 @@ router.get('/period', handle(async (req, res) => {
  * The hour is trip time off the receipt - the drive to a reservation and the
  * wait for it are not on it, and the page says so.
  *
- * from/to are optional; without them it is everything since RIDES_SINCE, which is
+ * from/to are optional; without them it is every ride on a real shift, which is
  * the question as asked ("on average"). The bulk import is left out as everywhere
- * else, and so is spring 2026: those months sit on real shifts but came over from
- * the Salesforce org's test data, and his real driving starts 2026-07-27. An
- * ordinary ride is the baseline every other figure here is measured against, so
- * it has to be his.
+ * else. April and May 2026 are in: Patrick confirmed that was real driving.
  */
-const RIDES_SINCE = '2026-07-27';
 router.get('/ride-types', handle(async (req, res) => {
-  const from = req.query.from && req.query.from > RIDES_SINCE
-    ? requiredDate(req.query.from, 'from') : RIDES_SINCE;
+  const from = req.query.from ? requiredDate(req.query.from, 'from') : '2000-01-01';
   const to = req.query.to ? requiredDate(req.query.to, 'to') : '2999-12-31';
 
   const { rows } = await pool.query(
@@ -1339,7 +1334,9 @@ router.get('/ride-types', handle(async (req, res) => {
     }
   }));
 
-  res.json({ from, to: req.query.to || null, since: RIDES_SINCE, groups, both: both.n });
+  // The earliest ride counted, so the page can say how far back "all rides" goes.
+  const since = groups.map(g => g.firstDate).filter(Boolean).sort()[0] || null;
+  res.json({ from: req.query.from || null, to: req.query.to || null, since, groups, both: both.n });
 }));
 
 module.exports = router;
