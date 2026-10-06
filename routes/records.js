@@ -92,6 +92,21 @@ function optionalMoment(value, field) {
   return d.toISOString();
 }
 
+/**
+ * A yes/no flag. Returns undefined when the caller did not send it at all, so an
+ * update that never mentions the flag leaves it as it was rather than clearing it.
+ * Strings are accepted because a form and a screenshot reading both produce them.
+ */
+function optionalFlag(value, field) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '' || value === false || value === 0) return false;
+  if (value === true || value === 1) return true;
+  const s = String(value).trim().toLowerCase();
+  if (['true', 'yes', 'on', '1'].includes(s)) return true;
+  if (['false', 'no', 'off', '0'].includes(s)) return false;
+  throw new BadRequest(`${field} must be true or false`, field);
+}
+
 function optionalText(value, field, max) {
   if (value === null || value === undefined || value === '') return null;
   const s = String(value).trim();
@@ -420,7 +435,7 @@ function incomeFields(body) {
   if (uberLevel && !['Uber', 'Uber Eats'].includes(source)) {
     throw new BadRequest('An Uber level only applies to Uber or Uber Eats.', 'uberLevel');
   }
-  return {
+  const fields = {
     income_date: requiredDate(body.incomeDate, 'incomeDate'),
     source,
     store: optionalText(body.store, 'store', 255),
@@ -436,8 +451,19 @@ function incomeFields(body) {
     notes: optionalText(body.notes, 'notes', 4000),
     // When the delivery happened, if the screenshot showed it. Distinct from
     // created_at, which is only when the row was written.
-    occurred_at: optionalMoment(body.occurredAt, 'occurredAt')
+    occurred_at: optionalMoment(body.occurredAt, 'occurredAt'),
+    is_airport: optionalFlag(body.isAirport, 'isAirport'),
+    is_reservation: optionalFlag(body.isReservation, 'isReservation')
   };
+  // A field the caller never sent is left out, so the insert takes the column
+  // default and an update leaves the stored value alone. occurred_at is in this
+  // list because the edit form has no box for it: before, saving any edit there
+  // quietly erased the delivery time Pixit had read off the screenshot.
+  for (const [key, sent] of [['occurred_at', body.occurredAt], ['is_airport', body.isAirport],
+                             ['is_reservation', body.isReservation]]) {
+    if (sent === undefined) delete fields[key];
+  }
+  return fields;
 }
 
 router.post('/income', handle(async (req, res) => {
@@ -478,6 +504,27 @@ router.patch('/income/:id', handle(async (req, res) => {
   if (!rows.length) return res.status(404).json({ error: 'No income record with that id' });
   const out = await pool.query('select * from v_income_record where id = $1', [rid]);
   res.json(out.rows[0]);
+}));
+
+/**
+ * Only the two ride-type flags. The record detail ticks these one at a time from a
+ * phone, and the full PATCH above wants every required field sent back with them.
+ */
+router.patch('/income/:id/flags', handle(async (req, res) => {
+  const rid = id(req.params.id);
+  if (!rid) throw new BadRequest('Invalid id');
+  const body = req.body || {};
+  const sets = [], vals = [rid];
+  for (const [col, key] of [['is_airport', 'isAirport'], ['is_reservation', 'isReservation']]) {
+    const v = optionalFlag(body[key], key);
+    if (v !== undefined) { vals.push(v); sets.push(`${col} = $${vals.length}`); }
+  }
+  if (!sets.length) throw new BadRequest('Send isAirport and/or isReservation.');
+  const { rows } = await pool.query(
+    `update income_record set ${sets.join(', ')} where id = $1
+     returning id, record_no, is_airport, is_reservation`, vals);
+  if (!rows.length) return res.status(404).json({ error: 'No income record with that id' });
+  res.json(rows[0]);
 }));
 
 router.delete('/income/:id', handle(async (req, res) => {
@@ -1199,6 +1246,100 @@ router.get('/period', handle(async (req, res) => {
     shifts: shifts.rows,
     expensesByType: expenses.rows
   });
+}));
+
+/**
+ * Do airport rides and reserved rides pay more than the ordinary ones?
+ *
+ * Uber rides only - a delivery is never either, and mixing them in would make
+ * "ordinary" mean something different every week. A reserved ride to the airport
+ * is in both groups, so the two are each compared with rides that are neither,
+ * never with each other, and the overlap is counted so the page can say so.
+ *
+ * Three rates, each from its raw pair and each only over the rides that have the
+ * denominator, the same rule as the per-service hourly figure: a ride with no
+ * trip time recorded contributes nothing to $/hour rather than free money.
+ * The hour is trip time off the receipt - the drive to a reservation and the
+ * wait for it are not on it, and the page says so.
+ *
+ * from/to are optional; without them it is everything since RIDES_SINCE, which is
+ * the question as asked ("on average"). The bulk import is left out as everywhere
+ * else, and so is spring 2026: those months sit on real shifts but came over from
+ * the Salesforce org's test data, and his real driving starts 2026-07-27. An
+ * ordinary ride is the baseline every other figure here is measured against, so
+ * it has to be his.
+ */
+const RIDES_SINCE = '2026-07-27';
+router.get('/ride-types', handle(async (req, res) => {
+  const from = req.query.from && req.query.from > RIDES_SINCE
+    ? requiredDate(req.query.from, 'from') : RIDES_SINCE;
+  const to = req.query.to ? requiredDate(req.query.to, 'to') : '2999-12-31';
+
+  const { rows } = await pool.query(
+    `with rides as (
+       select r.*
+         from income_record r
+         left join daily_cash_flow d on d.id = r.daily_cash_flow_id
+        where r.source = 'Uber'
+          and not coalesce(d.is_placeholder, false)
+          and r.income_date between $1 and $2
+     ), grouped as (
+       select 'regular' as kind, * from rides where not is_airport and not is_reservation
+       union all select 'airport', * from rides where is_airport
+       union all select 'reservation', * from rides where is_reservation
+     )
+     select kind,
+            count(*)::int                                                        as rides,
+            round(coalesce(sum(total_earnings), 0), 2)                           as earnings,
+            round(coalesce(sum(total_earnings) filter (where time_taken_minutes > 0), 0), 2) as earnings_timed,
+            round(coalesce(sum(time_taken_minutes) filter (where time_taken_minutes > 0), 0) / 60.0, 4) as hours,
+            count(*) filter (where time_taken_minutes > 0)::int                  as rides_timed,
+            round(coalesce(sum(total_earnings) filter (where miles_driven > 0), 0), 2) as earnings_mileaged,
+            round(coalesce(sum(miles_driven) filter (where miles_driven > 0), 0), 2)   as miles,
+            count(*) filter (where miles_driven > 0)::int                        as rides_mileaged,
+            min(income_date) as first_date, max(income_date) as last_date
+       from grouped group by kind`,
+    [from, to]);
+
+  const { rows: [both] } = await pool.query(
+    `select count(*)::int as n from income_record r
+       left join daily_cash_flow d on d.id = r.daily_cash_flow_id
+      where r.source = 'Uber' and r.is_airport and r.is_reservation
+        and not coalesce(d.is_placeholder, false)
+        and r.income_date between $1 and $2`, [from, to]);
+
+  const rate = (num, den) => (Number(den) > 0 ? Number((Number(num) / Number(den)).toFixed(2)) : null);
+  const pct = (v, base) => (v !== null && base) ? Math.round(100 * (v - base) / base) : null;
+  const byKind = Object.fromEntries(rows.map(r => [r.kind, r]));
+
+  const shape = kind => {
+    const r = byKind[kind] || { rides: 0, earnings: 0, earnings_timed: 0, hours: 0, rides_timed: 0,
+                                earnings_mileaged: 0, miles: 0, rides_mileaged: 0 };
+    return {
+      kind,
+      rides: r.rides,
+      earnings: Number(r.earnings),
+      perRide: rate(r.earnings, r.rides),
+      perHour: rate(r.earnings_timed, r.hours),
+      perMile: rate(r.earnings_mileaged, r.miles),
+      ridesTimed: r.rides_timed,
+      ridesMileaged: r.rides_mileaged,
+      firstDate: r.first_date || null,
+      lastDate: r.last_date || null
+    };
+  };
+
+  const regular = shape('regular');
+  const groups = [regular, shape('airport'), shape('reservation')].map(g => ({
+    ...g,
+    vsRegular: g.kind === 'regular' ? null : {
+      perRide: pct(g.perRide, regular.perRide),
+      perHour: pct(g.perHour, regular.perHour),
+      perMile: pct(g.perMile, regular.perMile)
+    }
+  }));
+
+  res.json({ from, to: req.query.to || null, since: RIDES_SINCE, groups, both: both.n });
 }));
 
 module.exports = router;

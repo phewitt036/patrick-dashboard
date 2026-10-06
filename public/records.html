@@ -122,6 +122,11 @@
   input[type="date"] { min-width: 148px; }
   input[type="search"] { max-width: 320px; }
   input[type="number"] { font-variant-numeric: tabular-nums; }
+  /* The box styling above is for text fields; a tick box keeps its own. */
+  input[type="checkbox"] {
+    width: 20px; height: 20px; padding: 0; margin: 0; border: 0; box-shadow: none;
+    flex: none; accent-color: var(--accent, #2563eb); cursor: pointer;
+  }
 
   button {
     font-family: inherit; font-size: 13px; font-weight: 540; cursor: pointer;
@@ -530,6 +535,13 @@
   const coverageNote = c =>
     c >= 90 ? '' : c > 0 ? ` (${c}% timed)` : ' (no times recorded)';
 
+  // Small tags beside the platform, so airport and reserved rides can be picked
+  // out of the list at a glance.
+  const rideTags = r => [
+    r.is_airport ? el('span', { class: 'pill', style: 'margin-left:4px', text: 'Airport' }) : null,
+    r.is_reservation ? el('span', { class: 'pill', style: 'margin-left:4px', text: 'Reserved' }) : null
+  ].filter(Boolean);
+
   const TABS = {
     income: {
       columns: ['Date', 'Platform', 'Store', 'Base', 'Tips', 'Bonus', 'Total', 'Miles', 'Mins', 'Shift', ''],
@@ -540,10 +552,13 @@
       },
       row: r => el('tr', {}, [
         el('td', {}, [el('div', { text: r.income_date }), el('div', { class: 'rec', text: r.record_no })]),
-        el('td', {}, el('span', {
-          class: 'pill ' + (r.source === 'Doordash' ? 'dd' : r.source.startsWith('Uber') ? 'uber' : ''),
-          text: r.source
-        })),
+        el('td', {}, [
+          el('span', {
+            class: 'pill ' + (r.source === 'Doordash' ? 'dd' : r.source.startsWith('Uber') ? 'uber' : ''),
+            text: r.source
+          }),
+          ...rideTags(r)
+        ]),
         el('td', { class: r.store ? '' : 'muted', text: r.store || '—' }),
         el('td', { class: 'num', text: money(r.amount) }),
         el('td', { class: 'num', text: r.tips ? money(r.tips) : '—' }),
@@ -786,6 +801,7 @@
         el('div', { class: 'rpt-h', text: d.label + '   (' + d.start + ' to ' + d.end + ')' }),
         cards,
         el('div', { class: 'rpt-h', text: 'By service' }), src,
+        rideTypes(d),
         el('div', { class: 'rpt-h', text: 'Expenses by category' }), exp,
         el('div', { class: 'rpt-h', text: 'Shifts' }), shifts,
         excludedNote
@@ -801,6 +817,79 @@
           `They are kept in the database and in reconciliation, but no rate can be drawn from them.`;
       }).catch(() => {});
     }).catch(e => body.replaceChildren(el('div', { class: 'empty', text: e.message })));
+  }
+
+  // ------------------------------------------------------------- ride types
+  // The question it answers: on average, do airport rides or reserved rides pay
+  // more than the ordinary ones that pop up while driving? Opens on all time,
+  // because a single month holds a handful of airport rides at most; the second
+  // button narrows it to the period above.
+  const rideScope = { allTime: true };
+  const RIDE_LABELS = { regular: 'Regular', airport: 'Airport', reservation: 'Reservation' };
+  const MIN_RIDES = 5;
+
+  function rideTypes(period) {
+    const box = el('div');
+    const draw = () => {
+      const q = rideScope.allTime ? '' : `?from=${period.start}&to=${period.end}`;
+      const scope = el('div', { class: 'grain', style: 'margin-bottom:8px' },
+        [['All rides', true], ['This ' + period.grain, false]].map(([t, all]) => el('button', {
+          text: t, 'aria-pressed': String(rideScope.allTime === all),
+          onclick: () => { rideScope.allTime = all; draw(); }
+        })));
+      const out = el('div', {}, el('div', { class: 'muted', text: 'Loading…' }));
+      box.replaceChildren(el('div', { class: 'rpt-h', text: 'Airport and reservation rides (Uber)' }), scope, out);
+
+      api('GET', '/ride-types' + q).then(r => {
+        const reg = r.groups.find(g => g.kind === 'regular');
+        const more = (p, what) => p === null ? null
+          : p === 0 ? `the same ${what}` : `${Math.abs(p)}% ${p > 0 ? 'more' : 'less'} ${what}`;
+
+        // The answer in a sentence first, then the table it came from.
+        const lines = r.groups.filter(g => g.kind !== 'regular').map(g => {
+          const name = RIDE_LABELS[g.kind];
+          if (!g.rides) return `No ${name.toLowerCase()} rides marked yet.`;
+          if (!reg.rides) return `No regular rides to compare ${name.toLowerCase()} rides with yet.`;
+          const bits = [more(g.vsRegular.perRide, 'per ride'), more(g.vsRegular.perHour, 'per hour of trip time')]
+            .filter(Boolean);
+          const early = g.rides < MIN_RIDES
+            ? ` Only ${g.rides} so far, so this is an early read.` : '';
+          return `${name} rides pay ${bits.join(' and ')} than regular rides.${early}`;
+        });
+
+        const pctCell = (g, key) => g.kind === 'regular' || g.vsRegular[key] === null ? ''
+          : (g.vsRegular[key] > 0 ? '+' : '') + g.vsRegular[key] + '% vs regular';
+        const table = el('table', { class: 'rpt-table' }, [
+          el('thead', {}, el('tr', {}, ['Ride type', 'Rides', 'Per ride', 'Per hour', 'Per mile'].map((h, i) =>
+            el('th', { class: i ? 'num' : '', text: h })))),
+          el('tbody', {}, r.groups.map(g => el('tr', {}, [
+            el('td', { 'data-label': 'Ride type', text: RIDE_LABELS[g.kind] }),
+            el('td', { class: 'num', 'data-label': 'Rides', text: String(g.rides) }),
+            ...[['perRide', 'Per ride'], ['perHour', 'Per hour'], ['perMile', 'Per mile']].map(([k, label]) =>
+              el('td', { class: 'num', 'data-label': label }, [
+                el('span', { text: money(g[k]) }),
+                el('div', { class: 'thin', text: pctCell(g, k) })
+              ]))
+          ])))
+        ]);
+
+        const notes = [
+          ...(rideScope.allTime ? [`Counted from ${r.since}, when the real driving records start.`] : []),
+          'Per hour is trip time from the receipt — the drive out to a reservation and any wait for the rider are not on it.'
+        ];
+        if (r.both) notes.push(`${r.both} ride${r.both === 1 ? ' was' : 's were'} both, and count in both rows.`);
+        const untimed = r.groups.filter(g => g.rides && g.ridesTimed < g.rides);
+        if (untimed.length) notes.push('Per hour and per mile use only the rides with a time or distance recorded.');
+
+        out.replaceChildren(
+          ...lines.map(t => el('div', { style: 'font-size:14px;margin:4px 0', text: t })),
+          table,
+          el('div', { class: 'thin', style: 'margin-top:6px', text: notes.join(' ') })
+        );
+      }).catch(e => out.replaceChildren(el('div', { class: 'muted', text: e.message })));
+    };
+    draw();
+    return box;
   }
 
   const card = (k, v, sub) => el('div', { class: 'card' }, [
@@ -951,6 +1040,34 @@
         ['Notes', i.notes]
       ])
     ];
+
+    // Ride type, ticked straight from here because this is where a missed airport
+    // or a reservation gets noticed - on the phone, record open. Each tap saves.
+    if (i.source === 'Uber') {
+      const flag = (key, col, label) => {
+        const box = el('input', { type: 'checkbox', checked: i[col] ? 'checked' : null });
+        box.addEventListener('change', async () => {
+          box.disabled = true;
+          try {
+            const r = await api('PATCH', `/income/${i.id}/flags`, { [key]: box.checked });
+            i[col] = r[col];
+            toast(`${i.record_no}: ${label.toLowerCase()} ${r[col] ? 'ticked' : 'cleared'}`);
+            load();
+          } catch (e) {
+            box.checked = !box.checked;
+            toast(e.message, true);
+          } finally {
+            box.disabled = false;
+          }
+        });
+        return el('label', { style: 'display:flex;align-items:center;gap:8px;font-size:14px;padding:6px 0' },
+          [box, el('span', { text: label })]);
+      };
+      parts.push(el('div', { class: 'rpt-h', text: 'Ride type' }));
+      parts.push(flag('isAirport', 'is_airport', 'Airport ride'));
+      parts.push(flag('isReservation', 'is_reservation', 'Reservation'));
+    }
+
     // The screenshot this record was read from, when Pixit kept one. Requested
     // unconditionally and removed if it 404s, so the view does not have to carry
     // an extra field whose only job is to say whether an image exists.
@@ -1147,6 +1264,8 @@
       ['totalMiles', 'Total miles', 'number', r.total_miles ?? '', false, null, 'Including the drive to pickup'],
       ['timeTakenMinutes', 'Time (minutes)', 'number', r.time_taken_minutes ?? '', false, null, 'Minutes, not hours'],
       ['uberLevel', 'Uber level', 'text', r.uber_level ?? '', false, null, 'Uber and Uber Eats only'],
+      ['isAirport', 'Airport ride', 'checkbox', !!r.is_airport, false, null, 'Started or ended at an airport'],
+      ['isReservation', 'Reservation', 'checkbox', !!r.is_reservation, false, null, 'Booked ahead, not a ride that popped up'],
       ['notes', 'Notes', 'textarea', r.notes ?? '']
     ],
     expenses: (r = {}) => [
@@ -1179,6 +1298,9 @@
         input = el('select', { name, id: 'i-' + name },
           (required ? [] : [el('option', { value: '', text: '—' })]).concat(
             options.map(o => el('option', { value: o, text: o, selected: value === o ? 'selected' : null }))));
+      } else if (type === 'checkbox') {
+        input = el('input', { type, name, id: 'i-' + name, checked: value ? 'checked' : null,
+                              style: 'align-self:flex-start' });
       } else if (type === 'textarea') {
         input = el('textarea', { name, id: 'i-' + name, rows: 2 });
         input.value = value ?? '';
@@ -1213,7 +1335,7 @@
     for (const [name, , type] of FORMS[kind]({})) {
       const node = document.getElementById('i-' + name);
       if (!node) continue;
-      let v = node.value;
+      let v = type === 'checkbox' ? node.checked : node.value;
       if (type === 'datetime-local') v = fromLocalInput(v);
       payload[name] = v === '' ? null : v;
     }
