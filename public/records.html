@@ -432,6 +432,7 @@
 <main>
   <div class="bar" id="filters"></div>
   <div class="summary" id="summary"></div>
+  <div class="bar" id="bulk" style="margin-top:10px" hidden></div>
   <div id="report" hidden></div>
   <div class="table-wrap" id="table-wrap"><table id="tbl"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
   <div class="bar" style="margin-top:14px" id="pager"></div>
@@ -522,7 +523,7 @@
     ? startup.get('tab') : 'income';
   const startFilter = {};
   if (startup.get('needs') === 'clockout') startFilter.needsClockOut = '1';
-  for (const k of ['from', 'to', 'source', 'type', 'q']) {
+  for (const k of ['from', 'to', 'source', 'type', 'q', 'ride', 'bonus']) {
     if (startup.get(k)) startFilter[k] = startup.get(k);
   }
 
@@ -584,6 +585,14 @@
         if (bulk && bulk.count) {
           bits.push(`${money(Number(d.sumEarnings) - Number(bulk.earnings))} counted in reports`);
           bits.push(`${count(bulk.count)} bulk-imported, not counted`);
+        }
+        // Averages of whatever is filtered - the answer to "what do these pay".
+        const a = d.averages;
+        if (a && a.records) {
+          const each = state.filter.source === 'Uber' ? 'per ride' : 'per record';
+          if (a.perRecord !== null) bits.push(`${money(a.perRecord)} avg ${each}`);
+          if (a.perHour !== null) bits.push(`${money(a.perHour)} per trip hour`);
+          if (a.perMile !== null) bits.push(`${money(a.perMile)} per mile`);
         }
         return bits;
       }
@@ -1143,6 +1152,19 @@
             value: s, text: s, selected: state.filter.source === s ? 'selected' : null
           }))))
       ]));
+      // Ride type and bonus: with the date and platform, enough to ask "what do my
+      // reservations pay" from the phone without anyone writing a report.
+      const pick = (key, label, options) => el('div', { class: 'field' }, [
+        el('label', { text: label, for: 'f-' + key }),
+        el('select', {
+          id: 'f-' + key,
+          onchange: e => { state.filter[key] = e.target.value; state.offset = 0; load(); }
+        }, options.map(([v, t]) => el('option', {
+          value: v, text: t, selected: (state.filter[key] || '') === v ? 'selected' : null
+        })))
+      ]);
+      f.append(pick('ride', 'Ride type', [['', 'All'], ['regular', 'Regular'], ['airport', 'Airport'], ['reservation', 'Reservation']]));
+      f.append(pick('bonus', 'Surge / bonus', [['', 'Any'], ['with', 'Has a bonus'], ['none', 'No bonus']]));
       f.append(el('div', { class: 'field', style: 'flex:1 1 180px' }, [
         el('label', { text: 'Search store, note or number', for: 'f-q' }),
         el('input', {
@@ -1188,7 +1210,7 @@
   function rememberView() {
     const p = new URLSearchParams();
     if (state.tab !== 'income') p.set('tab', state.tab);
-    for (const k of ['from', 'to', 'source', 'type', 'q']) if (state.filter[k]) p.set(k, state.filter[k]);
+    for (const k of ['from', 'to', 'source', 'type', 'q', 'ride', 'bonus']) if (state.filter[k]) p.set(k, state.filter[k]);
     if (state.filter.needsClockOut) p.set('needs', 'clockout');
     if (state.tab === 'report') {
       if (report.grain !== 'month') p.set('grain', report.grain);
@@ -1208,6 +1230,7 @@
     if (isReport) {
       $('#summary').replaceChildren();
       $('#pager').replaceChildren();
+      $('#bulk').hidden = true;
       return renderReport();
     }
 
@@ -1244,6 +1267,7 @@
       if (state.tab === 'expenses' && un.expenses) bits.push(`${un.expenses} not linked to a shift`);
       $('#summary').replaceChildren(...bits.map(b => el('span', { html: b.replace(/^([\d$.,]+)/, '<b>$1</b>') })));
 
+      renderBulk(data);
       renderPager(data);
     } catch (e) {
       $('#tbody').replaceChildren(el('tr', {}, el('td', {
@@ -1251,7 +1275,39 @@
       })));
       $('#summary').replaceChildren();
       $('#pager').replaceChildren();
+      $('#bulk').hidden = true;
     }
+  }
+
+  // Tick Reservation on everything the filters show, for the case that started it:
+  // filter to Uber, no bonus, the right dates, look the list over, tick them all.
+  // Only once the list is Uber - a bulk action whose count includes deliveries it
+  // will not touch would say one number and do another. The server re-counts and
+  // refuses if the list changed after it was shown.
+  function renderBulk(data) {
+    const box = $('#bulk');
+    box.replaceChildren();
+    const n = data && data.total;
+    box.hidden = !(state.tab === 'income' && state.filter.source === 'Uber' && n > 0 && n <= 500);
+    if (box.hidden) return;
+    const filter = {};
+    for (const k of ['from', 'to', 'source', 'q', 'ride', 'bonus']) if (state.filter[k]) filter[k] = state.filter[k];
+    const go = async (on) => {
+      const what = `${on ? 'Tick' : 'Clear'} Reservation on all ${n} ride${n === 1 ? '' : 's'} in this list?` +
+        (n > (data.records || []).length ? `\n\nThat includes ${n - data.records.length} on later pages.` : '');
+      if (!confirm(what)) return;
+      try {
+        const r = await api('POST', '/income/bulk-flags', { filter, expect: n, isReservation: on });
+        toast(`${on ? 'Ticked' : 'Cleared'} Reservation on ${r.updated} ride${r.updated === 1 ? '' : 's'}`);
+        load();
+      } catch (e) {
+        toast(e.message, true);
+      }
+    };
+    box.append(
+      el('button', { text: `Mark these ${n} as reservations`, onclick: () => go(true) }),
+      el('button', { text: 'Unmark them', onclick: () => go(false) })
+    );
   }
 
   function renderPager(data) {

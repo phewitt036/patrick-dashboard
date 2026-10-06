@@ -380,21 +380,43 @@ const INCOME_SORTS = {
   store: 'store', miles: 'miles_driven', record: 'record_no'
 };
 
-router.get('/income', handle(async (req, res) => {
-  const { from, to, source, q } = req.query;
-  const limit = Math.min(Number(req.query.limit) || 50, 500);
-  const offset = Math.max(Number(req.query.offset) || 0, 0);
-  const sort = INCOME_SORTS[req.query.sort] || 'income_date';
-  const dir = req.query.dir === 'asc' ? 'asc' : 'desc';
+const RIDE_TYPES = ['regular', 'airport', 'reservation'];
+const BONUS = ['with', 'none'];
 
+/**
+ * The income list's filters, shared by the list and by the bulk tick below so the
+ * two can never disagree about which records "these" are.
+ *
+ * ride and bonus exist so Patrick can answer his own questions from the phone:
+ * reservation rides carry no surge bonus, so "Uber, no bonus, since the 28th" is
+ * the list of likely reservations to look over and tick.
+ */
+function incomeFilter(query) {
+  const { from, to, source, q, ride, bonus } = query;
   const f = filters();
   if (from) f.add('r.income_date >= $', requiredDate(from, 'from'));
   if (to) f.add('r.income_date <= $', requiredDate(to, 'to'));
   if (source) f.add('r.source = $', oneOf(source, SOURCES, 'source'));
   // One search box over the three fields worth searching.
   if (q) f.add('(r.store ilike $ or r.notes ilike $ or r.record_no ilike $)', `%${q}%`);
+  // Compared with a bound true rather than written bare, because add() always binds.
+  if (ride) {
+    const kind = oneOf(ride, RIDE_TYPES, 'ride');
+    f.add(kind === 'airport' ? 'r.is_airport = $'
+        : kind === 'reservation' ? 'r.is_reservation = $'
+        : '(not r.is_airport and not r.is_reservation) = $', true);
+  }
+  if (bonus) f.add('(coalesce(r.surge_bonus, 0) > 0) = $', oneOf(bonus, BONUS, 'bonus') === 'with');
+  return f;
+}
 
-  const { clause, params } = f;
+router.get('/income', handle(async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 500);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+  const sort = INCOME_SORTS[req.query.sort] || 'income_date';
+  const dir = req.query.dir === 'asc' ? 'asc' : 'desc';
+
+  const { clause, params } = incomeFilter(req.query);
 
   const [rows, count] = await Promise.all([
     pool.query(
@@ -414,19 +436,80 @@ router.get('/income', handle(async (req, res) => {
     pool.query(`select count(*)::int as n,
                        coalesce(sum(r.total_earnings), 0) as total,
                        count(*) filter (where d.is_placeholder)::int as bulk_n,
-                       coalesce(sum(r.total_earnings) filter (where d.is_placeholder), 0) as bulk_total
+                       coalesce(sum(r.total_earnings) filter (where d.is_placeholder), 0) as bulk_total,
+                       -- Averages for whatever the filters select, so any filter is a
+                       -- report. Bulk import out, as everywhere else; each rate over
+                       -- only the records that carry its denominator.
+                       count(*) filter (where not coalesce(d.is_placeholder, false))::int as real_n,
+                       coalesce(sum(r.total_earnings) filter (where not coalesce(d.is_placeholder, false)), 0) as real_total,
+                       coalesce(sum(r.total_earnings) filter (where not coalesce(d.is_placeholder, false) and r.time_taken_minutes > 0), 0) as timed_total,
+                       coalesce(sum(r.time_taken_minutes) filter (where not coalesce(d.is_placeholder, false) and r.time_taken_minutes > 0), 0) as minutes,
+                       coalesce(sum(r.total_earnings) filter (where not coalesce(d.is_placeholder, false) and r.miles_driven > 0), 0) as mileaged_total,
+                       coalesce(sum(r.miles_driven) filter (where not coalesce(d.is_placeholder, false) and r.miles_driven > 0), 0) as miles
                   from v_income_record r
                   left join daily_cash_flow d on d.id = r.daily_cash_flow_id
                   ${clause}`, params)
   ]);
 
+  const c = count.rows[0];
+  const rate = (num, den) => (Number(den) > 0 ? Number((Number(num) / Number(den)).toFixed(2)) : null);
   res.json({
     records: rows.rows,
-    total: count.rows[0].n,
-    sumEarnings: count.rows[0].total,
-    bulkImport: { count: count.rows[0].bulk_n, earnings: count.rows[0].bulk_total },
+    total: c.n,
+    sumEarnings: c.total,
+    bulkImport: { count: c.bulk_n, earnings: c.bulk_total },
+    averages: {
+      records: c.real_n,
+      perRecord: rate(c.real_total, c.real_n),
+      perHour: rate(c.timed_total, Number(c.minutes) / 60),
+      perMile: rate(c.mileaged_total, c.miles)
+    },
     limit, offset
   });
+}));
+
+/**
+ * Tick or clear a ride-type flag on every record the list's filters select.
+ *
+ * Takes the filters rather than a list of ids so it reaches past the 50 on screen,
+ * and `expect` - the count the page showed - so it refuses if anything changed in
+ * between: the records ticked are exactly the ones he looked at, or none are.
+ * Uber rides only, whatever the filter says; a delivery is never either.
+ */
+router.post('/income/bulk-flags', handle(async (req, res) => {
+  const body = req.body || {};
+  const sets = [];
+  for (const [col, key] of [['is_airport', 'isAirport'], ['is_reservation', 'isReservation']]) {
+    const v = optionalFlag(body[key], key);
+    if (v !== undefined) sets.push([col, v]);
+  }
+  if (!sets.length) throw new BadRequest('Send isAirport and/or isReservation.');
+  const expect = Number(body.expect);
+  if (!Number.isInteger(expect) || expect < 1) throw new BadRequest('expect must be the number of records shown.', 'expect');
+  if (expect > 500) throw new BadRequest('At most 500 records at once. Narrow the filters.', 'expect');
+
+  const f = incomeFilter(body.filter || {});
+  f.add("r.source = $", 'Uber');
+  const { clause, params } = f;
+
+  const out = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `select r.id from income_record r ${clause} for update`, params);
+    if (rows.length !== expect) return { mismatch: rows.length };
+    const ids = rows.map(r => r.id);
+    const vals = sets.map(s => s[1]);
+    await client.query(
+      `update income_record set ${sets.map(([col], i) => `${col} = $${i + 2}`).join(', ')}
+        where id = any($1::bigint[])`, [ids, ...vals]);
+    return { updated: ids.length };
+  });
+
+  if (out.mismatch !== undefined) {
+    return res.status(409).json({
+      error: `The filters now match ${out.mismatch} Uber rides, not the ${expect} shown. Reload and try again.`
+    });
+  }
+  res.json(out);
 }));
 
 function incomeFields(body) {
