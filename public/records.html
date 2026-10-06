@@ -721,11 +721,15 @@
   };
 
   // ------------------------------------------------------------------ report
-  const report = { grain: 'month', date: null };
+  const report = {
+    grain: ['day', 'week', 'month'].includes(startup.get('grain')) ? startup.get('grain') : 'month',
+    date: /^\d{4}-\d{2}-\d{2}$/.test(startup.get('date') || '') ? startup.get('date') : null
+  };
 
   function renderReport() {
     const box = $('#report');
     if (!report.date) report.date = (state.meta && state.meta.today) || new Date().toISOString().slice(0, 10);
+    rememberView();
 
     const controls = el('div', { class: 'bar' }, [
       el('div', { class: 'grain' }, [
@@ -1177,7 +1181,25 @@
     ]));
   }
 
+  // The address bar carries the view, so pull-to-refresh on a phone - which reloads
+  // the page - lands back where he was instead of on Income. Same parameters the
+  // dashboard's links already use to open a tab, so one reader serves both.
+  // replaceState, not pushState: a tab change is not somewhere Back should go.
+  function rememberView() {
+    const p = new URLSearchParams();
+    if (state.tab !== 'income') p.set('tab', state.tab);
+    for (const k of ['from', 'to', 'source', 'type', 'q']) if (state.filter[k]) p.set(k, state.filter[k]);
+    if (state.filter.needsClockOut) p.set('needs', 'clockout');
+    if (state.tab === 'report') {
+      if (report.grain !== 'month') p.set('grain', report.grain);
+      if (report.date && report.date !== (state.meta && state.meta.today)) p.set('date', report.date);
+    }
+    const qs = p.toString();
+    try { history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '')); } catch {}
+  }
+
   async function load() {
+    rememberView();
     // The report is not a table, so it takes the whole panel instead.
     const isReport = state.tab === 'report';
     $('#report').hidden = !isReport;
