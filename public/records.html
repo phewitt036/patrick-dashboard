@@ -970,6 +970,24 @@
       parts.push(childCard(d.shift.record_no + '  ·  ' + d.shift.shift_date, money(d.shift.total_income),
         dayName(d.shift.day_of_week), () => openDetail('shift', d.shift.id)));
     }
+
+    // The row's own Delete is hidden under 640px on purpose - it is the one
+    // irreversible control on the page and a car is no place for a stray tap. But
+    // hiding it left no way at all to remove a record from a phone, which is where
+    // duplicates actually get noticed. Here it takes two deliberate taps to reach,
+    // open the record first, which is the same protection without the dead end.
+    parts.push(el('div', { class: 'rpt-h', text: 'Delete' }));
+    parts.push(el('div', {},
+      el('button', {
+        class: 'danger',
+        text: 'Delete ' + i.record_no,
+        onclick: async () => {
+          await remove('income', i.id, i.record_no);
+          detailStack.length = 0;
+          $('#detail').close();
+        }
+      })));
+
     $('#detail-body').replaceChildren(...parts);
   }
 

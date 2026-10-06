@@ -298,9 +298,13 @@ router.post('/dash-time', handle(async (req, res) => {
  * with the common Uber Eats case, where the tip only appears a day later and the
  * driver screenshots the same delivery again to capture it.
  *
- * Deliberately one rule, not a scoring function: same day, same platform, same
- * base pay to the cent. That is specific enough to be worth showing and simple
- * enough to explain. The caller decides what it means.
+ * Deliberately one rule, not a scoring function: same day, same base pay to the
+ * cent. Specific enough to be worth showing, simple enough to explain, and the
+ * caller decides what it means.
+ *
+ * `source` narrows it further but Pixit does not send it, on purpose: the platform
+ * is the least reliable field on a screenshot, and filtering by it meant a reading
+ * that got the platform wrong was exactly the reading that found no match.
  */
 router.get('/income/similar', handle(async (req, res) => {
   const date = requiredDate(req.query.date, 'date');
@@ -319,7 +323,9 @@ router.get('/income/similar', handle(async (req, res) => {
       limit 10`,
     [date, source, amount]);
 
-  res.json({ matches: rows, rule: 'same day, same source, base pay within a cent' });
+  res.json({ matches: rows, rule: source
+    ? 'same day, same source, base pay within a cent'
+    : 'same day, base pay within a cent' });
 }));
 
 /**
