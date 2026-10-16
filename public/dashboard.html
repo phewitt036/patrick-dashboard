@@ -53,6 +53,13 @@
                   color: var(--muted); margin-top: 10px; }
   .chart-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px;
                     margin-right: 6px; vertical-align: -1px; }
+  .meter { margin-top: 12px; }
+  .meter-track { fill: var(--surface2); }
+  .meter-mark  { stroke: var(--text); stroke-width: 2; stroke-linecap: round; }
+  .meter-labels { display: flex; justify-content: space-between; gap: 12px;
+                  font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .meter-labels .right { text-align: right; }
+  .meter-labels b { color: var(--text); font-family: var(--mono); font-weight: 600; }
   #viz-tip { position: fixed; pointer-events: none; opacity: 0; transition: opacity .1s;
              background: var(--text); color: #fff; font-size: 12px; padding: 6px 9px;
              border-radius: 7px; white-space: nowrap; z-index: 60; font-family: var(--ui);
@@ -387,6 +394,57 @@
       'aria-label': 'Earned per hour by month: ' + pts.map(p => p.label + ' ' + money(p.perHour)).join(', ') }, g);
   }
 
+  /**
+   * A measure against a marker - the bullet idiom. The bar is what has happened;
+   * the tick is what it is being held against.
+   *
+   * Both ends are named on purpose. This page is careful never to set a part
+   * period beside a finished one as though they were equals, and a bare bar would
+   * do exactly that on a morning when $34 sits next to yesterday's $136. Labelled,
+   * the same picture reads as progress towards a mark, which is what it is.
+   */
+  function compareMeter(value, mark, leftLabel, rightLabel, deltaNode) {
+    const W = 460, H = 24;
+    const v = Number(value) || 0, mk = Number(mark) || 0;
+    const max = Math.max(v, mk) * 1.14 || 1;
+    const g = svg('g');
+    g.append(svg('rect', { x: 0, y: 5, width: W, height: H, rx: 6, class: 'meter-track' }));
+    const w = Math.max((v / max) * W, 3);
+    g.append(hoverable(svg('rect', { x: 0, y: 5, width: w, height: H, rx: 6,
+      fill: 'var(--accent)', class: 'vbar' }), `<b>${money(v)}</b> · ${leftLabel}`));
+    if (mk > 0) {
+      const mx = (mk / max) * W;
+      g.append(svg('line', { x1: mx, y1: 0, x2: mx, y2: H + 10, class: 'meter-mark' }));
+      g.append(hoverable(svg('rect', { x: mx - 7, y: 0, width: 14, height: H + 10, fill: 'transparent' }),
+        `<b>${money(mk)}</b> · ${rightLabel}`));
+    }
+    const plot = svg('svg', { class: 'plot meter', viewBox: `0 0 ${W} ${H + 12}`, role: 'img',
+      'aria-label': `${leftLabel} ${money(v)}, against ${rightLabel} ${money(mk)}` }, g);
+    const labels = el('div', { class: 'meter-labels' }, [
+      el('span', {}, [document.createTextNode(leftLabel + ' '), el('b', { text: money(v) })]),
+      el('span', { class: 'right' }, [document.createTextNode(rightLabel + ' '), el('b', { text: money(mk) })])
+    ]);
+    const box = el('div', {}, [plot, labels]);
+    if (deltaNode) box.append(deltaNode);
+    return box;
+  }
+
+  /** A proportion of a whole - how much of the money the rate above actually covers. */
+  function shareMeter(pct, label) {
+    const W = 460, H = 18;
+    const p = Math.max(0, Math.min(100, Number(pct) || 0));
+    const g = svg('g');
+    g.append(svg('rect', { x: 0, y: 0, width: W, height: H, rx: 5, class: 'meter-track' }));
+    g.append(hoverable(svg('rect', { x: 0, y: 0, width: Math.max((p / 100) * W, 3), height: H, rx: 5,
+      fill: p >= 90 ? 'var(--pos)' : p >= 70 ? 'var(--accent)' : 'var(--warn)', class: 'vbar' }),
+      `<b>${p}%</b> · ${label}`));
+    return el('div', {}, [
+      svg('svg', { class: 'plot meter', viewBox: `0 0 ${W} ${H}`, role: 'img',
+        'aria-label': p + '% — ' + label }, g),
+      el('div', { class: 'meter-labels' }, [el('span', { text: label })])
+    ]);
+  }
+
   /** One stacked bar. Every segment is directly labelled, so colour is never the
       only thing carrying identity. */
   function sourceChart(src) {
@@ -511,8 +569,15 @@
         kids.push(el('div', { style: 'margin-top:7px' },
           pills.map(t => el('span', { class: 'pill warn', style: 'margin-right:6px', text: t }))));
       }
-      if (isToday && d.prevShift) {
-        kids.push(T('Before that: ' + dayLabel(d.prevShift.shift_date) + ', ' + money(d.prevShift.total_income)));
+      if (d.prevShift) {
+        // The previous shift becomes the mark to drive at rather than a line of
+        // grey text. Named at both ends so a morning's $34 against yesterday's
+        // $136 reads as "so far", not as a bad day.
+        const pd = parseDay(d.prevShift.shift_date);
+        kids.push(compareMeter(
+          d.lastShift.total_income, d.prevShift.total_income,
+          isToday ? 'today so far' : 'this shift',
+          DAYS[pd.getDay()].slice(0, 3) + ' ' + shortDay(d.prevShift.shift_date)));
       }
       out.push(card(kids));
     } else {
@@ -542,7 +607,12 @@
       K(d.monthName + ' so far'),
       V(Number(m.income) > 0 ? money(m.income) : '—'),
       S('Day ' + m.dayOfMonth + ' of ' + m.daysInMonth + '  ·  ' + plural(m.shifts, 'shift')),
-      deltaLine('Same days last month', m.prior.income, m.delta, m.prior.shifts)
+      // Already like for like - the API measures the prior month over the same
+      // elapsed days - so this one can be drawn without any caveat.
+      Number(m.prior.shifts) > 0
+        ? compareMeter(m.income, m.prior.income, d.monthName + ' so far', 'same days last month',
+            deltaLine('Same days last month', m.prior.income, m.delta, m.prior.shifts))
+        : deltaLine('Same days last month', m.prior.income, m.delta, m.prior.shifts)
     ]));
 
     // ---- per shift ------------------------------------------------------
@@ -560,7 +630,10 @@
       S(showMonth
         ? 'from ' + plural(ps.monthShifts, 'shift') + ' in ' + d.monthName
         : 'across all ' + plural(ps.allShifts, 'shift')),
-      showMonth ? T(money(ps.allTime) + ' across all ' + plural(ps.allShifts, 'shift')) : null
+      // Two settled averages, so the comparison is fair in both directions.
+      showMonth
+        ? compareMeter(ps.month, ps.allTime, d.monthName, 'all ' + ps.allShifts + ' shifts')
+        : null
     ]));
 
     // ---- per hour clocked in --------------------------------------------
@@ -573,8 +646,12 @@
       V(money(ph.rate)),
       S(ph.hours.toFixed(1) + ' hours across the ' + ph.shiftsWithHours + ' of ' +
         ph.shifts + ' shifts with a clock-out'),
-      T('Covers ' + money0(ph.incomeWithHours) + ' of the ' + money0(ph.income) +
-        ' earned — ' + ph.coverage + '% of it')
+      // Not a comparison but a proportion: how much of the money this rate speaks
+      // for. The bar turns green only once it covers nearly all of it, because a
+      // confident-looking rate over half the earnings is the trap this card exists
+      // to avoid.
+      shareMeter(ph.coverage, 'Covers ' + money0(ph.incomeWithHours) + ' of the ' +
+        money0(ph.income) + ' earned — ' + ph.coverage + '% of it')
     ] : [
       K('Per hour clocked in'),
       V('—'),
