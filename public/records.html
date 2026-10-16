@@ -54,11 +54,12 @@
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
 
+  /* The same amber front door as the dashboard, so moving between the two does
+     not feel like moving between two apps. The blur is dropped with the
+     translucency: a gradient seen through a backdrop filter bands on Android. */
   header {
     position: sticky; top: 0; z-index: 20;
-    background: rgba(255,255,255,0.88);
-    backdrop-filter: saturate(180%) blur(10px);
-    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #b45309 0%, #c2620a 100%);
   }
   .head-row {
     max-width: 1180px; margin: 0 auto;
@@ -67,8 +68,10 @@
   }
   h1 {
     font-size: 19px; font-weight: 640; margin: 0;
-    letter-spacing: -0.021em;
+    letter-spacing: -0.021em; color: #fff;
   }
+  /* The mark is amber-on-cream, so on the amber header it needs its own plate. */
+  h1 .mark { background: #fffbeb; padding: 2px; }
   /* The app mark, beside the name on every page. Sized from the heading so it
      tracks the smaller phone title without a second rule. */
   h1 .mark {
@@ -100,10 +103,14 @@
     padding: 7px 15px; border-radius: 8px; cursor: pointer;
     min-height: 34px; transition: background 0.12s, color 0.12s;
   }
-  .tab:hover { color: var(--text); background: var(--surface2); }
+  /* Full white either way rather than a dimmed white: a faded tab label on amber
+     falls under 4.5:1, so the selected state is carried by the white pill and the
+     colour flip, not by fading the others out. */
+  .tab { color: #fff; }
+  .tab:hover { color: #fff; background: rgba(255,255,255,.16); }
   .tab[aria-selected="true"] {
-    background: var(--surface); border-color: var(--border);
-    color: var(--text); box-shadow: var(--shadow); font-weight: 560;
+    background: #fff; border-color: transparent;
+    color: #b45309; box-shadow: var(--shadow); font-weight: 600;
   }
 
   main { max-width: 1180px; margin: 0 auto; padding: 20px; }
@@ -148,6 +155,19 @@
     box-shadow: 0 1px 2px rgba(79,70,229,0.28);
   }
   .primary:hover { background: #4338ca; border-color: #4338ca; }
+
+  /* Scoped to the header only - .primary is the Save button inside the dialogs
+     too, and those still sit on white. */
+  header button {
+    background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3);
+    color: #fff; box-shadow: none;
+  }
+  header button:hover { background: rgba(255,255,255,.26); }
+  header .primary {
+    background: #fff; border-color: #fff; color: #b45309; font-weight: 600;
+  }
+  header .primary:hover { background: #fffbeb; border-color: #fffbeb; }
+  header .back, header .home { color: #fff; }
   .danger {
     color: var(--muted); border-color: transparent; background: none;
     padding: 5px 9px; min-height: 0; box-shadow: none; font-size: 13px;
@@ -180,8 +200,22 @@
 
   /* Reporting */
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-  .card .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+          --tone: var(--accent); --tone-lo: var(--accent-lo); }
+  /* Same tone set as the dashboard, so a card means the same thing on both pages. */
+  .t-amber  { --tone: #b45309; --tone-lo: #fdf3e0; }
+  .t-indigo { --tone: #4f46e5; --tone-lo: #eef0fe; }
+  .t-violet { --tone: #6d28d9; --tone-lo: #f1ecfe; }
+  .t-teal   { --tone: #0f766e; --tone-lo: #e3f3f1; }
+  .t-green  { --tone: #0a7a4f; --tone-lo: #e6f5ee; }
+  .t-rose   { --tone: #b3341d; --tone-lo: #fdeeea; }
+  .card-head { display: flex; align-items: center; gap: 8px; }
+  .card .chip { width: 26px; height: 26px; border-radius: 7px; flex: none;
+                background: var(--tone-lo); color: var(--tone);
+                display: grid; place-items: center; }
+  .card .chip svg { width: 15px; height: 15px; stroke: currentColor; fill: none;
+                    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .card .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--tone); }
   .card .v { font-size: 20px; font-weight: 700; margin-top: 4px; }
   .card .s { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .rpt-h { font-size: 13px; font-weight: 700; margin: 18px 0 8px; }
@@ -229,8 +263,12 @@
     background: var(--surface2); color: var(--muted);
     border: 1px solid transparent;
   }
-  .pill.uber { background: var(--accent-lo); color: #3f37c9; }
-  .pill.dd   { background: var(--neg-lo);    color: var(--neg); }
+  /* The same three service colours the dashboard uses. They were indigo and red
+     here, which made DoorDash red on one screen and green on the other, and gave
+     Uber and Uber Eats the same colour despite being separate rows everywhere. */
+  .pill.uber { background: #e8f1fc; color: #1f6fc4; }
+  .pill.eats { background: #fdeee7; color: #b24a1c; }
+  .pill.dd   { background: #e3f3ef; color: #0f7355; }
   .pill.open { background: var(--pos-lo);    color: var(--pos); }
   .pill.warn { background: var(--warn-lo);   color: var(--warn); }
 
@@ -566,7 +604,11 @@
         el('td', {}, [el('div', { text: r.income_date }), el('div', { class: 'rec', text: r.record_no })]),
         el('td', {}, [
           el('span', {
-            class: 'pill ' + (r.source === 'Doordash' ? 'dd' : r.source.startsWith('Uber') ? 'uber' : ''),
+            // Uber Eats gets its own colour. startsWith('Uber') lumped it in with
+            // rideshare, which is the one distinction this whole app turns on.
+            class: 'pill ' + (r.source === 'Doordash' ? 'dd'
+              : r.source === 'Uber Eats' ? 'eats'
+              : r.source === 'Uber' ? 'uber' : ''),
             text: r.source
           }),
           ...rideTags(r)
@@ -771,12 +813,12 @@
     api('GET', `/period?grain=${report.grain}&date=${report.date}`).then(d => {
       const t = d.totals;
       const cards = el('div', { class: 'cards' }, [
-        card('Income', money(t.total_income), daysLine(t)),
-        card('Expenses', money(t.total_expenses)),
-        card('Net profit', money(t.net_profit)),
-        card('Per shift hour', money(t.earnings_per_shift_hour), numOrDash(t.shift_hours, 2) + ' shift hrs'),
-        card('Per active hour', money(t.earnings_per_active_hour), numOrDash(t.active_hours, 2) + ' active hrs'),
-        card('Per mile', money(t.earnings_per_mile), numOrDash(t.shift_miles, 1) + ' miles')
+        card('Income', money(t.total_income), daysLine(t), 't-indigo', 'income'),
+        card('Expenses', money(t.total_expenses), null, 't-rose', 'costs'),
+        card('Net profit', money(t.net_profit), null, 't-green', 'net'),
+        card('Per shift hour', money(t.earnings_per_shift_hour), numOrDash(t.shift_hours, 2) + ' shift hrs', 't-teal', 'clock'),
+        card('Per active hour', money(t.earnings_per_active_hour), numOrDash(t.active_hours, 2) + ' active hrs', 't-violet', 'speed'),
+        card('Per mile', money(t.earnings_per_mile), numOrDash(t.shift_miles, 1) + ' miles', 't-amber', 'mile')
       ]);
 
       // data-label is what the stacked phone layout prints in place of the
@@ -787,7 +829,9 @@
         el('tbody', {}, d.bySource.length
           ? d.bySource.map(b => el('tr', {}, [
               el('td', { 'data-label': 'Service' }, el('span', {
-                class: 'pill ' + (b.source === 'Doordash' ? 'dd' : b.source.startsWith('Uber') ? 'uber' : ''),
+                class: 'pill ' + (b.source === 'Doordash' ? 'dd'
+                  : b.source === 'Uber Eats' ? 'eats'
+                  : b.source === 'Uber' ? 'uber' : ''),
                 text: b.source
               })),
               el('td', { class: 'num', 'data-label': 'Income', text: money(b.income) }),
@@ -916,8 +960,34 @@
     return box;
   }
 
-  const card = (k, v, sub) => el('div', { class: 'card' }, [
-    el('div', { class: 'k', text: k }),
+  // Line icons, matching the dashboard. Stroke-only so each takes its card's tone
+  // from currentColor; not emoji, which render differently on every device.
+  const RPT_ICONS = {
+    income:  'M12 3v18M16 7H10a2.5 2.5 0 0 0 0 5h4a2.5 2.5 0 0 1 0 5H8',
+    costs:   'M3 7h18v12H3zM3 7l2-3h14l2 3M9 12h6',
+    net:     'M3 17l6-6 4 4 7-7M14 8h7v7',
+    speed:   'M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM13.4 10.6 18 6M3.5 19a9 9 0 1 1 17 0',
+    clock:   'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
+    mile:    'M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11zM12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'
+  };
+  const rptIcon = name => {
+    const NS = 'http://www.w3.org/2000/svg';
+    const s = document.createElementNS(NS, 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('aria-hidden', 'true');
+    for (const d of (RPT_ICONS[name] || '').split('M').filter(Boolean)) {
+      const p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', 'M' + d);
+      s.append(p);
+    }
+    return s;
+  };
+
+  const card = (k, v, sub, tone, ic) => el('div', { class: 'card' + (tone ? ' ' + tone : '') }, [
+    el('div', { class: 'card-head' }, [
+      ic ? el('div', { class: 'chip' }, rptIcon(ic)) : null,
+      el('div', { class: 'k', text: k })
+    ].filter(Boolean)),
     el('div', { class: 'v', text: v }),
     sub ? el('div', { class: 's', text: sub }) : null
   ]);
