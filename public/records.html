@@ -1106,6 +1106,7 @@
       if (kind === 'shift') return renderShiftDetail(await api('GET', '/shifts/' + id));
       if (kind === 'week') return renderWeekDetail(await api('GET', '/weeks/' + id));
       if (kind === 'income') return renderIncomeDetail(await api('GET', '/income/' + id));
+      if (kind === 'expense') return renderExpenseDetail(await api('GET', '/expenses/' + id));
       if (kind === 'month') {
         // A month has no record of its own; jump the Report tab at it instead.
         dlg.close();
@@ -1245,44 +1246,78 @@
       parts.push(flag('isReservation', 'is_reservation', 'Reservation'));
     }
 
-    // The screenshot this record was read from, when Pixit kept one. Requested
-    // unconditionally and removed if it 404s, so the view does not have to carry
-    // an extra field whose only job is to say whether an image exists.
-    const shotUrl = '/api/records/income/' + i.id + '/shot';
-    const shot = el('img', {
-      src: shotUrl,
-      alt: 'The screenshot this record was read from',
+    parts.push(shotBlock('income', i.id, 'Screenshot', 'The screenshot this record was read from'));
+    if (d.shift) parts.push(...shiftBlock(d.shift));
+    parts.push(...deleteBlock('income', i.id, i.record_no));
+    $('#detail-body').replaceChildren(...parts);
+  }
+
+  /** An expense, laid out like an income record so the two read the same way -
+      including the receipt it was read from, which Pixit has been keeping all along. */
+  function renderExpenseDetail(d) {
+    const x = d.expense;
+    $('#detail-title').textContent = x.record_no + '  ·  ' + (x.type || 'Expense');
+    const where = [x.store_city, x.store_state].filter(Boolean).join(', ');
+    const parts = [
+      kv([
+        ['Date', x.expense_date],
+        ['Type', x.type || 'Uncategorised'],
+        ['Store', x.store],
+        ['Where', where || null],
+        ['Amount', money(x.amount)],
+        ['Note', x.type_explanation]
+      ])
+    ];
+    parts.push(shotBlock('expenses', x.id, 'Receipt', 'The receipt this expense was read from'));
+    if (d.shift) parts.push(...shiftBlock(d.shift));
+    parts.push(...deleteBlock('expenses', x.id, x.record_no));
+    $('#detail-body').replaceChildren(...parts);
+  }
+
+  // ---- blocks both detail panels share ------------------------------------
+
+  // The image a record was read from, when Pixit kept one. Requested
+  // unconditionally and removed if it 404s, so neither record has to carry an
+  // extra field whose only job is to say whether an image exists - and a record
+  // typed by hand, or pushed before 17 Sep, simply shows no image block.
+  function shotBlock(kind, recordId, title, alt) {
+    const url = '/api/records/' + kind + '/' + recordId + '/shot';
+    const img = el('img', {
+      src: url, alt,
       style: 'max-width:100%;border:1px solid var(--border);border-radius:8px;margin-top:8px;cursor:zoom-in',
-      onclick: () => window.open(shotUrl, '_blank', 'noopener')
+      onclick: () => window.open(url, '_blank', 'noopener')
     });
-    const shotBlock = el('div', {}, [el('div', { class: 'rpt-h', text: 'Screenshot' }), shot]);
-    shot.addEventListener('error', () => shotBlock.remove());
-    parts.push(shotBlock);
+    const block = el('div', {}, [el('div', { class: 'rpt-h', text: title }), img]);
+    img.addEventListener('error', () => block.remove());
+    return block;
+  }
 
-    if (d.shift) {
-      parts.push(el('div', { class: 'rpt-h', text: 'Shift' }));
-      parts.push(childCard(d.shift.record_no + '  ·  ' + d.shift.shift_date, money(d.shift.total_income),
-        dayName(d.shift.day_of_week), () => openDetail('shift', d.shift.id)));
-    }
+  function shiftBlock(shift) {
+    return [
+      el('div', { class: 'rpt-h', text: 'Shift' }),
+      childCard(shift.record_no + '  ·  ' + shift.shift_date, money(shift.total_income),
+        dayName(shift.day_of_week), () => openDetail('shift', shift.id))
+    ];
+  }
 
-    // The row's own Delete is hidden under 640px on purpose - it is the one
-    // irreversible control on the page and a car is no place for a stray tap. But
-    // hiding it left no way at all to remove a record from a phone, which is where
-    // duplicates actually get noticed. Here it takes two deliberate taps to reach,
-    // open the record first, which is the same protection without the dead end.
-    parts.push(el('div', { class: 'rpt-h', text: 'Delete' }));
-    parts.push(el('div', {},
-      el('button', {
+  // The row's own Delete is hidden under 640px on purpose - it is the one
+  // irreversible control on the page and a car is no place for a stray tap. But
+  // hiding it left no way at all to remove a record from a phone, which is where
+  // duplicates actually get noticed. Here it takes two deliberate taps to reach,
+  // open the record first, which is the same protection without the dead end.
+  function deleteBlock(kind, recordId, recordNo) {
+    return [
+      el('div', { class: 'rpt-h', text: 'Delete' }),
+      el('div', {}, el('button', {
         class: 'danger',
-        text: 'Delete ' + i.record_no,
+        text: 'Delete ' + recordNo,
         onclick: async () => {
-          await remove('income', i.id, i.record_no);
+          await remove(kind, recordId, recordNo);
           detailStack.length = 0;
           $('#detail').close();
         }
-      })));
-
-    $('#detail-body').replaceChildren(...parts);
+      }))
+    ];
   }
 
   function selectTab(name) {
@@ -1416,7 +1451,8 @@
             // Tapping a row reads it. Buttons inside the row still do their own
             // job, so Edit and Delete are unaffected.
             const kind = cfg.detail || (state.tab === 'shifts' ? 'shift'
-                        : state.tab === 'income' ? 'income' : null);
+                        : state.tab === 'income' ? 'income'
+                        : state.tab === 'expenses' ? 'expense' : null);
             if (kind) {
               tr.classList.add('tappable');
               tr.addEventListener('click', ev => {

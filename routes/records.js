@@ -930,6 +930,24 @@ router.get('/income/:id', handle(async (req, res) => {
   res.json({ income: rows[0], shift });
 }));
 
+/** One expense on its own, with its shift - the same shape as an income record,
+    so the detail panel and its back button treat the two alike. */
+router.get('/expenses/:id', handle(async (req, res) => {
+  const recordId = id(req.params.id);
+  const { rows } = await pool.query(
+    `select e.*, d.record_no as shift_record_no
+       from expense_record e
+       left join daily_cash_flow d on d.id = e.daily_cash_flow_id
+      where e.id = $1`, [recordId]);
+  if (!rows.length) return res.status(404).json({ error: 'No such expense record.' });
+  let shift = null;
+  if (rows[0].daily_cash_flow_id) {
+    const d = await pool.query('select * from v_daily_cash_flow_all where id = $1', [rows[0].daily_cash_flow_id]);
+    shift = d.rows[0] || null;
+  }
+  res.json({ expense: rows[0], shift });
+}));
+
 /**
  * The screenshot an income record was read from.
  *
@@ -938,10 +956,14 @@ router.get('/income/:id', handle(async (req, res) => {
  * records read off one screenshot therefore all resolve to the same image, which
  * is the truth of it — one dash summary really is several deliveries.
  */
-router.get('/income/:id/shot', handle(async (req, res) => {
+// Expenses use exactly the same link: Pixit has always given a pushed receipt an
+// external_id of pixit-<extraction id>-0 and copied its JPEG here, so 41 of the 48
+// Pixit expenses already had their receipt on disk with no way to see it. The
+// table name comes from this fixed pair, never from the request.
+const shotRoute = (table, noun) => handle(async (req, res) => {
   const recordId = id(req.params.id);
-  const { rows } = await pool.query('select external_id from income_record where id = $1', [recordId]);
-  if (!rows.length) return res.status(404).json({ error: 'No such income record.' });
+  const { rows } = await pool.query(`select external_id from ${table} where id = $1`, [recordId]);
+  if (!rows.length) return res.status(404).json({ error: `No such ${noun} record.` });
 
   const extId = rows[0].external_id || '';
   const m = extId.match(/^pixit-([0-9a-f-]{36})-\d+$/i);
@@ -953,7 +975,10 @@ router.get('/income/:id/shot', handle(async (req, res) => {
 
   res.setHeader('Cache-Control', 'private, max-age=3600');
   res.type('image/jpeg').sendFile(file);
-}));
+});
+
+router.get('/income/:id/shot', shotRoute('income_record', 'income'));
+router.get('/expenses/:id/shot', shotRoute('expense_record', 'expense'));
 
 /**
  * What the reporting deliberately leaves out. The pre-shift bulk import is real
