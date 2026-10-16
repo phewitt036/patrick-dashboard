@@ -27,13 +27,17 @@
     --ui:  system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
-    /* Categorical slots for the service split, in fixed order - Uber is always
-       slot 1 whatever the filter leaves standing. Validated for colour-vision
-       deficiency against this surface; every segment is also directly labelled,
-       because the aqua sits under 3:1 on white. */
-    --src1: #2a78d6;
-    --src2: #eb6834;
-    --src3: #1baf7a;
+    /* Categorical slots for the services. Each belongs to a service by NAME -
+       srcSlot() below - not to its position in the list, so Uber stays blue even
+       in a month Uber Eats out-earns it. Validated for colour-vision deficiency
+       against this surface; every segment is also directly labelled, because the
+       aqua sits under 3:1 on white.
+       The -ink steps are for white text: the bright hues only reach 4.42, 3.20 and
+       2.82 to 1 behind the lettermarks, the ink steps 5.09, 5.40 and 5.83. */
+    --src1: #2a78d6;  --src1-ink: #1f6fc4;
+    --src2: #eb6834;  --src2-ink: #b24a1c;
+    --src3: #1baf7a;  --src3-ink: #0f7355;
+    --src4: #98a1af;  --src4-ink: #5b6472;
     --grid: #eceef2;
   }
 
@@ -509,6 +513,12 @@
     ]);
   }
 
+  // Colour follows the service, never its rank. The split is sorted by income, so
+  // indexing the palette by position would repaint Uber orange the first month
+  // Uber Eats earned more - one hue meaning two services on two days.
+  const SRC_SLOTS = { 'Uber': 1, 'Uber Eats': 2, 'Doordash': 3 };
+  const srcSlot = name => SRC_SLOTS[name] || 4;
+
   /** One stacked bar. Every segment is directly labelled, so colour is never the
       only thing carrying identity. */
   function sourceChart(src) {
@@ -520,7 +530,7 @@
     src.forEach((b, i) => {
       const full = (Number(b.income) / total) * W;
       const w = Math.max(full - (i < src.length - 1 ? GAP : 0), 2);
-      const seg = svg('rect', { x, y: 4, width: w, height: H, rx: 5, fill: `var(--src${i + 1})`, class: 'vbar' });
+      const seg = svg('rect', { x, y: 4, width: w, height: H, rx: 5, fill: `var(--src${srcSlot(b.source)})`, class: 'vbar' });
       g.append(hoverable(seg, `${b.source} · <b>${money(b.income)}</b> · ${b.share}% of the money`));
       g.append(svg('text', {
         x: x + full / 2, y: full > 46 ? 24 : 50, 'text-anchor': 'middle',
@@ -767,7 +777,7 @@
       const MARKS = { 'Uber': 'U', 'Uber Eats': 'UE', 'Doordash': 'DD' };
       for (const [i, b] of src.entries()) {
         kids.push(el('div', { class: 'src-row' }, [
-          el('span', { class: 'src-mark', style: 'background:var(--src' + (i + 1) + ')',
+          el('span', { class: 'src-mark', style: 'background:var(--src' + srcSlot(b.source) + '-ink)',
                        text: MARKS[b.source] || b.source.slice(0, 2).toUpperCase() }),
           el('span', { class: 'src-name' }, [
             el('div', { text: b.source }),

@@ -266,6 +266,38 @@
   /* The same three service colours the dashboard uses. They were indigo and red
      here, which made DoorDash red on one screen and green on the other, and gave
      Uber and Uber Eats the same colour despite being separate rows everywhere. */
+  /* Service identity in the income list. Two steps of each hue: the bright one
+     the dashboard validated for colour-vision deficiency draws the bar, and a
+     darker ink sits behind the chip's white initials, because the bright green
+     and orange only manage 2.7:1 and 3.1:1 against white text. */
+  .src-uber  { --src: #2a78d6; --src-ink: #1f6fc4; }
+  .src-eats  { --src: #eb6834; --src-ink: #b24a1c; }
+  .src-dd    { --src: #1baf7a; --src-ink: #0f7355; }
+  .src-other { --src: #98a1af; --src-ink: #5b6472; }
+  .src { display: inline-flex; align-items: center; gap: 7px; font-weight: 560; white-space: nowrap; }
+  .src-chip {
+    width: 24px; height: 24px; border-radius: 7px; flex: none;
+    background: var(--src-ink); color: #fff;
+    display: grid; place-items: center;
+    font-size: 9.5px; font-weight: 800; letter-spacing: .02em;
+  }
+  /* The trip as a bar under its total: paid in full colour, tip a lighter step of
+     the same colour, a 2px gap between them. Right-aligned under a right-aligned
+     number so the two read as one figure. */
+  .trip-track {
+    display: flex; gap: 2px; height: 6px; width: 92px; margin: 6px 0 0 auto;
+    border-radius: 3px; background: var(--surface2); overflow: hidden;
+  }
+  .trip-track i { display: block; height: 100%; border-radius: 3px; background: var(--src); }
+  .trip-track .tip { opacity: .4; }
+  /* An axis break: a 2px gap cut near the end of a bar that runs off the scale,
+     the way a chart marks a bar too long to draw. */
+  .trip-track.capped {
+    -webkit-mask: linear-gradient(90deg, #000 calc(100% - 9px), transparent calc(100% - 9px),
+                                  transparent calc(100% - 6px), #000 calc(100% - 6px));
+            mask: linear-gradient(90deg, #000 calc(100% - 9px), transparent calc(100% - 9px),
+                                  transparent calc(100% - 6px), #000 calc(100% - 6px));
+  }
   .pill.uber { background: #e8f1fc; color: #1f6fc4; }
   .pill.eats { background: #fdeee7; color: #b24a1c; }
   .pill.dd   { background: #e3f3ef; color: #0f7355; }
@@ -432,6 +464,16 @@
     td, thead th { padding-left: 8px; padding-right: 8px; }
     td { font-size: 13px; }
     .rec { font-size: 11px; }
+
+    /* The platform's name made the column wide enough to push the date onto
+       three lines and double every row's height. The chip's colour and initials
+       already say which service it is, so on a phone the name is kept for screen
+       readers only and the date holds to one line. */
+    .src-label {
+      position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip: rect(0 0 0 0); white-space: nowrap;
+    }
+    #tbl[data-tab="income"] td:first-child { white-space: nowrap; }
 
     /* Delete stands down on a phone. It is the one irreversible thing on this
        page, the target is small, and it is not what anyone opens this for in a
@@ -600,24 +642,34 @@
         for (const [k, v] of Object.entries(state.filter)) if (v) p.set(k, v);
         return api('GET', '/income?' + p);
       },
+      // The bars scale to the page's 90th-percentile trip, not its biggest. The
+      // biggest is routinely not a trip at all - INC-1721 is a $150 Quest bonus -
+      // or a 250-mile airport run, and scaling to it shrank every ordinary $8-$30
+      // delivery to a sliver. Anything above the scale draws full and is marked as
+      // off it; the exact figure is printed above every bar either way.
+      scale: rows => {
+        const t = rows.map(r => Number(r.total_earnings) || 0).filter(v => v > 0).sort((a, b) => a - b);
+        return t.length ? Math.max(1, t[Math.floor(0.9 * (t.length - 1))]) : 1;
+      },
       row: r => el('tr', {}, [
         el('td', {}, [el('div', { text: r.income_date }), el('div', { class: 'rec', text: r.record_no })]),
         el('td', {}, [
-          el('span', {
-            // Uber Eats gets its own colour. startsWith('Uber') lumped it in with
-            // rideshare, which is the one distinction this whole app turns on.
-            class: 'pill ' + (r.source === 'Doordash' ? 'dd'
-              : r.source === 'Uber Eats' ? 'eats'
-              : r.source === 'Uber' ? 'uber' : ''),
-            text: r.source
-          }),
+          // Uber Eats gets its own colour. startsWith('Uber') lumped it in with
+          // rideshare, which is the one distinction this whole app turns on.
+          el('span', { class: 'src ' + srcClass(r.source) }, [
+            el('span', { class: 'src-chip', text: SRC_MARK[r.source] || r.source.slice(0, 2).toUpperCase() }),
+            el('span', { class: 'src-label', text: r.source })
+          ]),
           ...rideTags(r)
         ]),
         el('td', { class: r.store ? '' : 'muted', text: r.store || '—' }),
         el('td', { class: 'num', text: money(r.amount) }),
         el('td', { class: 'num', text: r.tips ? money(r.tips) : '—' }),
         el('td', { class: 'num', text: r.surge_bonus ? money(r.surge_bonus) : '—' }),
-        el('td', { class: 'num', text: money(r.total_earnings) }),
+        el('td', { class: 'num' }, [
+          el('div', { text: money(r.total_earnings) }),
+          tripBar(r, state.pageMax)
+        ]),
         el('td', { class: 'num', text: numOrDash(r.miles_driven) }),
         el('td', { class: 'num', text: numOrDash(r.time_taken_minutes) }),
         el('td', {}, r.shift_record_no
@@ -958,6 +1010,37 @@
     };
     draw();
     return box;
+  }
+
+  // ---- the income row's graphics -----------------------------------------
+  // Same lettermarks and colours as the dashboard's service rows.
+  const SRC_MARK = { 'Uber': 'U', 'Uber Eats': 'UE', 'Doordash': 'DD' };
+  const srcClass = s => s === 'Uber' ? 'src-uber' : s === 'Uber Eats' ? 'src-eats'
+                      : s === 'Doordash' ? 'src-dd' : 'src-other';
+
+  /**
+   * One trip as a bar: what the platform paid in its full colour, the tip in a
+   * lighter step of the same colour. Length is against the biggest trip on the
+   * page. On a phone the Tips column is hidden, so this is the only place a tip
+   * shows in the list at all - which is why it carries a label for screen
+   * readers rather than being purely decorative.
+   */
+  function tripBar(r, max) {
+    const paid = (Number(r.amount) || 0) + (Number(r.surge_bonus) || 0);
+    const tip = Number(r.tips) || 0;
+    const total = paid + tip;
+    if (!max || total <= 0) return null;
+    // Off the scale: keep the paid/tip proportion honest across the full length,
+    // and mark the bar so "full" is never read as "exactly the top of the range".
+    const capped = total > max;
+    const pct = v => capped ? (v / total) * 100 : (v / max) * 100;
+    const label = 'Paid ' + money(paid) + (tip ? ', tipped ' + money(tip) : ', no tip') +
+                  (capped ? ' — larger than this page’s scale' : '');
+    return el('div', { class: 'trip-track ' + srcClass(r.source) + (capped ? ' capped' : ''),
+                       role: 'img', 'aria-label': label, title: label }, [
+      paid > 0 ? el('i', { class: 'paid', style: 'width:' + pct(paid) + '%' }) : null,
+      tip > 0  ? el('i', { class: 'tip',  style: 'width:' + pct(tip) + '%' })  : null
+    ].filter(Boolean));
   }
 
   // Line icons, matching the dashboard. Stroke-only so each takes its card's tone
@@ -1324,6 +1407,9 @@
     try {
       const data = await cfg.load();
       const rows = data.records || [];
+      // A row only sees itself, so anything it draws to scale needs the page's
+      // largest value handed to it first.
+      state.pageMax = cfg.scale ? cfg.scale(rows) : null;
       $('#tbody').replaceChildren(...(rows.length
         ? rows.map(r => {
             const tr = cfg.row(r);
