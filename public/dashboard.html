@@ -619,10 +619,24 @@
 
     if (d.lastShift) {
       const isToday = String(d.lastShift.shift_date).slice(0, 10) === d.today;
+
+      // The label decides what gets added up. "Last shift" is one shift, as the
+      // route explains; "Today so far" promises the day, so it is every shift on
+      // it - DCF-0141 and DCF-0142 on 16 Oct, not just whichever is running. Falls
+      // back to the single shift if the API has not been updated to send days.
+      const days = d.recentDays || [];
+      const todayDay = isToday ? days.find(x => x.day === d.today) : null;
+      const prevDay = todayDay ? days.find(x => x.day !== d.today) : null;
+      const amount = todayDay ? todayDay.income : d.lastShift.total_income;
+      const sub = todayDay && todayDay.shifts > 1
+        ? dayLabel(d.today) + '  ·  ' + plural(todayDay.shifts, 'shift') +
+          (todayDay.open ? ', one still running' : '')
+        : dayLabel(d.lastShift.shift_date) + '  ·  ' + d.lastShift.record_no;
+
       const kids = [
         head('clock', isToday ? 'Today so far' : 'Last shift'),
-        V(money(d.lastShift.total_income), true),
-        S(dayLabel(d.lastShift.shift_date) + '  ·  ' + d.lastShift.record_no)
+        V(money(amount), true),
+        S(sub)
       ];
       const pills = [];
       if (Number(d.lastShift.shift_hours) === 0 && !d.lastShift.is_open && d.lastShift.clock_out) {
@@ -633,15 +647,20 @@
         kids.push(el('div', { style: 'margin-top:7px' },
           pills.map(t => el('span', { class: 'pill warn', style: 'margin-right:6px', text: t }))));
       }
-      if (d.prevShift) {
-        // The previous shift becomes the mark to drive at rather than a line of
-        // grey text. Named at both ends so a morning's $34 against yesterday's
-        // $136 reads as "so far", not as a bad day.
-        const pd = parseDay(d.prevShift.shift_date);
+      // The mark to drive at, named at both ends so a morning's $34 against
+      // yesterday's $136 reads as "so far", not as a bad day. Like for like: a
+      // day's total is held against the previous day's total, and a single shift
+      // against the previous shift.
+      const markDate = todayDay ? prevDay && prevDay.day
+                                : d.prevShift && d.prevShift.shift_date;
+      const markAmount = todayDay ? prevDay && prevDay.income
+                                  : d.prevShift && d.prevShift.total_income;
+      if (markDate) {
+        const pd = parseDay(markDate);
         kids.push(compareMeter(
-          d.lastShift.total_income, d.prevShift.total_income,
+          amount, markAmount,
           isToday ? 'today so far' : 'this shift',
-          DAYS[pd.getDay()].slice(0, 3) + ' ' + shortDay(d.prevShift.shift_date)));
+          DAYS[pd.getDay()].slice(0, 3) + ' ' + shortDay(markDate)));
       }
       out.push(card(kids, 't-amber'));
     } else {

@@ -1068,6 +1068,23 @@ router.get('/dashboard', handle(async (_req, res) => {
       order by shift_date desc, clock_in desc nulls last, id desc
       limit 4`);
 
+  // The other half of the rule above. When the card is labelled "Today so far"
+  // the label promises the day, so it has to be the day: 2026-10-16 had DCF-0141
+  // and DCF-0142, and showing only the open one printed $49.48 against a real
+  // $113.46. Summed here rather than from recentShifts, whose four rows would
+  // silently drop shifts on a busy day. The two most recent dates with any shift:
+  // today (if it has one) and the day it is measured against.
+  const { rows: recentDays } = await pool.query(
+    `select shift_date as day,
+            round(sum(total_income), 2) as income,
+            count(*)::int               as shifts,
+            bool_or(is_open)            as open
+       from v_daily_cash_flow
+      where shift_date <= $1 and not is_placeholder
+      group by shift_date
+      order by shift_date desc
+      limit 2`, [today]);
+
   // Per service. Delivery count and income are measured identically for every
   // service; hours are not, so $ per delivery is the only fair cross-app rate.
   const { rows: bySource } = await pool.query(
@@ -1181,6 +1198,9 @@ router.get('/dashboard', handle(async (_req, res) => {
       weekdaysAgo: fresh.weekdays_ago === null ? null : Math.max(0, Number(fresh.weekdays_ago))
     },
     recentShifts: lastShifts,
+    recentDays: recentDays.map(r => ({
+      day: iso(r.day), income: Number(r.income), shifts: r.shifts, open: r.open
+    })),
     week: {
       ...week, dayOfWeek: d.into_week + 1, prior: weekPrior,
       delta: Number((Number(week.income) - Number(weekPrior.income)).toFixed(2))
