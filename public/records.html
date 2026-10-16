@@ -78,6 +78,13 @@
 
   .back { font-size: 13px; color: var(--muted); }
   .back:hover { color: var(--text); text-decoration: none; }
+  /* Inherits the h1's weight and colour, so it reads as the wordmark, not a link -
+     but it is a 44px-tall tap target on a phone, which is the point. */
+  /* Stays inline-block, not flex: .mark positions itself with vertical-align,
+     which a flex container would stop applying. Padding does the tap target. */
+  .home { color: inherit; text-decoration: none; display: inline-block; padding: 10px 0; }
+  .home:hover { text-decoration: none; }
+  .home:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
   .spacer { flex: 1; }
 
   /* Segmented control rather than three loose buttons: one object with a
@@ -406,14 +413,18 @@
 
 <header>
   <div class="head-row">
-    <h1><svg class="mark" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+    <!-- The wordmark is the way home. The "← dashboard" link beside it is hidden
+         under 640px, and Patforce is installed as a standalone PWA, so on a phone
+         there is no browser back button either - which left no way back to the
+         dashboard at all once you reached Records. The logo costs no header space. -->
+    <h1><a class="home" href="/" aria-label="Back to the dashboard"><svg class="mark" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
       <rect width="512" height="512" rx="112" fill="#d97706"/>
       <g fill="#fffbeb">
         <rect x="122" y="252" width="68" height="120" rx="16"/>
         <rect x="222" y="182" width="68" height="190" rx="16"/>
         <rect x="322" y="112" width="68" height="260" rx="16"/>
       </g>
-    </svg>Patforce</h1>
+    </svg>Patforce</a></h1>
     <a class="back" href="/">&larr; dashboard</a>
     <span class="spacer"></span>
     <button id="filter-toggle" aria-expanded="false" aria-controls="filters">Filters</button>
