@@ -1084,11 +1084,28 @@ router.get('/dashboard', handle(async (_req, res) => {
   const { rows: months } = await pool.query(
     `select to_char(m, 'Mon') as label, m::date as month_start,
             v.total_income as income, v.shifts_worked as shifts,
+            -- Hours and the rate come off the view rather than being divided here,
+            -- so the rate chart cannot disagree with the reports page.
+            v.shift_hours as hours, v.earnings_per_shift_hour as per_hour,
             (m = date_trunc('month', $1::date)) as current
        from generate_series(date_trunc('month', $1::date) - interval '5 months',
                             date_trunc('month', $1::date), interval '1 month') m
        left join v_month_cash_flow v on v.month_start = m::date
       order by m`, [today]);
+
+  // The week's shape, day by day. The week tile already knows its total; this is
+  // what turns that total into something you can see a Thursday dip in. Generated
+  // so a day off is a gap in the row rather than a missing bar nobody notices.
+  const { rows: weekDays } = await pool.query(
+    `select d::date                                          as day,
+            to_char(d, 'Dy')                                 as label,
+            coalesce(round(sum(v.total_income), 2), 0)       as income,
+            coalesce(round(sum(v.shift_hours_exact), 2), 0)  as hours,
+            (d::date = $2::date)                             as today
+       from generate_series($1::date, $2::date, interval '1 day') d
+       left join v_daily_cash_flow_raw v
+              on v.shift_date = d::date and not v.is_placeholder
+      group by d order by d`, [weekStart, today]);
 
   // Costs read expense_record directly over the same range the tile names, so the
   // figure reconciles with the Expenses tab. v_month_cash_flow's month rows sum to
@@ -1189,7 +1206,13 @@ router.get('/dashboard', handle(async (_req, res) => {
     months: months.map(m => ({
       label: m.label, monthStart: iso(m.month_start), current: m.current,
       income: m.income === null ? null : Number(m.income),
-      shifts: m.shifts === null ? null : Number(m.shifts)
+      shifts: m.shifts === null ? null : Number(m.shifts),
+      hours: m.hours === null ? null : Number(m.hours),
+      perHour: m.per_hour === null ? null : Number(m.per_hour)
+    })),
+    weekDays: weekDays.map(w => ({
+      day: iso(w.day), label: w.label, today: w.today,
+      income: Number(w.income), hours: Number(w.hours)
     })),
     costs: {
       month: Number(sum(costCats, 'amount').toFixed(2)),

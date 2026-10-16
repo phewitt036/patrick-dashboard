@@ -26,6 +26,43 @@
     --shadow:    0 1px 2px rgba(16,24,40,0.05);
     --ui:  system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+    /* Categorical slots for the service split, in fixed order - Uber is always
+       slot 1 whatever the filter leaves standing. Validated for colour-vision
+       deficiency against this surface; every segment is also directly labelled,
+       because the aqua sits under 3:1 on white. */
+    --src1: #2a78d6;
+    --src2: #eb6834;
+    --src3: #1baf7a;
+    --grid: #eceef2;
+  }
+
+  /* ---- charts ---- */
+  .plot { width: 100%; display: block; overflow: visible; margin-top: 10px; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .vaxis { fill: var(--dim); font-size: 11px; font-family: var(--ui); }
+  .vval  { fill: var(--muted); font-size: 11px; font-weight: 600; font-family: var(--mono); }
+  .seg-in{ fill: #fff; font-size: 12px; font-weight: 700; font-family: var(--mono); }
+  .vbar  { transition: opacity .12s; }
+  .vbar:hover, .dot:hover { opacity: .78; }
+  /* A partial month is drawn lighter so it cannot be read as a slump. */
+  .vbar.partial, .vbar.is-today { opacity: .5; }
+  .slot-off   { fill: var(--surface2); }
+  .slot-today { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px;
+                  color: var(--muted); margin-top: 10px; }
+  .chart-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+                    margin-right: 6px; vertical-align: -1px; }
+  #viz-tip { position: fixed; pointer-events: none; opacity: 0; transition: opacity .1s;
+             background: var(--text); color: #fff; font-size: 12px; padding: 6px 9px;
+             border-radius: 7px; white-space: nowrap; z-index: 60; font-family: var(--ui);
+             box-shadow: 0 4px 14px rgba(16,24,40,.22); }
+  #viz-tip b { font-family: var(--mono); }
+  @media (max-width: 640px) {
+    /* Six months of value labels at phone width turn to mush; the bar heights
+       still carry the shape, and the numbers are a tap away. */
+    .plot .vval { display: none; }
+    .plot .vaxis { font-size: 13px; }
   }
   * { box-sizing: border-box; }
   html, body { max-width: 100%; overflow-x: hidden; }
@@ -204,6 +241,175 @@
     return row;
   };
 
+  // ---- drawing ------------------------------------------------------------
+  // A row of labelled numbers tells you what happened; a shape tells you whether
+  // it is going the right way. Everything below draws figures that are already on
+  // this page - nothing here computes money.
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = (t, a = {}, kids = []) => {
+    const n = document.createElementNS(NS, t);
+    for (const [k, v] of Object.entries(a)) if (v !== null && v !== undefined) n.setAttribute(k, v);
+    for (const c of [].concat(kids)) if (c) n.append(c);
+    return n;
+  };
+
+  const tip = el('div', { id: 'viz-tip' });
+  document.body.append(tip);
+  const hoverable = (node, html) => {
+    const show = e => {
+      const p = e.touches ? e.touches[0] : e;
+      tip.innerHTML = html;
+      tip.style.opacity = 1;
+      tip.style.left = Math.max(6, Math.min(p.clientX + 12, innerWidth - tip.offsetWidth - 6)) + 'px';
+      tip.style.top = Math.max(6, p.clientY - tip.offsetHeight - 10) + 'px';
+    };
+    node.addEventListener('mousemove', show);
+    node.addEventListener('touchstart', show, { passive: true });
+    node.addEventListener('mouseleave', () => tip.style.opacity = 0);
+    node.addEventListener('touchend', () => setTimeout(() => tip.style.opacity = 0, 1600));
+    return node;
+  };
+
+  /** Rounded at the data end only, square on the baseline it stands on. */
+  const vbar = (x, base, w, h, fill, cls) => {
+    if (h <= 1) return svg('rect', { x, y: base - 1.5, width: w, height: 1.5, fill, rx: .75 });
+    const r = Math.min(4, h, w / 2);
+    return svg('path', {
+      d: `M${x},${base} v${-(h - r)} q0,${-r} ${r},${-r} h${w - 2 * r} q${r},0 ${r},${r} v${h - r} z`,
+      fill, class: 'vbar' + (cls ? ' ' + cls : '')
+    });
+  };
+
+  const chartCard = (title, subtitle, figure) =>
+    card([K(title), subtitle ? S(subtitle) : null, figure].filter(Boolean));
+
+  /** The week, day by day. A day off is an empty slot, not a bar of zero. */
+  function weekChart(days) {
+    const W = 460, BASE = 118, TOP = 20, BW = 100 / days.length * 4.2;
+    const earned = days.filter(x => x.income > 0).map(x => x.income);
+    const max = earned.length ? Math.max(...earned) : 1;
+    const g = svg('g');
+    const gap = (W - days.length * BW) / (days.length + 1);
+    for (const t of [0, .5, 1]) {
+      g.append(svg('line', { x1: 0, y1: BASE - t * (BASE - TOP), x2: W, y2: BASE - t * (BASE - TOP), class: 'gridline' }));
+    }
+    days.forEach((day, i) => {
+      const x = gap + i * (BW + gap);
+      if (day.income > 0) {
+        const h = (day.income / max) * (BASE - TOP);
+        const bar = vbar(x, BASE, BW, h, 'var(--accent)', day.today ? 'is-today' : null);
+        g.append(hoverable(bar, `<b>${money(day.income)}</b>${day.hours > 0 ? ` · ${day.hours} h · ${money(day.income / day.hours)}/hr` : ' · hours not in yet'}`));
+        g.append(svg('text', { x: x + BW / 2, y: BASE - h - 7, 'text-anchor': 'middle', class: 'vval' },
+          [document.createTextNode(money0(day.income))]));
+      } else {
+        g.append(svg('rect', { x, y: BASE - 22, width: BW, height: 22, rx: 4, class: day.today ? 'slot-today' : 'slot-off' }));
+        g.append(svg('text', { x: x + BW / 2, y: BASE - 28, 'text-anchor': 'middle', class: 'vaxis' },
+          [document.createTextNode(day.today ? 'today' : 'off')]));
+      }
+      g.append(svg('text', { x: x + BW / 2, y: BASE + 17, 'text-anchor': 'middle', class: 'vaxis' },
+        [document.createTextNode(day.label)]));
+    });
+    return svg('svg', { class: 'plot', viewBox: `0 0 ${W} 140`, role: 'img',
+      'aria-label': 'Income each day this week: ' + days.map(x =>
+        x.label + ' ' + (x.income > 0 ? money(x.income) : 'no shift')).join(', ') }, g);
+  }
+
+  /** Six months of income. A month with no records is an empty slot saying so. */
+  function monthsChart(ms, sinceIso) {
+    const W = 620, BASE = 172, TOP = 26;
+    const vals = ms.filter(x => x.income !== null).map(x => Number(x.income));
+    const max = vals.length ? Math.max(...vals) : 1;
+    const BW = 62, gap = (W - ms.length * BW) / (ms.length + 1);
+    const g = svg('g');
+    const step = max > 2000 ? 1000 : 500;
+    for (let v = 0; v <= max; v += step) {
+      const y = BASE - (v / max) * (BASE - TOP);
+      g.append(svg('line', { x1: 26, y1: y, x2: W, y2: y, class: 'gridline' }));
+      if (v) g.append(svg('text', { x: 0, y: y + 4, class: 'vaxis' },
+        [document.createTextNode('$' + v / 1000 + 'k')]));
+    }
+    ms.forEach((x, i) => {
+      const bx = gap + i * (BW + gap);
+      if (x.income === null) {
+        g.append(svg('text', { x: bx + BW / 2, y: BASE - 8, 'text-anchor': 'middle', class: 'vaxis' },
+          [document.createTextNode('none')]));
+      } else {
+        // The current month and a first month that began mid-month are both
+        // partial, and a solid bar beside complete ones would read as a slump.
+        const startsMidMonth = sinceIso && String(sinceIso).slice(0, 7) === String(x.monthStart).slice(0, 7) &&
+          parseDay(sinceIso).getDate() > 1;
+        const partial = x.current || startsMidMonth;
+        const h = (Number(x.income) / max) * (BASE - TOP);
+        const bar = vbar(bx, BASE, BW, h, 'var(--accent)', partial ? 'partial' : null);
+        g.append(hoverable(bar, `<b>${money(x.income)}</b> · ${plural(x.shifts, 'shift')}` +
+          (x.current ? ' · still running' : startsMidMonth ? ' · from the ' + ordinal(parseDay(sinceIso).getDate()) : '')));
+        g.append(svg('text', { x: bx + BW / 2, y: BASE - h - 8, 'text-anchor': 'middle', class: 'vval' },
+          [document.createTextNode(money0(x.income))]));
+      }
+      g.append(svg('text', { x: bx + BW / 2, y: BASE + 18, 'text-anchor': 'middle', class: 'vaxis' },
+        [document.createTextNode(x.label)]));
+    });
+    return svg('svg', { class: 'plot', viewBox: `0 0 ${W} 196`, role: 'img',
+      'aria-label': 'Income by month: ' + ms.map(x =>
+        x.label + ' ' + (x.income === null ? 'no records' : money0(x.income))).join(', ') }, g);
+  }
+
+  /** Earned per hour, month by month. One series, so no legend - the title names it. */
+  function rateChart(ms) {
+    const pts = ms.filter(x => x.perHour !== null && x.perHour > 0);
+    if (pts.length < 2) return null;
+    const W = 460, BASE = 132, TOP = 26;
+    const lo = Math.floor(Math.min(...pts.map(p => p.perHour)) / 5) * 5;
+    const hi = Math.ceil(Math.max(...pts.map(p => p.perHour)) / 5) * 5;
+    const X = i => 34 + i * ((W - 50) / (pts.length - 1));
+    const Y = v => BASE - ((v - lo) / (hi - lo || 1)) * (BASE - TOP);
+    const g = svg('g');
+    for (let v = lo; v <= hi; v += 5) {
+      g.append(svg('line', { x1: 30, y1: Y(v), x2: W, y2: Y(v), class: 'gridline' }));
+      g.append(svg('text', { x: 0, y: Y(v) + 4, class: 'vaxis' }, [document.createTextNode('$' + v)]));
+    }
+    g.append(svg('polyline', { points: pts.map((p, i) => `${X(i)},${Y(p.perHour)}`).join(' '),
+      fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2,
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    pts.forEach((p, i) => {
+      g.append(hoverable(svg('circle', { cx: X(i), cy: Y(p.perHour), r: 4.5, fill: 'var(--accent)',
+        stroke: 'var(--surface)', 'stroke-width': 2, class: 'dot' }),
+        `${p.label} · <b>${money(p.perHour)}</b>/hr over ${p.hours} h`));
+      g.append(svg('text', { x: X(i), y: BASE + 18, 'text-anchor': 'middle', class: 'vaxis' },
+        [document.createTextNode(p.label)]));
+    });
+    // Label the ends only. A number on every point is a table pretending to be a chart.
+    for (const i of [0, pts.length - 1]) {
+      g.append(svg('text', { x: X(i), y: Y(pts[i].perHour) - 12, 'text-anchor': 'middle', class: 'vval' },
+        [document.createTextNode(money(pts[i].perHour))]));
+    }
+    return svg('svg', { class: 'plot', viewBox: `0 0 ${W} 156`, role: 'img',
+      'aria-label': 'Earned per hour by month: ' + pts.map(p => p.label + ' ' + money(p.perHour)).join(', ') }, g);
+  }
+
+  /** One stacked bar. Every segment is directly labelled, so colour is never the
+      only thing carrying identity. */
+  function sourceChart(src) {
+    const total = src.reduce((a, b) => a + Number(b.income), 0);
+    if (!total) return null;
+    const W = 460, H = 30, GAP = 2;
+    const g = svg('g');
+    let x = 0;
+    src.forEach((b, i) => {
+      const full = (Number(b.income) / total) * W;
+      const w = Math.max(full - (i < src.length - 1 ? GAP : 0), 2);
+      const seg = svg('rect', { x, y: 4, width: w, height: H, rx: 5, fill: `var(--src${i + 1})`, class: 'vbar' });
+      g.append(hoverable(seg, `${b.source} · <b>${money(b.income)}</b> · ${b.share}% of the money`));
+      g.append(svg('text', {
+        x: x + full / 2, y: full > 46 ? 24 : 50, 'text-anchor': 'middle',
+        class: full > 46 ? 'seg-in' : 'vaxis'
+      }, [document.createTextNode(b.share + '%')]));
+      x += full;
+    });
+    return svg('svg', { class: 'plot', viewBox: `0 0 ${W} 58`, role: 'img',
+      'aria-label': 'Share of income: ' + src.map(b => b.source + ' ' + b.share + '%').join(', ') }, g);
+  }
+
   function render(d) {
     const out = [];
 
@@ -324,8 +530,11 @@
       S(weekLead
         ? 'Day ' + w.dayOfWeek + ' of 7  ·  ' + plural(w.shifts, 'shift')
         : 'Day ' + w.dayOfWeek + ' of 7  ·  no shifts yet'),
-      deltaLine('Same days last week', w.prior.income, w.delta, w.prior.shifts)
-    ]));
+      deltaLine('Same days last week', w.prior.income, w.delta, w.prior.shifts),
+      // The same money again, as a shape. The total says how much; this says
+      // which day went wrong, which is the thing he can act on tomorrow.
+      (d.weekDays && d.weekDays.length > 1) ? weekChart(d.weekDays) : null
+    ].filter(Boolean)));
 
     // ---- this month -----------------------------------------------------
     const m = d.month;
@@ -382,14 +591,20 @@
       if (d.scope && d.scope.since) {
         kids.push(S('Everything since ' + withYear(d.scope.since)));
       }
-      const top = src.slice(0, 2);
-      for (const b of top) {
-        kids.push(barRow(b.source, money0(b.income) + '  ·  ' + money(b.perDelivery) + ' each', b.share));
-        kids.push(el('div', { class: 'thin', style: 'margin-top:3px',
-          text: plural(b.deliveries, 'delivery').replace('deliverys', 'deliveries') + '  ·  ' + b.share + '% of the money' }));
+      // One stacked bar carries the split at a glance; the per-delivery rate still
+      // gets a line each, because that is the only fair cross-service comparison
+      // and no bar can say it.
+      const chart = sourceChart(src);
+      if (chart) {
+        kids.push(chart);
+        kids.push(el('div', { class: 'chart-legend' }, src.map((b, i) =>
+          el('span', {}, [el('i', { style: 'background:var(--src' + (i + 1) + ')' }),
+                          document.createTextNode(b.source)]))));
       }
-      for (const b of src.slice(2)) {
-        kids.push(T(b.source + ': ' + money(b.income) + ' across ' + plural(b.deliveries, 'delivery').replace('deliverys', 'deliveries')));
+      for (const b of src) {
+        kids.push(el('div', { class: 'thin', style: 'margin-top:6px',
+          text: b.source + ': ' + money0(b.income) + '  ·  ' + money(b.perDelivery) + ' each across ' +
+                plural(b.deliveries, 'delivery').replace('deliverys', 'deliveries') }));
       }
       out.push(card(kids));
     }
@@ -400,29 +615,22 @@
     // nine-week stop into a smooth decline, and drawing it as $0 would claim he
     // earned nothing when in truth nothing was entered.
     const ms = d.months || [];
-    const complete = ms.filter(x => !x.current && x.income !== null).map(x => Number(x.income));
-    const scale = complete.length ? Math.max(...complete) : Math.max(1, ...ms.map(x => Number(x.income) || 0));
     if (ms.length) {
-      const kids = [K('Last 6 months')];
-      for (const x of ms) {
-        if (x.income === null) {
-          kids.push(barRow(x.label, 'no records', 0, { empty: true }));
-        } else {
-          // The first month on record is as partial as the current one - tracking
-          // began on the 21st - and it sets the eye's baseline for the whole strip.
-          const startsMidMonth = d.scope && d.scope.since &&
-            String(d.scope.since).slice(0, 7) === String(x.monthStart).slice(0, 7) &&
-            parseDay(d.scope.since).getDate() > 1;
-          kids.push(barRow(
-            x.label + (x.current ? ' (so far)'
-              : startsMidMonth ? ' (from the ' + ordinal(parseDay(d.scope.since).getDate()) + ')' : ''),
-            money0(x.income) + '  ·  ' + plural(x.shifts, 'shift'),
-            scale > 0 ? (Number(x.income) / scale) * 100 : 0,
-            { muted: x.current || startsMidMonth }
-          ));
-        }
+      const since = d.scope && d.scope.since;
+      const cur = ms.find(x => x.current);
+      out.push(chartCard('Last 6 months',
+        cur && cur.income !== null
+          ? d.monthName + ' is still running — ' + plural(cur.shifts, 'shift') + ' so far'
+          : null,
+        monthsChart(ms, since)));
+
+      // Earned per hour, which is the number that actually moves, and the one
+      // thing a column of monthly totals cannot show you the direction of.
+      const rate = rateChart(ms);
+      if (rate) {
+        out.push(chartCard('Earned per hour',
+          'By month, across every hour clocked in', rate));
       }
-      out.push(card(kids));
     }
 
     // ---- costs ------------------------------------------------------------
