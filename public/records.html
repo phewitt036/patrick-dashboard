@@ -1698,5 +1698,50 @@
   })();
 })();
 </script>
+<!-- Installed as an app, this page never reloads itself: going back to it resumes
+     whatever was loaded, so a deploy can sit unseen all day - on 2026-10-16 the
+     expense receipts were live on boss for an hour while the phone still ran the
+     old page. On each return it asks the server for this page's fingerprint (the
+     ETag the server already sends) and, if the file has changed, OFFERS a reload.
+     It never forces one: a half-filled form must not vanish under him. -->
+<style>
+  #update-bar {
+    position: fixed; left: 12px; right: 12px; bottom: 14px; z-index: 100;
+    max-width: 520px; margin: 0 auto;
+    display: flex; align-items: center; gap: 12px; justify-content: space-between;
+    padding: 11px 12px 11px 16px; border-radius: 12px;
+    background: #b45309; color: #fff;
+    font: 600 14px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    box-shadow: 0 8px 24px rgba(16,24,40,.24);
+  }
+  #update-bar[hidden] { display: none; }
+  #update-bar button {
+    background: #fff; color: #b45309; border: 0; border-radius: 999px;
+    padding: 9px 16px; min-height: 40px; font: inherit; font-weight: 700; cursor: pointer;
+  }
+</style>
+<div id="update-bar" role="status" hidden>
+  <span>Patforce has been updated.</span>
+  <button type="button" id="update-go">Reload</button>
+</div>
+<script>
+(() => {
+  const bar = document.getElementById('update-bar');
+  const fingerprint = async () => {
+    const r = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store', credentials: 'same-origin' });
+    // A lapsed session redirects to the login page, whose fingerprint differs.
+    // That is not an update, so it is not reported as one.
+    return (r.ok && !r.redirected) ? r.headers.get('etag') : null;
+  };
+  let loaded = null;
+  fingerprint().then(t => { loaded = t; }).catch(() => {});
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible' || !loaded) return;
+    const now = await fingerprint().catch(() => null);
+    if (now && now !== loaded) bar.hidden = false;
+  });
+  document.getElementById('update-go').addEventListener('click', () => location.reload());
+})();
+</script>
 </body>
 </html>
