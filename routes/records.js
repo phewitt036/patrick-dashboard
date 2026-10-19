@@ -43,6 +43,15 @@ function filters() {
       params.push(value);
       where.push(sql.replaceAll('$', `$${params.length}`));
     },
+    // Alternatives joined by OR, each binding its own value: one search box
+    // that can mean a record number, an amount or a date.
+    addAny(parts) {
+      if (!parts.length) return;
+      where.push('(' + parts.map(([sql, value]) => {
+        params.push(value);
+        return sql.replaceAll('$', `$${params.length}`);
+      }).join(' or ') + ')');
+    },
     get clause() { return where.length ? `where ${where.join(' and ')}` : ''; },
     get params() { return params; }
   };
@@ -382,6 +391,72 @@ const INCOME_SORTS = {
 
 const RIDE_TYPES = ['regular', 'airport', 'reservation'];
 const BONUS = ['with', 'none'];
+// The level filter's choice for the records that never had one written down.
+const NO_LEVEL = '(none)';
+
+/**
+ * What the income search box means, as alternatives any one of which can match.
+ *
+ * He searches to find one record without paging through forty pages, so a
+ * number is read as the things a number can be - a record (1913, INC-1913), an
+ * exact amount on any of the four money fields, or (three digits and up) part of
+ * a store's address - rather than as text over the record numbers too, where
+ * "150" would also match every INC-x150.
+ * A shift number (DCF-0119) finds that shift's records; a date (2026-09-25,
+ * 9/25/2026, or 9/25 in any year) finds that day's. Anything else is text, over
+ * store, platform, Uber level, notes and both record numbers.
+ *
+ * Only income_record columns, because the bulk tick runs the same filter
+ * against the bare table.
+ */
+function incomeSearch(raw) {
+  const q = String(raw).trim().slice(0, 100);
+  if (!q) return [];
+  const parts = [];
+
+  const rec = q.match(/^(inc|dcf)?[\s#-]*(\d{1,6})$/i);
+  if (rec) {
+    const no = rec[2].replace(/^0+(?=\d)/, '').padStart(4, '0');
+    if ((rec[1] || '').toLowerCase() === 'dcf') {
+      parts.push(['r.daily_cash_flow_id in (select id from daily_cash_flow where record_no = $)', `DCF-${no}`]);
+    } else {
+      parts.push(['r.record_no = $', `INC-${no}`]);
+    }
+  }
+
+  const amount = q.match(/^\$?\s*(\d{1,6}(?:\.\d{1,2})?)$/);
+  if (amount) parts.push(['$::numeric in (r.total_earnings, r.amount, r.tips, r.surge_bonus)', amount[1]]);
+
+  // Three or more digits can also be part of an address (6020 Long Prairie Rd);
+  // shorter ones would match half the stores in the table.
+  if (/^\d{3,}$/.test(q)) parts.push(['(r.store ilike $ or r.notes ilike $)', `%${q}%`]);
+
+  const iso = q.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const us = q.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/);
+  const ymd = iso ? [iso[1], iso[2], iso[3]]
+            : us && us[3] ? [us[3].length === 2 ? '20' + us[3] : us[3], us[1], us[2]]
+            : null;
+  const pad = n => String(n).padStart(2, '0');
+  if (ymd) {
+    const [y, m, d] = ymd.map(Number);
+    const day = new Date(Date.UTC(y, m - 1, d));
+    if (day.getUTCFullYear() === y && day.getUTCMonth() === m - 1 && day.getUTCDate() === d) {
+      parts.push(['r.income_date = $::date', `${y}-${pad(m)}-${pad(d)}`]);
+    }
+  } else if (us && Number(us[1]) >= 1 && Number(us[1]) <= 12 && Number(us[2]) >= 1 && Number(us[2]) <= 31) {
+    parts.push([`to_char(r.income_date, 'MM-DD') = $`, `${pad(us[1])}-${pad(us[2])}`]);
+  }
+
+  if (!parts.length) {
+    // Text. % and _ typed into the box are literal, not wildcards.
+    const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+    parts.push(
+      ['(r.store ilike $ or r.source ilike $ or r.uber_level ilike $ or r.notes ilike $ or r.record_no ilike $)', like],
+      ['r.daily_cash_flow_id in (select id from daily_cash_flow where record_no ilike $)', like]
+    );
+  }
+  return parts;
+}
 
 /**
  * The income list's filters, shared by the list and by the bulk tick below so the
@@ -392,19 +467,26 @@ const BONUS = ['with', 'none'];
  * the list of likely reservations to look over and tick.
  */
 function incomeFilter(query) {
-  const { from, to, source, q, ride, bonus } = query;
+  const { from, to, source, q, ride, bonus, level } = query;
   const f = filters();
   if (from) f.add('r.income_date >= $', requiredDate(from, 'from'));
   if (to) f.add('r.income_date <= $', requiredDate(to, 'to'));
   if (source) f.add('r.source = $', oneOf(source, SOURCES, 'source'));
-  // One search box over the three fields worth searching.
-  if (q) f.add('(r.store ilike $ or r.notes ilike $ or r.record_no ilike $)', `%${q}%`);
+  if (q) f.addAny(incomeSearch(q));
   // Compared with a bound true rather than written bare, because add() always binds.
   if (ride) {
     const kind = oneOf(ride, RIDE_TYPES, 'ride');
     f.add(kind === 'airport' ? 'r.is_airport = $'
         : kind === 'reservation' ? 'r.is_reservation = $'
         : '(not r.is_airport and not r.is_reservation) = $', true);
+  }
+  // Uber level (UberX, Comfort...) is its own filter beside ride type: one is the
+  // product he was sent, the other how the trip was booked or where it went.
+  // Matched as stored rather than against a list, since the list is whatever
+  // Uber has called its products on his screenshots.
+  if (level) {
+    if (level === NO_LEVEL) f.add(`coalesce(r.uber_level, '') = $`, '');
+    else f.add('r.uber_level = $', String(level).slice(0, 60));
   }
   if (bonus) f.add('(coalesce(r.surge_bonus, 0) > 0) = $', oneOf(bonus, BONUS, 'bonus') === 'with');
   return f;
@@ -833,16 +915,22 @@ router.delete('/shifts/:id', handle(async (req, res) => {
 // ---------------------------------------------------------------------------
 
 router.get('/meta', handle(async (req, res) => {
-  const [bounds, unlinked, open] = await Promise.all([
+  const [bounds, unlinked, open, levels] = await Promise.all([
     pool.query(`select min(income_date) as first, max(income_date) as last,
                        count(*)::int as income_count from income_record`),
     pool.query(`select (select count(*)::int from income_record where daily_cash_flow_id is null) as income,
                        (select count(*)::int from expense_record where daily_cash_flow_id is null) as expenses`),
-    pool.query(`select id, record_no, shift_date, clock_in from v_daily_cash_flow where is_open limit 1`)
+    pool.query(`select id, record_no, shift_date, clock_in from v_daily_cash_flow where is_open limit 1`),
+    // Whatever levels the records actually carry, most used first so UberX leads.
+    pool.query(`select uber_level as level from income_record
+                 where coalesce(uber_level, '') <> ''
+                 group by uber_level order by count(*) desc, uber_level`)
   ]);
   res.json({
     sources: SOURCES,
     expenseTypes: EXPENSE_TYPES,
+    uberLevels: levels.rows.map(r => r.level),
+    noLevel: NO_LEVEL,
     dateRange: bounds.rows[0],
     unlinked: unlinked.rows[0],
     openShift: open.rows[0] || null,

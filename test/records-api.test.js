@@ -115,6 +115,34 @@ const eq = (label, got, want) =>
         JSON.stringify(bySource.records.map(r => r.source)));
   const search = (await GET('/income?q=Panera&from=2026-06-01&to=2026-06-30')).body;
   check('search matches the store across all three columns', search.total === 1, String(search.total));
+  // The same box read the way he types: a record number, an amount, a date.
+  const panera = search.records[0];
+  const has = body => body.records.some(r => r.id === panera.id);
+  check('a bare number finds the record it names',
+        has((await GET(`/income?q=${panera.record_no.replace(/^INC-0*/, '')}`)).body));
+  const byNo = (await GET(`/income?q=${panera.record_no}`)).body;
+  check('INC-number finds exactly that record', byNo.total === 1 && has(byNo), String(byNo.total));
+  check('an exact amount finds it',
+        has((await GET(`/income?q=${encodeURIComponent('$' + panera.total_earnings)}&from=2026-06-01&to=2026-06-30`)).body));
+  const byDay = (await GET(`/income?q=${panera.income_date}`)).body;
+  check('a date finds that day and only that day',
+        has(byDay) && byDay.records.every(r => r.income_date === panera.income_date), String(byDay.total));
+  check('a number nothing carries finds nothing', (await GET('/income?q=999999')).body.total === 0);
+
+  // Uber level is its own filter, built from what the records hold.
+  const levels = (await GET('/meta')).body.uberLevels;
+  check('meta lists the Uber levels in use', Array.isArray(levels) && levels.includes('UberX'), JSON.stringify(levels));
+  const first = levels[0];
+  const everything = (await GET('/income?limit=1')).body.total;
+  const one = (await GET(`/income?limit=500&level=${encodeURIComponent(first)}`)).body;
+  check('level filter keeps only that level',
+        one.total >= 1 && one.records.every(r => r.uber_level === first), `${first}: ${one.total}`);
+  const noLevel = (await GET(`/income?limit=500&level=${encodeURIComponent('(none)')}`)).body;
+  check('"Not recorded" keeps only records without one',
+        noLevel.records.every(r => !r.uber_level) && noLevel.total + one.total <= everything, String(noLevel.total));
+  const both = (await GET(`/income?limit=500&level=${encodeURIComponent(first)}&ride=regular`)).body;
+  check('level and ride type combine', both.total <= one.total &&
+        both.records.every(r => r.uber_level === first && !r.is_airport && !r.is_reservation), String(both.total));
   eq('unknown sort falls back rather than injecting',
      (await GET('/income?sort=id;drop&limit=1')).status, 200);
 

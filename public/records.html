@@ -255,6 +255,15 @@
   tbody tr:hover { background: #fafbfc; }
   .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .rec { color: var(--dim); font-family: var(--mono); font-size: 12px; }
+  .clip {
+    display: inline-block; max-width: 22ch; vertical-align: bottom;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  td.plat { white-space: normal; }
+  td.plat .pill { white-space: nowrap; margin-top: 2px; }
+  .pill.level { background: transparent; border-color: var(--border); }
+  .search-field { flex: 1 1 240px; max-width: 420px; }
+  .search-field input { max-width: none; }
   .muted { color: var(--muted); }
 
   .pill {
@@ -614,7 +623,7 @@
     ? startup.get('tab') : 'income';
   const startFilter = {};
   if (startup.get('needs') === 'clockout') startFilter.needsClockOut = '1';
-  for (const k of ['from', 'to', 'source', 'type', 'q', 'ride', 'bonus']) {
+  for (const k of ['from', 'to', 'source', 'type', 'q', 'ride', 'level', 'bonus']) {
     if (startup.get(k)) startFilter[k] = startup.get(k);
   }
 
@@ -629,10 +638,21 @@
 
   // Small tags beside the platform, so airport and reserved rides can be picked
   // out of the list at a glance.
+  // The Uber level comes first and outlined, so the product (UberX, Comfort) reads
+  // apart from how the ride was booked or where it went.
   const rideTags = r => [
+    r.uber_level ? el('span', { class: 'pill level', style: 'margin-left:4px', text: r.uber_level }) : null,
     r.is_airport ? el('span', { class: 'pill', style: 'margin-left:4px', text: 'Airport' }) : null,
     r.is_reservation ? el('span', { class: 'pill', style: 'margin-left:4px', text: 'Reserved' }) : null
   ].filter(Boolean);
+
+  // A free-text cell that cannot widen the table. Cells never wrap, so one long
+  // store - "Jason's Deli (6020 Long Prairie Rd)", INC-1738 - pushed page 4 past
+  // the window and gave it a sideways scrollbar page 1 did not have. Cut short
+  // with an ellipsis; the whole text is on hover, and in the record's detail.
+  const clipCell = (text, cls = '') => text
+    ? el('td', { class: cls }, el('span', { class: 'clip', title: text, text }))
+    : el('td', { class: 'muted', text: '—' });
 
   const TABS = {
     income: {
@@ -653,7 +673,10 @@
       },
       row: r => el('tr', {}, [
         el('td', {}, [el('div', { text: r.income_date }), el('div', { class: 'rec', text: r.record_no })]),
-        el('td', {}, [
+        // The only cell allowed to wrap: with Airport and Reserved both ticked it is
+        // the widest column, so the tags drop under the platform when the table
+        // would otherwise run past the window.
+        el('td', { class: 'plat' }, [
           // Uber Eats gets its own colour. startsWith('Uber') lumped it in with
           // rideshare, which is the one distinction this whole app turns on.
           el('span', { class: 'src ' + srcClass(r.source) }, [
@@ -662,7 +685,7 @@
           ]),
           ...rideTags(r)
         ]),
-        el('td', { class: r.store ? '' : 'muted', text: r.store || '—' }),
+        clipCell(r.store),
         el('td', { class: 'num', text: money(r.amount) }),
         el('td', { class: 'num', text: r.tips ? money(r.tips) : '—' }),
         el('td', { class: 'num', text: r.surge_bonus ? money(r.surge_bonus) : '—' }),
@@ -713,9 +736,9 @@
       row: r => el('tr', {}, [
         el('td', {}, [el('div', { text: r.expense_date }), el('div', { class: 'rec', text: r.record_no })]),
         el('td', {}, el('span', { class: 'pill', text: r.type || 'none' })),
-        el('td', { class: r.store ? '' : 'muted', text: r.store || '—' }),
+        clipCell(r.store),
         el('td', { class: 'num', text: money(r.amount) }),
-        el('td', { class: 'muted', text: r.type_explanation || '—' }),
+        clipCell(r.type_explanation, 'muted'),
         el('td', {}, r.shift_record_no
           ? el('span', { class: 'rec', text: r.shift_record_no })
           : el('span', { class: 'pill warn', text: 'unlinked' })),
@@ -1338,6 +1361,29 @@
         onchange: e => { state.filter[key] = e.target.value; state.offset = 0; load(); }
       })
     ]);
+    if (state.tab === 'income') {
+      // First in the row, and it searches as he types: finding INC-1913 should not
+      // mean paging through 38 pages or knowing to press Enter. The server reads a
+      // number as a record or an amount, so 1913, INC-1913, 7.51 and 9/25 all work.
+      let typing;
+      const search = () => {
+        clearTimeout(typing);
+        // Gone if he switched tabs while the timer ran.
+        if (!$('#f-q')) return;
+        const v = $('#f-q').value.trim();
+        if (v === (state.filter.q || '')) return;
+        state.filter.q = v; state.offset = 0; load();
+      };
+      f.append(el('div', { class: 'field search-field' }, [
+        el('label', { text: 'Search', for: 'f-q' }),
+        el('input', {
+          type: 'search', id: 'f-q', placeholder: 'INC-1913, Chipotle, 7.51, 9/25…', value: state.filter.q || '',
+          autocomplete: 'off', enterkeyhint: 'search',
+          oninput: () => { clearTimeout(typing); typing = setTimeout(search, 350); },
+          onchange: search
+        })
+      ]));
+    }
     f.append(dateField('from', 'From'), dateField('to', 'To'));
 
     if (state.tab === 'income') {
@@ -1363,14 +1409,13 @@
         })))
       ]);
       f.append(pick('ride', 'Ride type', [['', 'All'], ['regular', 'Regular'], ['airport', 'Airport'], ['reservation', 'Reservation']]));
+      // A second filter, not more choices in Ride type: the level is the product he
+      // was sent, ride type is how it was booked. The list is whatever the records
+      // hold, so a new Uber product appears here the day Pixit first reads one.
+      f.append(pick('level', 'Uber level', [['', 'All']]
+        .concat((state.meta.uberLevels || []).map(l => [l, l]))
+        .concat([[state.meta.noLevel || '(none)', 'Not recorded']])));
       f.append(pick('bonus', 'Surge / bonus', [['', 'Any'], ['with', 'Has a bonus'], ['none', 'No bonus']]));
-      f.append(el('div', { class: 'field', style: 'flex:1 1 180px' }, [
-        el('label', { text: 'Search store, note or number', for: 'f-q' }),
-        el('input', {
-          type: 'search', id: 'f-q', placeholder: 'Chipotle…', value: state.filter.q || '',
-          onchange: e => { state.filter.q = e.target.value; state.offset = 0; load(); }
-        })
-      ]));
     }
     if (state.tab === 'shifts') {
       f.append(el('div', { class: 'field' }, [
@@ -1409,7 +1454,7 @@
   function rememberView() {
     const p = new URLSearchParams();
     if (state.tab !== 'income') p.set('tab', state.tab);
-    for (const k of ['from', 'to', 'source', 'type', 'q', 'ride', 'bonus']) if (state.filter[k]) p.set(k, state.filter[k]);
+    for (const k of ['from', 'to', 'source', 'type', 'q', 'ride', 'level', 'bonus']) if (state.filter[k]) p.set(k, state.filter[k]);
     if (state.filter.needsClockOut) p.set('needs', 'clockout');
     if (state.tab === 'report') {
       if (report.grain !== 'month') p.set('grain', report.grain);
@@ -1419,7 +1464,12 @@
     try { history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '')); } catch {}
   }
 
+  // Searching as he types can put two loads in flight; only the latest may draw,
+  // or a slow answer for "19" lands on top of the one for "1913".
+  let loadSeq = 0;
+
   async function load() {
+    const seq = ++loadSeq;
     rememberView();
     // The report is not a table, so it takes the whole panel instead.
     const isReport = state.tab === 'report';
@@ -1441,6 +1491,7 @@
 
     try {
       const data = await cfg.load();
+      if (seq !== loadSeq) return;
       const rows = data.records || [];
       // A row only sees itself, so anything it draws to scale needs the page's
       // largest value handed to it first.
@@ -1462,7 +1513,8 @@
             }
             return tr;
           })
-        : [el('tr', {}, el('td', { colspan: cfg.columns.length, class: 'empty', text: 'Nothing here yet.' }))]));
+        : [el('tr', {}, el('td', { colspan: cfg.columns.length, class: 'empty',
+            text: state.tab === 'income' && state.filter.q ? `Nothing matches "${state.filter.q}".` : 'Nothing here yet.' }))]));
 
       const bits = cfg.summary(data);
       const un = state.meta.unlinked;
@@ -1473,6 +1525,7 @@
       renderBulk(data);
       renderPager(data);
     } catch (e) {
+      if (seq !== loadSeq) return;
       $('#tbody').replaceChildren(el('tr', {}, el('td', {
         colspan: cfg.columns.length, class: 'empty', text: e.message
       })));
@@ -1494,7 +1547,7 @@
     box.hidden = !(state.tab === 'income' && state.filter.source === 'Uber' && n > 0 && n <= 500);
     if (box.hidden) return;
     const filter = {};
-    for (const k of ['from', 'to', 'source', 'q', 'ride', 'bonus']) if (state.filter[k]) filter[k] = state.filter[k];
+    for (const k of ['from', 'to', 'source', 'q', 'ride', 'level', 'bonus']) if (state.filter[k]) filter[k] = state.filter[k];
     const go = async (on) => {
       const what = `${on ? 'Tick' : 'Clear'} Reservation on all ${n} ride${n === 1 ? '' : 's'} in this list?` +
         (n > (data.records || []).length ? `\n\nThat includes ${n - data.records.length} on later pages.` : '');
