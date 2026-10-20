@@ -143,6 +143,32 @@ const eq = (label, got, want) =>
   const both = (await GET(`/income?limit=500&level=${encodeURIComponent(first)}&ride=regular`)).body;
   check('level and ride type combine', both.total <= one.total &&
         both.records.every(r => r.uber_level === first && !r.is_airport && !r.is_reservation), String(both.total));
+
+  // Every record list searches the same way, and the find box searches them all.
+  const shift = (await GET('/shifts?limit=1')).body.shifts[0];
+  const byShiftNo = (await GET(`/shifts?q=${shift.record_no}`)).body.shifts;
+  check('shifts: its number finds that shift', byShiftNo.length === 1 && byShiftNo[0].id === shift.id, String(byShiftNo.length));
+  const byShiftDay = (await GET(`/shifts?q=${shift.shift_date}`)).body.shifts;
+  check('shifts: a date finds that day', byShiftDay.some(s => s.id === shift.id) &&
+        byShiftDay.every(s => s.shift_date === shift.shift_date), String(byShiftDay.length));
+  if (panera.daily_cash_flow_id) {
+    check('shifts: an income number finds the shift it was earned on',
+          (await GET(`/shifts?q=${panera.record_no}`)).body.shifts.some(s => s.id === panera.daily_cash_flow_id));
+  }
+  const week = (await GET('/weeks?limit=1')).body.weeks[0];
+  const byWeekNo = (await GET(`/weeks?q=${week.record_no}`)).body.weeks;
+  check('weeks: its number finds that week', byWeekNo.length === 1 && byWeekNo[0].id === week.id, String(byWeekNo.length));
+  const byWeekDay = (await GET(`/weeks?q=${week.end_date}`)).body.weeks;
+  check('weeks: a date finds the week holding it', byWeekDay.length === 1 && byWeekDay[0].id === week.id, String(byWeekDay.length));
+  const found = (await GET(`/find?q=${panera.record_no}`)).body;
+  check('find: a record number comes back first, marked exact',
+        found.hits[0] && found.hits[0].kind === 'income' && found.hits[0].id === panera.id && found.hits[0].exact,
+        JSON.stringify(found.hits[0]));
+  const foundShift = (await GET(`/find?q=${shift.record_no}`)).body;
+  check('find: a shift number is that shift alone, not its records',
+        foundShift.hits.length === 1 && foundShift.hits[0].kind === 'shift' && foundShift.hits[0].id === shift.id,
+        JSON.stringify(foundShift.hits.map(h => h.record_no)));
+  check('find: nothing typed finds nothing', (await GET('/find?q=')).body.hits.length === 0);
   eq('unknown sort falls back rather than injecting',
      (await GET('/income?sort=id;drop&limit=1')).status, 200);
 
@@ -152,6 +178,11 @@ const eq = (label, got, want) =>
   });
   eq('expense created', exp.status, 201);
   check('expense auto-linked', exp.body.daily_cash_flow_id !== null, String(exp.body.daily_cash_flow_id));
+  const expByNo = (await GET(`/expenses?q=${exp.body.record_no}`)).body;
+  check('expenses: its number finds it', expByNo.total === 1 && expByNo.records[0].id === exp.body.id, String(expByNo.total));
+  check('expenses: store text and an exact amount find it',
+        (await GET('/expenses?q=evgo&from=2026-06-01&to=2026-06-30')).body.records.some(r => r.id === exp.body.id) &&
+        (await GET('/expenses?q=18.40&from=2026-06-01&to=2026-06-30')).body.records.some(r => r.id === exp.body.id));
   eq('unknown type rejected',
      (await POST('/expenses', { expenseDate: '2026-06-02', amount: 5, type: 'Parking' })).body.error,
      'type must be one of: Food, Charging, Toll, Tires, Maintenance, Other');

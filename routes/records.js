@@ -395,41 +395,48 @@ const BONUS = ['with', 'none'];
 const NO_LEVEL = '(none)';
 
 /**
- * What the income search box means, as alternatives any one of which can match.
+ * What a search box means, as alternatives any one of which can match. One
+ * reading for every record list, and for the header's find-anything box.
  *
  * He searches to find one record without paging through forty pages, so a
  * number is read as the things a number can be - a record (1913, INC-1913), an
- * exact amount on any of the four money fields, or (three digits and up) part of
- * a store's address - rather than as text over the record numbers too, where
- * "150" would also match every INC-x150.
- * A shift number (DCF-0119) finds that shift's records; a date (2026-09-25,
- * 9/25/2026, or 9/25 in any year) finds that day's. Anything else is text, over
- * store, platform, Uber level, notes and both record numbers.
+ * exact amount on any of the list's money fields, or (three digits and up) part
+ * of a store's address - rather than as text over the record numbers too, where
+ * "150" would also match every INC-x150. Another type's number finds what it
+ * belongs to or holds: DCF-0119 on Income is that shift's records, INC-1913 on
+ * Shifts is the shift it was earned on. A date (2026-09-25, 9/25/2026, or 9/25
+ * in any year) finds that day's. Anything else is text over the list's own
+ * text columns.
  *
- * Only income_record columns, because the bulk tick runs the same filter
- * against the bare table.
+ * `related: false` is the find box, which wants each record by its own number
+ * only, so that DCF-0119 lands on the shift rather than on its ten deliveries.
  */
-function incomeSearch(raw) {
+const RECORD_PREFIXES = ['INC', 'EXP', 'DCF', 'WCF'];
+
+function searchParts(raw, t, { related = true } = {}) {
   const q = String(raw).trim().slice(0, 100);
   if (!q) return [];
   const parts = [];
 
-  const rec = q.match(/^(inc|dcf)?[\s#-]*(\d{1,6})$/i);
-  if (rec) {
-    const no = rec[2].replace(/^0+(?=\d)/, '').padStart(4, '0');
-    if ((rec[1] || '').toLowerCase() === 'dcf') {
-      parts.push(['r.daily_cash_flow_id in (select id from daily_cash_flow where record_no = $)', `DCF-${no}`]);
-    } else {
-      parts.push(['r.record_no = $', `INC-${no}`]);
-    }
+  const rec = q.match(/^([a-z]{3})?[\s#-]*(\d{1,6})$/i);
+  const prefix = rec && (rec[1] || t.prefix).toUpperCase();
+  if (rec && RECORD_PREFIXES.includes(prefix)) {
+    const no = `${prefix}-${rec[2].replace(/^0+(?=\d)/, '').padStart(4, '0')}`;
+    if (prefix === t.prefix) parts.push([`${t.record} = $`, no]);
+    else if (related && t.related && t.related[prefix]) parts.push([t.related[prefix], no]);
+    // A record number typed with its prefix is never also read as text: on the
+    // find box, DCF-0119 would otherwise match every record that mentions it.
+    if (rec[1]) return parts.length ? parts : [['$::boolean', false]];
   }
 
   const amount = q.match(/^\$?\s*(\d{1,6}(?:\.\d{1,2})?)$/);
-  if (amount) parts.push(['$::numeric in (r.total_earnings, r.amount, r.tips, r.surge_bonus)', amount[1]]);
+  if (amount && t.amounts) parts.push([`$::numeric in (${t.amounts.join(', ')})`, amount[1]]);
 
   // Three or more digits can also be part of an address (6020 Long Prairie Rd);
   // shorter ones would match half the stores in the table.
-  if (/^\d{3,}$/.test(q)) parts.push(['(r.store ilike $ or r.notes ilike $)', `%${q}%`]);
+  if (t.address && /^\d{3,}$/.test(q)) {
+    parts.push([`(${t.address.map(c => `${c} ilike $`).join(' or ')})`, `%${q}%`]);
+  }
 
   const iso = q.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   const us = q.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/);
@@ -441,22 +448,79 @@ function incomeSearch(raw) {
     const [y, m, d] = ymd.map(Number);
     const day = new Date(Date.UTC(y, m - 1, d));
     if (day.getUTCFullYear() === y && day.getUTCMonth() === m - 1 && day.getUTCDate() === d) {
-      parts.push(['r.income_date = $::date', `${y}-${pad(m)}-${pad(d)}`]);
+      parts.push([t.onDate, `${y}-${pad(m)}-${pad(d)}`]);
     }
   } else if (us && Number(us[1]) >= 1 && Number(us[1]) <= 12 && Number(us[2]) >= 1 && Number(us[2]) <= 31) {
-    parts.push([`to_char(r.income_date, 'MM-DD') = $`, `${pad(us[1])}-${pad(us[2])}`]);
+    parts.push([t.onMonthDay, `${pad(us[1])}-${pad(us[2])}`]);
   }
 
   if (!parts.length) {
     // Text. % and _ typed into the box are literal, not wildcards.
     const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
-    parts.push(
-      ['(r.store ilike $ or r.source ilike $ or r.uber_level ilike $ or r.notes ilike $ or r.record_no ilike $)', like],
-      ['r.daily_cash_flow_id in (select id from daily_cash_flow where record_no ilike $)', like]
-    );
+    parts.push([`(${t.text.map(c => `${c} ilike $`).join(' or ')})`, like]);
+    if (related) for (const sub of t.textRelated || []) parts.push([sub, like]);
   }
   return parts;
 }
+
+const inShift = (col, where = 'record_no = $') => `${col} in (select id from daily_cash_flow where ${where})`;
+const inWeek = col => inShift(col, 'weekly_cash_flow_id in (select id from weekly_cash_flow where record_no = $)');
+
+/**
+ * Each list's searchable columns. Income uses only income_record columns,
+ * because the bulk tick runs the same filter against the bare table.
+ */
+const SEARCH = {
+  income: {
+    prefix: 'INC', record: 'r.record_no',
+    amounts: ['r.total_earnings', 'r.amount', 'r.tips', 'r.surge_bonus'],
+    address: ['r.store', 'r.notes'],
+    onDate: 'r.income_date = $::date',
+    onMonthDay: `to_char(r.income_date, 'MM-DD') = $`,
+    text: ['r.store', 'r.source', 'r.uber_level', 'r.notes', 'r.record_no'],
+    textRelated: [inShift('r.daily_cash_flow_id', 'record_no ilike $')],
+    related: { DCF: inShift('r.daily_cash_flow_id'), WCF: inWeek('r.daily_cash_flow_id') }
+  },
+  expense: {
+    prefix: 'EXP', record: 'e.record_no',
+    amounts: ['e.amount'],
+    address: ['e.store', 'e.store_street', 'e.type_explanation'],
+    onDate: 'e.expense_date = $::date',
+    onMonthDay: `to_char(e.expense_date, 'MM-DD') = $`,
+    text: ['e.store', 'e.type', 'e.type_explanation', 'e.store_street', 'e.store_city', 'e.record_no'],
+    textRelated: [inShift('e.daily_cash_flow_id', 'record_no ilike $')],
+    related: { DCF: inShift('e.daily_cash_flow_id'), WCF: inWeek('e.daily_cash_flow_id') }
+  },
+  shift: {
+    prefix: 'DCF', record: 'v.record_no',
+    amounts: ['round(v.total_income, 2)', 'round(v.total_expenses, 2)', 'round(v.net_profit, 2)'],
+    onDate: 'v.shift_date = $::date',
+    onMonthDay: `to_char(v.shift_date, 'MM-DD') = $`,
+    text: ['v.record_no', 'v.day_of_week'],
+    // "Chipotle" on Shifts: the shifts he delivered it on.
+    textRelated: ['v.id in (select daily_cash_flow_id from income_record where store ilike $ or notes ilike $)'],
+    related: {
+      INC: 'v.id in (select daily_cash_flow_id from income_record where record_no = $)',
+      EXP: 'v.id in (select daily_cash_flow_id from expense_record where record_no = $)',
+      WCF: 'v.weekly_cash_flow_id in (select id from weekly_cash_flow where record_no = $)'
+    }
+  },
+  week: {
+    prefix: 'WCF', record: 'w.record_no',
+    amounts: ['round(w.weekly_total_income, 2)', 'round(w.weekly_total_expenses, 2)', 'round(w.net_profit, 2)'],
+    onDate: '$::date between w.start_date and w.end_date',
+    onMonthDay: `exists (select 1 from generate_series(w.start_date, w.end_date, interval '1 day') g
+                          where to_char(g, 'MM-DD') = $)`,
+    text: ['w.record_no'],
+    related: {
+      DCF: 'w.id in (select weekly_cash_flow_id from daily_cash_flow where record_no = $)',
+      INC: `w.id in (select d.weekly_cash_flow_id from income_record i
+                       join daily_cash_flow d on d.id = i.daily_cash_flow_id where i.record_no = $)`,
+      EXP: `w.id in (select d.weekly_cash_flow_id from expense_record x
+                       join daily_cash_flow d on d.id = x.daily_cash_flow_id where x.record_no = $)`
+    }
+  }
+};
 
 /**
  * The income list's filters, shared by the list and by the bulk tick below so the
@@ -472,7 +536,7 @@ function incomeFilter(query) {
   if (from) f.add('r.income_date >= $', requiredDate(from, 'from'));
   if (to) f.add('r.income_date <= $', requiredDate(to, 'to'));
   if (source) f.add('r.source = $', oneOf(source, SOURCES, 'source'));
-  if (q) f.addAny(incomeSearch(q));
+  if (q) f.addAny(searchParts(q, SEARCH.income));
   // Compared with a bound true rather than written bare, because add() always binds.
   if (ride) {
     const kind = oneOf(ride, RIDE_TYPES, 'ride');
@@ -706,7 +770,7 @@ router.delete('/income/:id', handle(async (req, res) => {
 // ---------------------------------------------------------------------------
 
 router.get('/expenses', handle(async (req, res) => {
-  const { from, to, type } = req.query;
+  const { from, to, type, q } = req.query;
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
 
@@ -714,6 +778,7 @@ router.get('/expenses', handle(async (req, res) => {
   if (from) f.add('e.expense_date >= $', requiredDate(from, 'from'));
   if (to) f.add('e.expense_date <= $', requiredDate(to, 'to'));
   if (type) f.add('e.type = $', oneOf(type, EXPENSE_TYPES, 'type'));
+  if (q) f.addAny(searchParts(q, SEARCH.expense));
   const { clause, params } = f;
 
   const [rows, count] = await Promise.all([
@@ -787,7 +852,7 @@ router.delete('/expenses/:id', handle(async (req, res) => {
 // ---------------------------------------------------------------------------
 
 router.get('/shifts', handle(async (req, res) => {
-  const { from, to } = req.query;
+  const { from, to, q } = req.query;
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const f = filters();
   if (from) f.add('shift_date >= $', requiredDate(from, 'from'));
@@ -798,6 +863,7 @@ router.get('/shifts', handle(async (req, res) => {
   if (req.query.needsClockOut === '1') {
     f.add('(not is_open and clock_out is not null and shift_hours = 0 and total_income > $)', 0);
   }
+  if (q) f.addAny(searchParts(q, SEARCH.shift));
   const { clause, params } = f;
 
   const { rows } = await pool.query(
@@ -948,11 +1014,65 @@ router.get('/meta', handle(async (req, res) => {
 /** One week with the shifts inside it. */
 router.get('/weeks', handle(async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 60, 200);
+  const f = filters();
+  if (req.query.q) f.addAny(searchParts(req.query.q, SEARCH.week));
+  const { clause, params } = f;
   const { rows } = await pool.query(
-    `select w.* from v_weekly_cash_flow w
+    `select w.* from v_weekly_cash_flow w ${clause}
       order by start_date desc
-      limit ${limit}`);
+      limit ${limit}`, params);
   res.json({ weeks: rows });
+}));
+
+/**
+ * The header's find box: one query across every record type, each read by its
+ * own number, amounts, dates and text (searchParts with related off, so DCF-0119
+ * is the shift and not its deliveries). A handful per type; the list tabs page
+ * the rest. `exact` marks a hit whose record number is the one typed, so the
+ * page can open it straight away even when an amount also matched.
+ */
+const FIND_PER_TYPE = 8;
+const FIND = [
+  ['income', SEARCH.income, `select r.id, r.record_no, r.income_date as date,
+                                    coalesce(nullif(r.store, ''), r.source) as label,
+                                    r.total_earnings as amount
+                               from income_record r`],
+  ['expense', SEARCH.expense, `select e.id, e.record_no, e.expense_date as date,
+                                      coalesce(nullif(e.store, ''), e.type, 'Expense') as label,
+                                      e.amount
+                                 from expense_record e`],
+  ['shift', SEARCH.shift, `select v.id, v.record_no, v.shift_date as date,
+                                  v.day_of_week as label, v.total_income as amount
+                             from v_daily_cash_flow v`],
+  ['week', SEARCH.week, `select w.id, w.record_no, w.start_date as date,
+                                'Week to ' || w.end_date as label, w.weekly_total_income as amount
+                           from v_weekly_cash_flow w`]
+];
+
+router.get('/find', handle(async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 100);
+  if (!q) return res.json({ q, hits: [], more: {} });
+
+  const typed = q.match(/^([a-z]{3})?[\s#-]*(\d{1,6})$/i);
+  const isExact = no => !!typed && no.endsWith('-' + typed[2].replace(/^0+(?=\d)/, '').padStart(4, '0'))
+    && (!typed[1] || no.startsWith(typed[1].toUpperCase() + '-'));
+
+  const results = await Promise.all(FIND.map(async ([kind, t, sql]) => {
+    const f = filters();
+    f.addAny(searchParts(q, t, { related: false }));
+    const { rows } = await pool.query(
+      `${sql} ${f.clause} order by date desc, id desc limit ${FIND_PER_TYPE + 1}`, f.params);
+    return { kind, rows };
+  }));
+
+  const hits = [];
+  const more = {};
+  for (const { kind, rows } of results) {
+    more[kind] = rows.length > FIND_PER_TYPE;
+    for (const r of rows.slice(0, FIND_PER_TYPE)) hits.push({ kind, ...r, exact: isExact(r.record_no) });
+  }
+  hits.sort((a, b) => Number(b.exact) - Number(a.exact));
+  res.json({ q, hits, more });
 }));
 
 router.get('/weeks/:id', handle(async (req, res) => {

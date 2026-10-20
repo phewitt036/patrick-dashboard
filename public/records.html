@@ -168,6 +168,13 @@
   }
   header .primary:hover { background: #fffbeb; border-color: #fffbeb; }
   header .back, header .home { color: #fff; }
+  #find { margin: 0; }
+  #find input {
+    width: 220px;
+    background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3); color: #fff;
+  }
+  #find input::placeholder { color: rgba(255,255,255,.78); }
+  #find input:focus { background: #fff; color: var(--text); }
   .danger {
     color: var(--muted); border-color: transparent; background: none;
     padding: 5px 9px; min-height: 0; box-shadow: none; font-size: 13px;
@@ -441,6 +448,10 @@
     .summary b { font-size: 18px; }
     h1 { font-size: 17px; }
     .back { display: none; }
+    /* The find box takes the room the hidden link and the spacer left. */
+    .head-row .spacer { display: none; }
+    #find { flex: 1 1 0; min-width: 0; }
+    #find input { width: 100%; }
     input[type="search"] { max-width: none; }
 
     /* Records first. The filters are one tap away rather than a screenful in
@@ -516,6 +527,12 @@
     </svg>Patforce</a></h1>
     <a class="back" href="/">&larr; dashboard</a>
     <span class="spacer"></span>
+    <!-- Find any record from any tab: a number opens it, anything else lists the
+         matches across income, expenses, shifts and weeks. -->
+    <form id="find" role="search" autocomplete="off">
+      <input type="search" id="find-q" placeholder="Find a record…" enterkeyhint="search"
+             aria-label="Find any record by number, amount, date or text">
+    </form>
     <button id="filter-toggle" aria-expanded="false" aria-controls="filters">Filters</button>
     <button class="primary" id="add-btn">+ Add</button>
   </div>
@@ -754,7 +771,7 @@
       columns: ['Date', 'In', 'Out', 'Hours', 'Income', 'Expenses', 'Net', '$/hr', 'Miles', 'Records', ''],
       load: async () => {
         const p = new URLSearchParams({ limit: 200 });
-        for (const [k, v] of Object.entries(state.filter)) if (v && k !== 'source' && k !== 'q' && k !== 'type') p.set(k, v);
+        for (const [k, v] of Object.entries(state.filter)) if (v && k !== 'source' && k !== 'type') p.set(k, v);
         const d = await api('GET', '/shifts?' + p);
         return { records: d.shifts, total: d.shifts.length };
       },
@@ -804,7 +821,11 @@
   TABS.weeks = {
     columns: ['Week', 'Days', 'Income', 'Expenses', 'Net', 'Shift hrs', 'Active hrs', '$/active hr'],
     detail: 'week',
-    load: async () => ({ records: (await api('GET', '/weeks?limit=60')).weeks }),
+    load: async () => {
+      const p = new URLSearchParams({ limit: 60 });
+      if (state.filter.q) p.set('q', state.filter.q);
+      return { records: (await api('GET', '/weeks?' + p)).weeks };
+    },
     row: w => el('tr', {}, [
       el('td', {}, [
         el('div', { text: w.start_date + '  to  ' + w.end_date }),
@@ -1130,6 +1151,7 @@
       if (kind === 'week') return renderWeekDetail(await api('GET', '/weeks/' + id));
       if (kind === 'income') return renderIncomeDetail(await api('GET', '/income/' + id));
       if (kind === 'expense') return renderExpenseDetail(await api('GET', '/expenses/' + id));
+      if (kind === 'find') return renderFind(await api('GET', '/find?q=' + encodeURIComponent(id)));
       if (kind === 'month') {
         // A month has no record of its own; jump the Report tab at it instead.
         dlg.close();
@@ -1185,6 +1207,32 @@
           x.store || '', () => {}))
       : [el('div', { class: 'muted', text: 'None.' })]));
     $('#detail-body').replaceChildren(...parts.filter(Boolean));
+  }
+
+  const FIND_KINDS = [
+    ['income', 'Income records', 'income', 'Income'],
+    ['expense', 'Expenses', 'expenses', 'Expenses'],
+    ['shift', 'Shifts', 'shifts', 'Shifts'],
+    ['week', 'Weeks', 'weeks', 'Weeks']
+  ];
+
+  function renderFind(d) {
+    $('#detail-title').textContent = `Find "${d.q}"`;
+    const parts = [];
+    for (const [kind, heading, tab, tabName] of FIND_KINDS) {
+      const hits = d.hits.filter(h => h.kind === kind);
+      if (!hits.length) continue;
+      parts.push(el('div', { class: 'rpt-h', text: heading }));
+      parts.push(...hits.map(h => childCard(`${h.record_no}  ·  ${h.date}`, money(h.amount),
+        kind === 'shift' ? dayName(h.label) : h.label, () => openDetail(kind, h.id))));
+      // More than fit here: the tab's own list, searched the same way, pages them.
+      if (d.more[kind]) parts.push(el('button', {
+        class: 'link-btn', text: `See them all on ${tabName}`,
+        onclick: () => { $('#detail').close(); state.filter = { q: d.q }; selectTab(tab); }
+      }));
+    }
+    $('#detail-body').replaceChildren(...(parts.length
+      ? parts : [el('div', { class: 'empty', text: 'Nothing matches.' })]));
   }
 
   function renderWeekDetail(d) {
@@ -1351,6 +1399,15 @@
     load();
   }
 
+  // The record tabs that search, and what each box says it takes. Months has no
+  // record of its own to find.
+  const SEARCH_HINT = {
+    income: 'INC-1913, Chipotle, 7.51, 9/25…',
+    expenses: 'EXP-0042, Shell, 12.50, 9/25…',
+    shifts: 'DCF-0119, INC-1913, 9/25, Chipotle…',
+    weeks: 'WCF-0030, DCF-0119, 9/25…'
+  };
+
   function renderFilters() {
     const f = $('#filters');
     f.replaceChildren();
@@ -1361,10 +1418,11 @@
         onchange: e => { state.filter[key] = e.target.value; state.offset = 0; load(); }
       })
     ]);
-    if (state.tab === 'income') {
+    if (SEARCH_HINT[state.tab]) {
       // First in the row, and it searches as he types: finding INC-1913 should not
       // mean paging through 38 pages or knowing to press Enter. The server reads a
-      // number as a record or an amount, so 1913, INC-1913, 7.51 and 9/25 all work.
+      // number as a record or an amount, so 1913, INC-1913, 7.51 and 9/25 all work,
+      // on every record tab.
       let typing;
       const search = () => {
         clearTimeout(typing);
@@ -1377,7 +1435,7 @@
       f.append(el('div', { class: 'field search-field' }, [
         el('label', { text: 'Search', for: 'f-q' }),
         el('input', {
-          type: 'search', id: 'f-q', placeholder: 'INC-1913, Chipotle, 7.51, 9/25…', value: state.filter.q || '',
+          type: 'search', id: 'f-q', placeholder: SEARCH_HINT[state.tab], value: state.filter.q || '',
           autocomplete: 'off', enterkeyhint: 'search',
           oninput: () => { clearTimeout(typing); typing = setTimeout(search, 350); },
           onchange: search
@@ -1514,7 +1572,7 @@
             return tr;
           })
         : [el('tr', {}, el('td', { colspan: cfg.columns.length, class: 'empty',
-            text: state.tab === 'income' && state.filter.q ? `Nothing matches "${state.filter.q}".` : 'Nothing here yet.' }))]));
+            text: state.filter.q && SEARCH_HINT[state.tab] ? `Nothing matches "${state.filter.q}".` : 'Nothing here yet.' }))]));
 
       const bits = cfg.summary(data);
       const un = state.meta.unlinked;
@@ -1715,6 +1773,24 @@
     load();
   }));
   $('#detail-x').addEventListener('click', () => { detailStack.length = 0; $('#detail').close(); });
+  // Typing a record's number opens that record. Anything else - or a number that
+  // is several records, or a record and an amount - lists the matches by type.
+  $('#find').addEventListener('submit', async e => {
+    e.preventDefault();
+    const q = $('#find-q').value.trim();
+    if (!q) return;
+    detailStack.length = 0;
+    try {
+      const d = await api('GET', '/find?q=' + encodeURIComponent(q));
+      const exact = d.hits.filter(h => h.exact);
+      const only = exact.length === 1 ? exact[0] : d.hits.length === 1 ? d.hits[0] : null;
+      if (only) openDetail(only.kind, only.id);
+      else openDetail('find', q);
+      $('#find-q').blur();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
   $('#detail').addEventListener('close', () => { detailStack.length = 0; });
   $('#detail-back').addEventListener('click', () => {
     detailStack.pop();
