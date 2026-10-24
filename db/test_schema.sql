@@ -289,6 +289,21 @@ insert into daily_cash_flow (weekly_cash_flow_id, shift_date)
 select assert_eq('a hand-made shift with blank times stays visible',
   (select count(*) from v_daily_cash_flow where shift_date = '2026-05-16'), 1::bigint);
 
+-- ---------------------------------------------------------------------------
+-- Ride mix (011)
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '--- the rides the ride mix groups ---'
+
+-- Uber rows now: the linked $12 ride, the unlinked $4 one, and the $500 on the
+-- placeholder. The Uber Eats rows are deliveries and do not count.
+select assert_eq('v_uber_ride keeps the unlinked ride and drops the placeholder',
+  (select count(*) from v_uber_ride), 2::bigint);
+select assert_eq('trip_miles prefers total_miles',
+  (select trip_miles from v_uber_ride where total_earnings = 15.00), 9.000::numeric);
+select assert_eq('an untimed ride has NULL minutes, never 0',
+  (select trip_minutes from v_uber_ride where total_earnings = 5.00), null::numeric);
+
 \echo ''
 \echo 'All schema tests passed.'
 

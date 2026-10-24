@@ -1,6 +1,6 @@
 # Running the tests
 
-Five suites. They need different databases, and pointing one at the wrong
+Seven suites. They need different databases, and pointing one at the wrong
 database produces a confusing failure rather than a clear one — so each is
 listed here with the state it expects.
 
@@ -37,6 +37,18 @@ retries: the same externalId sent twice, twice in one batch, and twice at the
 same moment. Sets its own INGEST_KEY, writes data, does not clean up.
 
     DATABASE_URL=postgresql:///gigingest npm run test:ingest
+
+## 3c. Ride mix API — runs against ANY database with the schema
+
+40 assertions on `/api/records/ride-mix`, every expected figure worked out by
+hand from eight seeded records: the placeholder ride and the Uber Eats order
+left out, a missing trip time or distance giving a null rate rather than $0,
+`total_miles` falling back to `miles_driven`, the weekly gaps, and clock times
+landing in the right Central hour either side of a DST change. Seeds March 2019,
+years before any real record, and deletes what it wrote, so it is safe against
+the imported data.
+
+    npm run test:mix
 
 ## 4. Records browser — needs the IMPORTED data
 

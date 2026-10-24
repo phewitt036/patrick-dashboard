@@ -1698,6 +1698,189 @@ router.get('/ride-types', handle(async (req, res) => {
   res.json({ from: req.query.from || null, to: req.query.to || null, since, groups, both: both.n });
 }));
 
+/**
+ * Ride mix: which Uber products pay best, how that moves week to week, and which
+ * hours and weekdays pay most.
+ *
+ * Every figure is grouped from v_uber_ride (011), which is the bulk import left
+ * out and nothing else. The rates are divided here from raw sums, each over only
+ * the rides that carry its denominator - $/hour over timed rides and their
+ * minutes, $/mile over rides with a distance - and come back null rather than 0
+ * when no ride had one. Ride counts and how many carried each denominator come
+ * back beside every rate, so a figure drawn from four rides can be shown as one.
+ *
+ * Sums are not rounded before dividing, for the same reason v_daily_cash_flow_raw
+ * is not: rounding first shifts every rate drawn from them.
+ */
+const MIX_SUMS = `
+  count(*)::int                                                       as rides,
+  coalesce(sum(total_earnings), 0)                                    as earnings,
+  coalesce(sum(total_earnings) filter (where trip_minutes is not null), 0) as earnings_timed,
+  coalesce(sum(trip_minutes), 0)                                      as minutes,
+  count(trip_minutes)::int                                            as rides_timed,
+  coalesce(sum(total_earnings) filter (where trip_miles is not null), 0)   as earnings_mileaged,
+  coalesce(sum(trip_miles), 0)                                        as miles,
+  count(trip_miles)::int                                              as rides_mileaged,
+  coalesce(sum(tips), 0)                                              as tips,
+  count(*) filter (where has_surge)::int                              as rides_surged`;
+
+// The weekly chart needs enough weeks to be a trend. A month is four points, so
+// the window reaches back to at least this many weeks before the range's end,
+// and never further than a year.
+const TREND_MIN_WEEKS = 12;
+const TREND_MAX_WEEKS = 52;
+
+function mixFigures(r) {
+  const rate = (num, den) => (Number(den) > 0 ? Number((Number(num) / Number(den)).toFixed(2)) : null);
+  const share = (part, whole) => (Number(whole) > 0 ? Number((100 * Number(part) / Number(whole)).toFixed(1)) : null);
+  return {
+    rides: r.rides,
+    earnings: Number(Number(r.earnings).toFixed(2)),
+    perRide: rate(r.earnings, r.rides),
+    perHour: rate(r.earnings_timed, Number(r.minutes) / 60),
+    perMile: rate(r.earnings_mileaged, r.miles),
+    // Of the money, not of the rides: a $2 tip on a $60 airport run is a small share.
+    tipShare: share(r.tips, r.earnings),
+    surgeShare: share(r.rides_surged, r.rides),
+    ridesTimed: r.rides_timed,
+    ridesMileaged: r.rides_mileaged
+  };
+}
+
+router.get('/ride-mix', handle(async (req, res) => {
+  const { rows: [today] } = await pool.query(`select (now() at time zone $1)::date as d`, [TZ]);
+  const from = req.query.from ? requiredDate(req.query.from, 'from') : null;
+  const to = req.query.to ? requiredDate(req.query.to, 'to') : today.d;
+  const lo = from || '2000-01-01';
+  // A month picked mid-month ends on its last day; the trend stops at today, so
+  // the weeks still to come are not drawn as weeks with no rides.
+  const trendTo = to < today.d ? to : today.d;
+
+  // One row per level and one per ride type. A reserved airport ride is in both
+  // the airport and the reservation rows, as on /ride-types; the level rows
+  // partition the rides, so they add up to the total.
+  const groups = pool.query(
+    `with rides as (select * from v_uber_ride where income_date between $1 and $2)
+     select 'level' as dim, coalesce(uber_level, '') as key, ${MIX_SUMS}
+       from rides group by uber_level
+     union all
+     select 'ride', kind, ${MIX_SUMS}
+       from (select 'regular' as kind, * from rides where is_regular
+             union all select 'airport', * from rides where is_airport
+             union all select 'reservation', * from rides where is_reservation) k
+      group by kind
+     union all
+     select 'all', '', ${MIX_SUMS} from rides`,
+    [lo, to]);
+
+  // Weeks on a generated axis, so a week off is a gap in the line rather than
+  // two neighbours drawn as if they were adjacent.
+  const trend = pool.query(
+    `with bounds as (
+       select greatest(
+                least(date_trunc('week', coalesce($1::date, (select min(income_date) from v_uber_ride), $2::date)),
+                      date_trunc('week', $2::date) - ($3::int - 1) * interval '1 week'),
+                date_trunc('week', $2::date) - ($4::int - 1) * interval '1 week')::date as first_week,
+              date_trunc('week', $2::date)::date as last_week
+     )
+     select b.first_week, b.last_week,
+            (select coalesce(json_agg(w::date order by w), '[]')
+               from generate_series(b.first_week, b.last_week, interval '1 week') w) as weeks,
+            (select coalesce(json_agg(t), '[]') from (
+               select week_start, coalesce(uber_level, '') as level, ${MIX_SUMS}
+                 from v_uber_ride
+                where income_date between b.first_week and $2::date
+                group by week_start, uber_level) t) as points
+       from bounds b`,
+    [from, trendTo, TREND_MIN_WEEKS, TREND_MAX_WEEKS]);
+
+  // Clock time exists only since occurred_at did (about 2026-09-10), so this is
+  // over the rides that carry one, and says how many that is.
+  const when = pool.query(
+    `with rides as (select * from v_uber_ride where income_date between $1 and $2 and occurred_at is not null)
+     select 'hour' as dim, local_hour as key, ${MIX_SUMS} from rides group by local_hour
+     union all
+     select 'weekday', local_isodow, ${MIX_SUMS} from rides group by local_isodow`,
+    [lo, to]);
+
+  const since = pool.query(
+    `select min(occurred_local)::date as since,
+            count(*) filter (where occurred_at is not null and income_date between $1 and $2)::int as timed,
+            count(*) filter (where income_date between $1 and $2)::int as rides
+       from v_uber_ride`,
+    [lo, to]);
+
+  const [g, t, w, s] = await Promise.all([groups, trend, when, since]);
+
+  const all = g.rows.find(r => r.dim === 'all');
+  const levelRows = g.rows.filter(r => r.dim === 'level');
+  const noLevel = levelRows.find(r => r.key === '');
+  const byKind = Object.fromEntries(g.rows.filter(r => r.dim === 'ride').map(r => [r.key, r]));
+  const empty = { rides: 0, earnings: 0, earnings_timed: 0, minutes: 0, rides_timed: 0,
+                  earnings_mileaged: 0, miles: 0, rides_mileaged: 0, tips: 0, rides_surged: 0 };
+
+  // Most-driven first, so UberX leads as it does in the level filter. The rides
+  // with no level go last: they are a gap in the records, not a product.
+  const levels = levelRows.filter(r => r.key !== '')
+    .sort((a, b) => b.rides - a.rides || a.key.localeCompare(b.key))
+    .map(r => ({ level: r.key, ...mixFigures(r) }));
+
+  const tr = t.rows[0];
+  const pointsBy = new Map();
+  for (const p of tr.points) {
+    if (!pointsBy.has(p.level)) pointsBy.set(p.level, new Map());
+    pointsBy.get(p.level).set(String(p.week_start).slice(0, 10), p);
+  }
+  const weeks = tr.weeks.map(x => String(x).slice(0, 10));
+  // Same order as the table, so a level's line sits in the same place as its row.
+  // The trend can reach back past the range, so it can hold levels the table does
+  // not; those follow, busiest first, and no level stays last.
+  const ridesIn = level => [...pointsBy.get(level).values()].reduce((a, p) => a + p.rides, 0);
+  const inTable = levels.map(l => l.level).filter(level => pointsBy.has(level));
+  const onlyInTrend = [...pointsBy.keys()]
+    .filter(level => level !== '' && !inTable.includes(level))
+    .sort((a, b) => ridesIn(b) - ridesIn(a) || a.localeCompare(b));
+  const series = [...inTable, ...onlyInTrend, ...(pointsBy.has('') ? [''] : [])]
+    .map(level => ({
+      level: level || null,
+      points: weeks.map(week => {
+        const p = pointsBy.get(level).get(week);
+        if (!p) return { week, rides: 0, perRide: null, perHour: null, ridesTimed: 0 };
+        const f = mixFigures(p);
+        return { week, rides: f.rides, perRide: f.perRide, perHour: f.perHour, ridesTimed: f.ridesTimed };
+      })
+    }));
+
+  // Every slot, empty ones included, so the page draws 24 hours and 7 days
+  // rather than closing up the hours he never drives.
+  const slot = (dim, keys) => keys.map(k => {
+    const r = w.rows.find(x => x.dim === dim && x.key === k) || empty;
+    return { key: k, ...mixFigures(r) };
+  });
+
+  res.json({
+    from, to,
+    total: mixFigures(all || empty),
+    levels,
+    noLevel: mixFigures(noLevel || empty),
+    rideTypes: ['regular', 'airport', 'reservation'].map(kind => ({ kind, ...mixFigures(byKind[kind] || empty) })),
+    trend: {
+      from: String(tr.first_week).slice(0, 10), to: trendTo,
+      minWeeks: TREND_MIN_WEEKS,
+      weeks, series
+    },
+    when: {
+      since: s.rows[0].since,
+      rides: s.rows[0].rides,
+      timed: s.rows[0].timed,
+      timeZone: TZ,
+      hours: slot('hour', [...Array(24).keys()]),
+      // ISO weekday: 1 is Monday, matching the Monday-start weeks.
+      weekdays: slot('weekday', [1, 2, 3, 4, 5, 6, 7])
+    }
+  });
+}));
+
 module.exports = router;
 
 // Shared with routes/ingest.js, which accepts the same records over a different

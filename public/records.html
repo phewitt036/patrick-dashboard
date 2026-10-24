@@ -234,6 +234,47 @@
   .grain button[aria-pressed="true"] { background: var(--accent, #2563eb); color: #fff; }
   tr.tappable { cursor: pointer; }
   tr.tappable:hover { background: var(--surface2); }
+
+  /* Ride mix. A row drawn from a handful of rides is faded rather than hidden:
+     it is still his data, but it should not read with the certainty of the
+     UberX row beside it. */
+  .rpt-table tr.few td { opacity: .55; }
+  .rpt-table td.lvl-none { font-style: italic; color: var(--muted); }
+  /* Charts, in the dashboard's idiom: one tone per card, a recessive grid, the
+     figure itself in ink rather than in the line's colour. */
+  .mix { --tone: var(--accent); --grid: #eceef2; }
+  .plot { width: 100%; display: block; overflow: visible; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .vaxis { fill: var(--dim); font-size: 11px; font-family: var(--ui); }
+  .vval  { fill: var(--muted); font-size: 11px; font-weight: 600; font-family: var(--mono); }
+  .vbar.few { opacity: .4; }
+  .vbar.partial, .dot.partial { opacity: .5; }
+  .vbar:hover, .dot:hover { opacity: .78; }
+  .slot-off { fill: var(--surface2); }
+  /* Capped, so on a wide screen a sparkline stays a sparkline rather than
+     scaling up into a chart a screen tall. */
+  .mix .slot-plot { max-width: 640px; }
+  .spark-row {
+    display: grid; grid-template-columns: minmax(96px, 150px) minmax(0, 300px) minmax(0, 300px); gap: 6px 24px;
+    align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line);
+  }
+  .spark-row:last-of-type { border-bottom: 0; }
+  .spark-row.few { opacity: .6; }
+  .spark-name { font-weight: 600; font-size: 13px; }
+  .spark-name .thin { display: block; font-weight: 400; }
+  .spark-cell { min-width: 0; }
+  .spark-cell .thin { display: flex; justify-content: space-between; gap: 8px; }
+  .spark-cell .thin b { color: var(--text); font-family: var(--mono); font-weight: 600; }
+  .spark-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim);
+                margin-top: 4px; }
+  .mix details { margin-top: 6px; font-size: 12px; }
+  .mix summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
+  .mix-note { font-size: 13px; margin: 2px 0 8px; }
+  #viz-tip { position: fixed; pointer-events: none; opacity: 0; transition: opacity .1s;
+             background: var(--text); color: #fff; font-size: 12px; padding: 6px 9px;
+             border-radius: 7px; white-space: nowrap; z-index: 60; font-family: var(--ui);
+             box-shadow: 0 4px 14px rgba(16,24,40,.22); }
+  #viz-tip b { font-family: var(--mono); }
   /* Read-only detail */
   .kv { display: grid; grid-template-columns: minmax(120px, 40%) 1fr; gap: 6px 14px; font-size: 13px; }
   .kv dt { color: var(--muted); }
@@ -425,6 +466,22 @@
       margin-right: auto;
     }
     .rpt-table td[data-label="Service"] { padding-bottom: 5px; }
+    /* The row's name is its heading once the table stacks, not one more pair. */
+    .rpt-table td.row-name { justify-content: flex-start; font-weight: 600; padding-bottom: 5px; }
+    .rpt-table td.row-name::before { content: none; }
+    /* Eight figures a row, eight rows: stacked one per line that is a screenful
+       of scrolling. Two to a line halves it and keeps every label. */
+    .rpt-table.mix-table tr { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; }
+    .rpt-table.mix-table td.row-name { grid-column: 1 / -1; }
+    /* "50 of 59 timed" under its figure, not squeezed beside it into three lines. */
+    .rpt-table.mix-table td { flex-wrap: wrap; }
+    .rpt-table.mix-table td .thin { flex-basis: 100%; text-align: right; margin: 0; }
+    .mix .plot .vaxis { font-size: 13px; }
+    /* Name on its own line, the two lines side by side under it. */
+    .spark-row { grid-template-columns: 1fr 1fr; gap: 4px 14px; }
+    .spark-name { grid-column: 1 / -1; }
+    .spark-name .thin { display: inline; margin-left: 6px; }
+    .plot .vval { display: none; }
     .rpt-table td .thin { display: inline; margin-left: 6px; }
 
     /* Weeks and Months carry eight columns each. The older tabs already drop
@@ -965,6 +1022,7 @@
         el('div', { class: 'rpt-h', text: d.label + '   (' + d.start + ' to ' + d.end + ')' }),
         cards,
         el('div', { class: 'rpt-h', text: 'By service' }), src,
+        rideMix(d),
         rideTypes(d),
         el('div', { class: 'rpt-h', text: 'Expenses by category' }), exp,
         el('div', { class: 'rpt-h', text: 'Shifts' }), shifts,
@@ -1054,6 +1112,342 @@
     };
     draw();
     return box;
+  }
+
+  // --------------------------------------------------------------- ride mix
+  // Which Uber products pay best, how that is moving, and which hours and days
+  // pay most. Opens on the period picked above, because that is the question
+  // being asked; All rides is one tap away for a level too rare to show up in a
+  // month. Every rate arrives already divided over only the rides that carry its
+  // denominator, and null where none did - drawn as a dash, never as $0.00.
+  const mixScope = { allTime: false, metric: 'perHour' };
+  // Under this many rides a row is faded: a real figure, but not a settled one.
+  const FEW_RIDES = 10;
+  // A week's point drawn hollow when it rests on fewer rides than this.
+  const FEW_IN_WEEK = 3;
+  const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const hourLabel = h => h === 0 ? '12a' : h < 12 ? h + 'a' : h === 12 ? '12p' : (h - 12) + 'p';
+  const pctOrDash = v => v === null || v === undefined ? '—' : Number(v).toFixed(v % 1 ? 1 : 0) + '%';
+  const shortDate = iso => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const rides = n => count(n) + (n === 1 ? ' ride' : ' rides');
+  // The tooltip is HTML, and a level name is free text read off a screenshot.
+  const escapeHtml = t => String(t).replace(/[&<>"']/g, ch => `&#${ch.charCodeAt(0)};`);
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const svg = (t, a = {}, kids = []) => {
+    const n = document.createElementNS(SVG_NS, t);
+    for (const [k, v] of Object.entries(a)) if (v !== null && v !== undefined) n.setAttribute(k, v);
+    for (const c of [].concat(kids)) if (c) n.append(typeof c === 'string' ? document.createTextNode(c) : c);
+    return n;
+  };
+
+  // The dashboard's tooltip, so a tap on a point reads the same on both pages.
+  let vizTip;
+  const hoverable = (node, html) => {
+    if (!vizTip) document.body.append(vizTip = el('div', { id: 'viz-tip' }));
+    const show = e => {
+      const p = e.touches ? e.touches[0] : e;
+      vizTip.innerHTML = html;
+      vizTip.style.opacity = 1;
+      vizTip.style.left = Math.max(6, Math.min(p.clientX + 12, innerWidth - vizTip.offsetWidth - 6)) + 'px';
+      vizTip.style.top = Math.max(6, p.clientY - vizTip.offsetHeight - 10) + 'px';
+    };
+    node.addEventListener('mousemove', show);
+    node.addEventListener('touchstart', show, { passive: true });
+    node.addEventListener('mouseleave', () => { vizTip.style.opacity = 0; });
+    node.addEventListener('touchend', () => setTimeout(() => { vizTip.style.opacity = 0; }, 1600));
+    return node;
+  };
+
+  /** Rounded at the data end only, square on the baseline it stands on. */
+  const vbar = (x, base, w, h, cls) => {
+    if (h <= 1) return svg('rect', { x, y: base - 1.5, width: w, height: 1.5, rx: .75, fill: 'var(--tone)', class: 'vbar ' + cls });
+    const r = Math.min(4, h, w / 2);
+    return svg('path', {
+      d: `M${x},${base} v${-(h - r)} q0,${-r} ${r},${-r} h${w - 2 * r} q${r},0 ${r},${r} v${h - r} z`,
+      fill: 'var(--tone)', class: 'vbar ' + cls
+    });
+  };
+
+  function rideMix(period) {
+    const box = el('div', { class: 'mix' });
+    const draw = () => {
+      const range = mixScope.allTime ? null : { from: period.start, to: period.end };
+      const scope = el('div', { class: 'grain', style: 'margin-bottom:8px' },
+        [['This ' + period.grain, false], ['All rides', true]].map(([t, all]) => el('button', {
+          text: t, 'aria-pressed': String(mixScope.allTime === all),
+          onclick: () => { mixScope.allTime = all; draw(); }
+        })));
+      const out = el('div', {}, el('div', { class: 'muted', text: 'Loading…' }));
+      box.replaceChildren(el('div', { class: 'rpt-h', text: 'Ride mix (Uber)' }), scope, out);
+
+      api('GET', '/ride-mix' + (range ? `?from=${range.from}&to=${range.to}` : '')).then(m => {
+        if (!m.total.rides) {
+          out.replaceChildren(el('div', { class: 'muted', text: 'No Uber rides in this period.' }));
+          return;
+        }
+        // A row opens the rides behind it on the Income tab, with the same filters,
+        // so any figure here can be checked against the records it came from.
+        const openRides = extra => {
+          state.filter = { source: 'Uber', ...(range || {}), ...extra };
+          selectTab('income');
+        };
+        const levelRows = [
+          ...m.levels.map(l => ({ ...l, name: l.level, open: () => openRides({ level: l.level }) })),
+          ...(m.noLevel.rides ? [{ ...m.noLevel, name: 'No level recorded', none: true,
+                                   open: () => openRides({ level: state.meta.noLevel || '(none)' }) }] : [])
+        ];
+        const kindRows = m.rideTypes.map(k => ({ ...k, name: RIDE_LABELS[k.kind], open: () => openRides({ ride: k.kind }) }));
+
+        const notes = [];
+        if (m.noLevel.rides) {
+          notes.push(`${rides(m.noLevel.rides)} of ${count(m.total.rides)} have no level recorded.`);
+        }
+        notes.push(`Faded rows rest on fewer than ${FEW_RIDES} rides.`);
+        notes.push('Per hour is trip time off the receipt, and per mile the whole trip (miles driven where that is all there is); each uses only the rides that recorded one.');
+        notes.push('A reserved airport ride is in both of those rows.');
+
+        out.replaceChildren(
+          el('div', { class: 'rpt-h', text: 'By level' }), mixTable('Level', levelRows),
+          el('div', { class: 'rpt-h', text: 'By ride type' }), mixTable('Ride type', kindRows),
+          el('div', { class: 'thin', style: 'margin-top:6px', text: notes.join(' ') }),
+          mixTrend(m.trend, range),
+          mixWhen(m.when)
+        );
+      }).catch(e => out.replaceChildren(el('div', { class: 'muted', text: e.message })));
+    };
+    draw();
+    return box;
+  }
+
+  function mixTable(head, rows) {
+    // How many of a row's rides a rate came from, when it is not all of them.
+    const from = (n, of) => n < of ? `${n} of ${count(of)}` : '';
+    const cell = (label, text, note) => el('td', { class: 'num', 'data-label': label }, [
+      el('span', { text }), note ? el('div', { class: 'thin', text: note }) : null
+    ]);
+    return el('div', { class: 'rpt-table-wrap' }, el('table', { class: 'rpt-table mix-table' }, [
+      el('thead', {}, el('tr', {}, [head, 'Rides', 'Total', 'Per ride', 'Per hour', 'Per mile', 'Tip share', 'With surge']
+        .map((h, i) => el('th', { class: i ? 'num' : '', text: h })))),
+      el('tbody', {}, rows.map(r => el('tr', {
+        class: 'tappable' + (r.rides < FEW_RIDES ? ' few' : ''),
+        title: 'Show these rides', onclick: r.open
+      }, [
+        el('td', { class: 'row-name' + (r.none ? ' lvl-none' : ''), 'data-label': head, text: r.name }),
+        cell('Rides', count(r.rides), r.rides && r.rides < FEW_RIDES ? 'few' : ''),
+        cell('Total', money(r.earnings)),
+        cell('Per ride', money(r.perRide)),
+        cell('Per hour', money(r.perHour), from(r.ridesTimed, r.rides) && from(r.ridesTimed, r.rides) + ' timed'),
+        cell('Per mile', money(r.perMile), from(r.ridesMileaged, r.rides) && from(r.ridesMileaged, r.rides) + ' with miles'),
+        cell('Tip share', pctOrDash(r.tipShare)),
+        cell('With surge', pctOrDash(r.surgeShare))
+      ])))
+    ]));
+  }
+
+  /**
+   * One level's weekly figure as a sparkline. Each line has its own scale, low
+   * and high printed beside it, so UberX's movement is not flattened by one
+   * Black ride at three times the price - the table above is where levels are
+   * compared with each other. A week with no rides of the level is a break in
+   * the line, not a dip to zero.
+   */
+  function sparkline(points, key, partialLast, name, unit) {
+    const W = 220, H = 46, PAD = 6;
+    const vals = points.map(p => p[key]).filter(v => v !== null);
+    if (!vals.length) return { plot: el('div', { class: 'thin', text: 'None recorded' }), lo: null, hi: null, last: null };
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    const X = i => points.length === 1 ? W / 2 : PAD + i * (W - 2 * PAD) / (points.length - 1);
+    const Y = v => hi === lo ? H / 2 : H - PAD - (v - lo) / (hi - lo) * (H - 2 * PAD);
+    const g = svg('g');
+    g.append(svg('line', { x1: 0, y1: H - .5, x2: W, y2: H - .5, class: 'gridline' }));
+    let run = [];
+    const flush = () => {
+      if (run.length > 1) g.append(svg('polyline', { points: run.join(' '), fill: 'none', stroke: 'var(--tone)',
+        'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+      run = [];
+    };
+    points.forEach((p, i) => { if (p[key] === null) flush(); else run.push(`${X(i)},${Y(p[key])}`); });
+    flush();
+    const n = key === 'perHour' ? 'ridesTimed' : 'rides';
+    points.forEach((p, i) => {
+      if (p[key] === null) return;
+      const partial = partialLast && i === points.length - 1;
+      const thin = p[n] < FEW_IN_WEEK;
+      g.append(svg('circle', { cx: X(i), cy: Y(p[key]), r: 3.5, class: 'dot' + (partial ? ' partial' : ''),
+        fill: thin ? 'var(--surface)' : 'var(--tone)', stroke: thin ? 'var(--tone)' : 'var(--surface)', 'stroke-width': thin ? 1.5 : 2 }));
+    });
+    // Hit targets a whole week wide, so a thumb finds the point.
+    const step = points.length > 1 ? (W - 2 * PAD) / (points.length - 1) : W;
+    points.forEach((p, i) => {
+      const what = p[key] === null
+        ? (p.rides ? `no ${key === 'perHour' ? 'trip times' : 'figure'} recorded` : 'no rides')
+        : `<b>${money(p[key])}</b> ${unit} · ${rides(p[n])}${key === 'perHour' ? ' timed' : ''}` +
+          (partialLast && i === points.length - 1 ? ' · week still running' : '');
+      g.append(hoverable(svg('rect', { x: X(i) - step / 2, y: 0, width: step, height: H, fill: 'transparent' }),
+        `${escapeHtml(name)} · week of ${shortDate(p.week)} · ${what}`));
+    });
+    const last = [...points].reverse().find(p => p[key] !== null);
+    return {
+      plot: svg('svg', { class: 'plot', viewBox: `0 0 ${W} ${H}`, role: 'img',
+        'aria-label': `${name} ${unit} by week: ` + points.filter(p => p[key] !== null)
+          .map(p => `${shortDate(p.week)} ${money(p[key])}`).join(', ') }, g),
+      lo, hi, last: last[key]
+    };
+  }
+
+  function mixTrend(trend, range) {
+    const box = el('div');
+    const weeks = trend.weeks;
+    if (!trend.series.length || !weeks.length) return box;
+    // The last week is still running when the range ends before its Sunday.
+    const lastSunday = new Date(weeks[weeks.length - 1] + 'T12:00:00');
+    lastSunday.setDate(lastSunday.getDate() + 6);
+    const partialLast = trend.to < lastSunday.toISOString().slice(0, 10);
+
+    const widened = range && trend.from < range.from;
+    const rows = trend.series.map(s => {
+      const total = s.points.reduce((a, p) => a + p.rides, 0);
+      const name = s.level || 'No level recorded';
+      const cellFor = (key, label, unit) => {
+        const sp = sparkline(s.points, key, partialLast, name, unit);
+        return el('div', { class: 'spark-cell' }, [
+          el('div', { class: 'thin' }, [
+            el('span', { text: sp.lo === null ? label : `${label}  ${money(sp.lo)}–${money(sp.hi)}` }),
+            sp.last !== null ? el('b', { text: money(sp.last) }) : null
+          ]),
+          sp.plot
+        ]);
+      };
+      return el('div', { class: 'spark-row' + (total < FEW_RIDES ? ' few' : '') }, [
+        el('div', { class: 'spark-name' + (s.level ? '' : ' lvl-none') }, [
+          el('span', { text: name }), el('span', { class: 'thin', text: rides(total) })
+        ]),
+        cellFor('perRide', 'Per ride', 'per ride'),
+        cellFor('perHour', 'Per hour', 'per hour')
+      ]);
+    });
+
+    box.append(
+      el('div', { class: 'rpt-h', text: `Week by week (${weeks.length} weeks from ${shortDate(trend.from)})` }),
+      widened ? el('div', { class: 'thin', text: `Reaches back before ${shortDate(range.from)}: a trend needs at least ${trend.minWeeks} weeks.` }) : null,
+      ...rows,
+      el('div', { class: 'thin', style: 'margin-top:6px', text:
+        `Each line has its own scale, from its low to its high. The figure on the right is the latest week. ` +
+        `Hollow points rest on fewer than ${FEW_IN_WEEK} rides${partialLast ? ', and the last week is still running' : ''}; ` +
+        'a break is a week without that level.' })
+    );
+    return box;
+  }
+
+  /**
+   * Hour of day and weekday. Only rides with a clock time can be placed, and
+   * those exist only since occurred_at did, so the section says so at the top
+   * rather than in a footnote.
+   */
+  function mixWhen(when) {
+    const box = el('div');
+    const head = el('div', { class: 'rpt-h', text: 'When you earn most' });
+    const since = when.since ? shortDate(when.since) : null;
+    if (!when.timed) {
+      box.append(head, el('div', { class: 'mix-note muted', text: since
+        ? `No ride in this period has a time of day. Times are only recorded from ${since} on.`
+        : 'No ride has a time of day yet. Times are read off the screenshot, which began around Sep 10.' }));
+      return box;
+    }
+    const body = el('div');
+    const draw = () => {
+      const metric = mixScope.metric;
+      const toggle = el('div', { class: 'grain', style: 'margin-bottom:6px' },
+        [['perHour', 'Per hour'], ['perRide', 'Per ride']].map(([k, t]) => el('button', {
+          text: t, 'aria-pressed': String(metric === k),
+          onclick: () => { mixScope.metric = k; draw(); }
+        })));
+      body.replaceChildren(
+        toggle,
+        el('div', { class: 'thin', style: 'margin-top:10px', text: 'By hour of day' }),
+        slotChart(when.hours, metric, hourLabel, 3, 'Hour'),
+        slotTable(when.hours, 'Hour', hourLabel),
+        el('div', { class: 'thin', style: 'margin-top:12px', text: 'By weekday' }),
+        slotChart(when.weekdays, metric, k => WEEKDAYS[k - 1], 1, 'Weekday'),
+        slotTable(when.weekdays, 'Weekday', k => WEEKDAYS[k - 1])
+      );
+    };
+    draw();
+    box.append(head,
+      el('div', { class: 'mix-note' }, [
+        el('strong', { text: `Times of day start ${since}. ` }),
+        el('span', { text: `Patforce has read the time off each screenshot only since about Sep 10, so this is ` +
+          `${count(when.timed)} of the ${rides(when.rides)} above, in Central time. Faded bars rest on fewer than ${FEW_RIDES} rides; the figure printed is the best of the rest.` })
+      ]),
+      body);
+    return box;
+  }
+
+  function slotChart(slots, metric, labelOf, every, noun) {
+    const W = 480, BASE = 104, TOP = 18;
+    const n = metric === 'perHour' ? 'ridesTimed' : 'rides';
+    const vals = slots.map(s => s[metric]).filter(v => v !== null);
+    const max = vals.length ? Math.max(...vals) : 1;
+    const gap = slots.length > 12 ? 4 : 12;
+    const BW = (W - gap * (slots.length + 1)) / slots.length;
+    // The best-paying slot that is not a small sample, labelled once. A number on
+    // every bar is a table pretending to be a chart; the table is just below.
+    const settled = slots.filter(s => s[metric] !== null && s[n] >= FEW_RIDES);
+    const best = settled.length ? settled.reduce((a, b) => (b[metric] > a[metric] ? b : a)) : null;
+    const g = svg('g');
+    for (const t of [0, .5, 1]) {
+      g.append(svg('line', { x1: 0, y1: BASE - t * (BASE - TOP), x2: W, y2: BASE - t * (BASE - TOP), class: 'gridline' }));
+    }
+    slots.forEach((s, i) => {
+      const x = gap + i * (BW + gap);
+      const label = labelOf(s.key);
+      if (s[metric] === null) {
+        g.append(hoverable(svg('rect', { x, y: BASE - 8, width: BW, height: 8, rx: 3, class: 'slot-off' }),
+          `${label} · ${s.rides ? rides(s.rides) + ', none timed' : 'no rides'}`));
+      } else {
+        const h = (s[metric] / max) * (BASE - TOP);
+        g.append(hoverable(vbar(x, BASE, BW, h, s[n] < FEW_RIDES ? 'few' : ''),
+          `${label} · <b>${money(s[metric])}</b> ${metric === 'perHour' ? 'per hour' : 'per ride'} · ` +
+          rides(s[n]) + (metric === 'perHour' ? ' timed' : '')));
+        if (s === best) {
+          g.append(svg('text', { x: x + BW / 2, y: BASE - h - 6, 'text-anchor': 'middle', class: 'vval' }, money(s[metric])));
+        }
+      }
+      if (i % every === 0) {
+        g.append(svg('text', { x: x + BW / 2, y: BASE + 16, 'text-anchor': 'middle', class: 'vaxis' }, label));
+      }
+      // Seven days have room for their ride count; 24 hours do not, and carry it
+      // in the tooltip and the table instead.
+      if (slots.length <= 7) {
+        g.append(svg('text', { x: x + BW / 2, y: BASE + 30, 'text-anchor': 'middle', class: 'vaxis' },
+          metric === 'perHour' ? `${s[n]} timed` : rides(s[n])));
+      }
+    });
+    return svg('svg', { class: 'plot slot-plot', viewBox: `0 0 ${W} ${slots.length <= 7 ? 138 : 124}`, role: 'img',
+      'aria-label': `${metric === 'perHour' ? 'Earned per hour' : 'Earned per ride'} by ${noun.toLowerCase()}: ` +
+        slots.filter(s => s[metric] !== null).map(s => `${labelOf(s.key)} ${money(s[metric])}`).join(', ') }, g);
+  }
+
+  /** The same slots as figures, folded away: every count, and the exact rates. */
+  function slotTable(slots, head, labelOf) {
+    const used = slots.filter(s => s.rides);
+    return el('details', {}, [
+      el('summary', { text: `${head} figures` }),
+      el('table', { class: 'rpt-table mix-table' }, [
+        el('thead', {}, el('tr', {}, [head, 'Rides', 'Per ride', 'Per hour'].map((h, i) =>
+          el('th', { class: i ? 'num' : '', text: h })))),
+        el('tbody', {}, used.map(s => el('tr', { class: s.rides < FEW_RIDES ? 'few' : '' }, [
+          el('td', { class: 'row-name', 'data-label': head, text: labelOf(s.key) }),
+          el('td', { class: 'num', 'data-label': 'Rides', text: count(s.rides) }),
+          el('td', { class: 'num', 'data-label': 'Per ride', text: money(s.perRide) }),
+          el('td', { class: 'num', 'data-label': 'Per hour' }, [
+            el('span', { text: money(s.perHour) }),
+            s.ridesTimed < s.rides ? el('div', { class: 'thin', text: `${s.ridesTimed} of ${s.rides} timed` }) : null
+          ])
+        ])))
+      ])
+    ]);
   }
 
   // ---- the income row's graphics -----------------------------------------
