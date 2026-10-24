@@ -74,4 +74,4 @@ The two Playwright suites take `CHROME_PATH` if the bundled browser is missing.
     psql -d <empty-scratch> -f db/test_schema.sql
 
 Green as of the last change: schema 42, income 45, records 45, ingest 46,
-records browser 16, gig browser 25, ride mix 48, both reconciliations.
+records browser 16, gig browser 25, ride mix 51, both reconciliations.
