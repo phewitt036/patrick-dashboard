@@ -40,12 +40,14 @@ same moment. Sets its own INGEST_KEY, writes data, does not clean up.
 
 ## 3c. Ride mix API — runs against ANY database with the schema
 
-40 assertions on `/api/records/ride-mix`, every expected figure worked out by
+48 assertions on `/api/records/ride-mix`, every expected figure worked out by
 hand from eight seeded records: the placeholder ride and the Uber Eats order
 left out, a missing trip time or distance giving a null rate rather than $0,
 `total_miles` falling back to `miles_driven`, the weekly gaps, and clock times
-landing in the right Central hour either side of a DST change. Seeds March 2019,
-years before any real record, and deletes what it wrote.
+landing in the right Central hour either side of a DST change, and the approximate
+hour from a Pixit record's arrival (same day only, never over a time on the
+screen). Seeds March 2019, years before any real record, and deletes what it
+wrote.
 
 **Scratch databases only — never the live one.** It writes a placeholder shift
 and a $999 ride, uses up WCF/DCF/INC record numbers for good, and if it is killed
