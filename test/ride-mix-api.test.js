@@ -27,7 +27,7 @@ const eq = (label, got, want) =>
 (async () => {
   const pool = new Pool({ connectionString: DB });
   const ids = [];
-  let shiftId = null, weekId = null;
+  let shiftId = null, weekId = null, realShiftId = null;
 
   try {
     // A placeholder shift of its own, the shape of DCF-0000, to hold the one ride
@@ -36,9 +36,16 @@ const eq = (label, got, want) =>
       `insert into weekly_cash_flow (start_date) values ('2019-03-04') returning id`);
     weekId = w.id;
     const { rows: [ph] } = await pool.query(
-      `insert into daily_cash_flow (weekly_cash_flow_id, shift_date, is_placeholder)
-       values ($1, '2019-03-06', true) returning id`, [weekId]);
+      `insert into daily_cash_flow (weekly_cash_flow_id, shift_date, is_placeholder, clock_in, clock_out)
+       values ($1, '2019-03-06', true, '2019-03-06T10:00:00-06:00', '2019-03-06T11:00:00-06:00') returning id`, [weekId]);
     shiftId = ph.id;
+    // A real shift for the on-the-clock rate: Tuesday, two hours, holding B alone.
+    // The placeholder above is given an hour too, so leaving it out is tested
+    // rather than falling out of a zero.
+    const { rows: [sh] } = await pool.query(
+      `insert into daily_cash_flow (weekly_cash_flow_id, shift_date, clock_in, clock_out)
+       values ($1, '2019-03-05', '2019-03-05T09:00:00-06:00', '2019-03-05T11:00:00-06:00') returning id`, [weekId]);
+    realShiftId = sh.id;
 
     const seed = [
       // A: UberX, timed, both distances (total_miles wins), clock time Mon 6:10pm CST.
@@ -48,7 +55,7 @@ const eq = (label, got, want) =>
         ext: 'ride-mix-test-A', created: '2019-03-04T23:50:00-06:00' },
       // B: UberX airport, surge, only miles_driven (the fallback)
       { level: 'UberX', amount: 20, tips: 0, surge: 3, driven: 8, total: null, mins: 30,
-        date: '2019-03-05', airport: true },
+        date: '2019-03-05', airport: true, shift: true },
       // C: Comfort reservation with nothing measured: no time, no distance
       { level: 'Comfort', amount: 15, tips: null, surge: null, driven: null, total: null, mins: null,
         date: '2019-03-06', reservation: true },
@@ -74,7 +81,7 @@ const eq = (label, got, want) =>
             miles_driven, total_miles, time_taken_minutes, occurred_at, is_airport, is_reservation,
             external_id, created_at)
          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,coalesce($15::timestamptz, now())) returning id`,
-        [r.placeholder ? shiftId : null, r.date, r.source || 'Uber', r.amount, r.tips, r.surge, r.level,
+        [r.placeholder ? shiftId : r.shift ? realShiftId : null, r.date, r.source || 'Uber', r.amount, r.tips, r.surge, r.level,
          r.driven, r.total, r.mins, r.at || null, !!r.airport, !!r.reservation, r.ext || null, r.created || null]);
       ids.push(x.id);
     }
@@ -156,6 +163,12 @@ const eq = (label, got, want) =>
     eq('every ride lands on a weekday', m.when.weekdays.reduce((a, d) => a + d.rides, 0), 6);
     eq('an hour he never drove has no rate', m.when.hours[3].perRide, null);
 
+    console.log('\n--- on the clock ---');
+    eq('one real shift, 2 hours, B\'s 23: the placeholder\'s hour is left out',
+       m.clock, { shifts: 1, hours: 2, earnings: 23, perHour: 11.5 });
+    eq('Tuesday carries it', [m.when.weekdays[1].shifts, m.when.weekdays[1].clockPerHour], [1, 11.5]);
+    eq('Monday had no clocked shift: no rate, not zero', [m.when.weekdays[0].shifts, m.when.weekdays[0].clockPerHour], [0, null]);
+
     console.log('\n--- input ---');
     eq('a bad date is refused', (await get('/ride-mix?from=03/04/2019')).status, 400);
     eq('from after to is refused', (await get('/ride-mix?from=2019-03-17&to=2019-03-04')).status, 400);
@@ -166,6 +179,7 @@ const eq = (label, got, want) =>
   } finally {
     if (ids.length) await pool.query('delete from income_record where id = any($1)', [ids]);
     if (shiftId) await pool.query('delete from daily_cash_flow where id = $1', [shiftId]);
+    if (realShiftId) await pool.query('delete from daily_cash_flow where id = $1', [realShiftId]);
     if (weekId) await pool.query('delete from weekly_cash_flow where id = $1', [weekId]);
     await pool.end();
   }

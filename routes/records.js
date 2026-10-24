@@ -1821,7 +1821,35 @@ router.get('/ride-mix', handle(async (req, res) => {
        from v_uber_ride`,
     [lo, to]);
 
-  const [g, t, w, s] = await Promise.all([groups, trend, when, since]);
+  // On the clock: everything earned on a shift divided by the hours clocked in,
+  // waiting and driving to pickups included - what an hour on the road pays,
+  // where the per-hour figures above are trip time only. A shift holds every app
+  // he worked in it, so this is not Uber alone, and it cannot be split by level:
+  // the wait between rides belongs to no one ride. By the shift's weekday. Open
+  // shifts and the placeholder have no exact hours and fall out of > 0.
+  const clock = pool.query(
+    `select extract(isodow from r.shift_date)::int as key,
+            count(*)::int                     as shifts,
+            sum(r.shift_hours_exact)          as hours,
+            sum(r.total_income)               as earnings
+       from v_daily_cash_flow_raw r
+       join daily_cash_flow d on d.id = r.id
+      where r.shift_hours_exact > 0 and not d.is_placeholder
+        and r.shift_date between $1 and $2
+      group by 1`,
+    [lo, to]);
+
+  const [g, t, w, s, c] = await Promise.all([groups, trend, when, since, clock]);
+  const clockFigures = rows => {
+    const sum = k => rows.reduce((a, r) => a + Number(r[k]), 0);
+    const hours = sum('hours');
+    return {
+      shifts: rows.reduce((a, r) => a + r.shifts, 0),
+      hours: Number(hours.toFixed(2)),
+      earnings: Number(sum('earnings').toFixed(2)),
+      perHour: hours > 0 ? Number((sum('earnings') / hours).toFixed(2)) : null
+    };
+  };
 
   const all = g.rows.find(r => r.dim === 'all');
   const levelRows = g.rows.filter(r => r.dim === 'level');
@@ -1872,6 +1900,7 @@ router.get('/ride-mix', handle(async (req, res) => {
   res.json({
     from, to,
     total: mixFigures(all || empty),
+    clock: clockFigures(c.rows),
     levels,
     noLevel: mixFigures(noLevel || empty),
     rideTypes: ['regular', 'airport', 'reservation'].map(kind => ({ kind, ...mixFigures(byKind[kind] || empty) })),
@@ -1891,7 +1920,11 @@ router.get('/ride-mix', handle(async (req, res) => {
       timeZone: TZ,
       hours: slot('hour', [...Array(24).keys()]),
       // ISO weekday: 1 is Monday, matching the Monday-start weeks.
-      weekdays: slot('weekday', [1, 2, 3, 4, 5, 6, 7])
+      // Each weekday also carries its on-the-clock rate, from that weekday's shifts.
+      weekdays: slot('weekday', [1, 2, 3, 4, 5, 6, 7]).map(d => {
+        const k = clockFigures(c.rows.filter(r => r.key === d.key));
+        return { ...d, shifts: k.shifts, clockHours: k.hours, clockPerHour: k.perHour };
+      })
     }
   });
 }));

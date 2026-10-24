@@ -265,6 +265,10 @@
   .spark-cell { min-width: 0; }
   .spark-cell .thin { display: flex; justify-content: space-between; gap: 8px; }
   .spark-cell .thin b { color: var(--text); font-family: var(--mono); font-weight: 600; }
+  .spark-axis { font-size: 11px; margin-top: 2px; }
+  .mix-figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 4px 0 12px; }
+  .mix-fig { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+  .mix-fig b { display: block; font-family: var(--mono); font-size: 22px; font-weight: 600; margin: 2px 0; }
   .spark-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim);
                 margin-top: 4px; }
   .mix details { margin-top: 6px; font-size: 12px; }
@@ -1208,6 +1212,7 @@
         notes.push('A reserved airport ride is in both of those rows.');
 
         out.replaceChildren(
+          mixHeadline(m),
           el('div', { class: 'rpt-h', text: 'By level' }), mixTable('Level', levelRows),
           el('div', { class: 'rpt-h', text: 'By ride type' }), mixTable('Ride type', kindRows),
           el('div', { class: 'thin', style: 'margin-top:6px', text: notes.join(' ') }),
@@ -1218,6 +1223,28 @@
     };
     draw();
     return box;
+  }
+
+  /**
+   * The two hourly rates side by side, because they answer different questions
+   * and every per-hour figure below is the first kind. On a trip is Uber trip
+   * time off the receipts; on the clock is every app's earnings over the hours
+   * clocked in, waiting and driving to pickups included.
+   */
+  function mixHeadline(m) {
+    const fig = (label, value, sub) => el('div', { class: 'mix-fig' }, [
+      el('div', { class: 'thin', text: label }),
+      el('b', { text: value === null ? '—' : money(value) + '/hr' }),
+      el('div', { class: 'thin', text: sub })
+    ]);
+    const k = m.clock;
+    return el('div', { class: 'mix-figs' }, [
+      fig('On a trip', m.total.perHour,
+        `Uber only. Trip time off each receipt: ${count(m.total.ridesTimed)} timed rides.`),
+      fig('On the clock', k.perHour, k.shifts
+        ? `Every app. All you earned on a shift ÷ hours clocked in, waiting included: ${count(k.shifts)} shifts, ${numOrDash(k.hours, 1)} hrs.`
+        : 'No clocked shifts in this period.')
+    ]);
   }
 
   function mixTable(head, rows) {
@@ -1317,10 +1344,13 @@
         const sp = sparkline(s.points, key, partialLast, name, unit);
         return el('div', { class: 'spark-cell' }, [
           el('div', { class: 'thin' }, [
-            el('span', { text: sp.lo === null ? label : `${label}  ${money(sp.lo)}–${money(sp.hi)}` }),
-            sp.last !== null ? el('b', { text: money(sp.last) }) : null
+            el('span', { text: sp.lo === null ? label : `${label} · worst ${money(sp.lo)}, best ${money(sp.hi)}` }),
+            sp.last !== null ? el('span', {}, ['latest ', el('b', { text: money(sp.last) })]) : null
           ]),
-          sp.plot
+          sp.plot,
+          sp.lo === null ? null : el('div', { class: 'thin spark-axis' }, [
+            el('span', { text: shortDate(weeks[0]) }), el('span', { text: shortDate(weeks[weeks.length - 1]) })
+          ])
         ]);
       };
       return el('div', { class: 'spark-row' + (total < FEW_RIDES ? ' few' : '') }, [
@@ -1334,12 +1364,14 @@
 
     box.append(
       el('div', { class: 'rpt-h', text: `Week by week (${weeks.length} weeks from ${shortDate(trend.from)})` }),
+      el('div', { class: 'mix-note', text:
+        `Each dot is one week, ${shortDate(trend.from)} on the left to this week on the right. ` +
+        'The bold figure is the latest week. Every row has its own scale, so compare rows by their figures, not by how high the dots sit.' }),
       widened ? el('div', { class: 'thin', text: `Reaches back before ${shortDate(range.from)}: a trend needs at least ${trend.minWeeks} weeks.` }) : null,
       ...rows,
       el('div', { class: 'thin', style: 'margin-top:6px', text:
-        `Each line has its own scale, from its low to its high. The figure on the right is the latest week. ` +
-        `Hollow points rest on fewer than ${FEW_IN_WEEK} rides${partialLast ? `, and the last is a part week (${partialLast})` : ''}; ` +
-        'a break is a week without that level.' })
+        `A hollow dot is a week of fewer than ${FEW_IN_WEEK} rides, too few to trust${partialLast ? `; the last dot is a part week (${partialLast})` : ''}. ` +
+        'A break in the line is a week without that level. Per hour here is time on a trip.' })
     );
     return box;
   }
@@ -1362,19 +1394,24 @@
     const draw = () => {
       const metric = mixScope.metric;
       const toggle = el('div', { class: 'grain', style: 'margin-bottom:6px' },
-        [['perHour', 'Per hour'], ['perRide', 'Per ride']].map(([k, t]) => el('button', {
+        [['perHour', 'Per hour on a trip'], ['clockPerHour', 'Per hour on the clock'], ['perRide', 'Per ride']].map(([k, t]) => el('button', {
           text: t, 'aria-pressed': String(metric === k),
           onclick: () => { mixScope.metric = k; draw(); }
         })));
       body.replaceChildren(
         toggle,
+        // A shift spans many hours of the day, so on the clock is by weekday only.
+        metric === 'clockPerHour' ? el('div', { class: 'thin', style: 'margin-top:10px', text:
+          'On the clock: everything earned on a shift (every app) divided by the hours clocked in, waiting included. ' +
+          'A shift covers many hours of the day, so this one is by weekday only.' }) : null,
         // The hours need a time: off the screen, or when the screenshot arrived.
-        ...(placed ? [
+        ...(placed && metric !== 'clockPerHour' ? [
           el('div', { class: 'thin', style: 'margin-top:10px', text: when.approx ? 'By hour of day (approximate)' : 'By hour of day' }),
           slotChart(when.hours, metric, hourLabel, 3, 'Hour'),
           slotTable(when.hours, 'Hour', hourLabel)
         ] : []),
-        el('div', { class: 'thin', style: 'margin-top:12px', text: 'By weekday (every ride above, by its date)' }),
+        el('div', { class: 'thin', style: 'margin-top:12px', text: metric === 'clockPerHour'
+          ? 'By weekday (every clocked shift, by its date)' : 'By weekday (every ride above, by its date)' }),
         slotChart(when.weekdays, metric, k => WEEKDAYS[k - 1], 1, 'Weekday'),
         slotTable(when.weekdays, 'Weekday', k => WEEKDAYS[k - 1])
       );
@@ -1402,9 +1439,17 @@
     return box;
   }
 
+  // What each slot metric rests on and calls itself. On the clock counts shifts,
+  // not rides, and exists only for weekdays: a shift spans many hours of the day.
+  const SLOT_METRIC = {
+    perHour: { n: 'ridesTimed', unit: 'per hour on a trip', counted: v => `${v} timed` },
+    perRide: { n: 'rides', unit: 'per ride', counted: v => rides(v) },
+    clockPerHour: { n: 'shifts', unit: 'per hour on the clock', counted: v => `${v} shift${v === 1 ? '' : 's'}` }
+  };
+
   function slotChart(slots, metric, labelOf, every, noun) {
     const W = 480, BASE = 104, TOP = 18;
-    const n = metric === 'perHour' ? 'ridesTimed' : 'rides';
+    const { n, unit, counted } = SLOT_METRIC[metric];
     const vals = slots.map(s => s[metric]).filter(v => v !== null);
     const max = vals.length ? Math.max(...vals) : 1;
     const gap = slots.length > 12 ? 4 : 12;
@@ -1422,12 +1467,11 @@
       const label = labelOf(s.key);
       if (s[metric] === null) {
         g.append(hoverable(svg('rect', { x, y: BASE - 8, width: BW, height: 8, rx: 3, class: 'slot-off' }),
-          `${label} · ${s.rides ? rides(s.rides) + ', none timed' : 'no rides'}`));
+          `${label} · ${metric === 'clockPerHour' ? 'no clocked shifts' : s.rides ? rides(s.rides) + ', none timed' : 'no rides'}`));
       } else {
         const h = (s[metric] / max) * (BASE - TOP);
         g.append(hoverable(vbar(x, BASE, BW, h, s[n] < FEW_RIDES ? 'few' : ''),
-          `${label} · <b>${money(s[metric])}</b> ${metric === 'perHour' ? 'per hour' : 'per ride'} · ` +
-          rides(s[n]) + (metric === 'perHour' ? ' timed' : '')));
+          `${label} · <b>${money(s[metric])}</b> ${unit} · ${counted(s[n])}`));
         if (s === best) {
           g.append(svg('text', { x: x + BW / 2, y: BASE - h - 6, 'text-anchor': 'middle', class: 'vval' }, money(s[metric])));
         }
@@ -1438,22 +1482,22 @@
       // Seven days have room for their ride count; 24 hours do not, and carry it
       // in the tooltip and the table instead.
       if (slots.length <= 7) {
-        g.append(svg('text', { x: x + BW / 2, y: BASE + 30, 'text-anchor': 'middle', class: 'vaxis' },
-          metric === 'perHour' ? `${s[n]} timed` : rides(s[n])));
+        g.append(svg('text', { x: x + BW / 2, y: BASE + 30, 'text-anchor': 'middle', class: 'vaxis' }, counted(s[n])));
       }
     });
     return svg('svg', { class: 'plot slot-plot', viewBox: `0 0 ${W} ${slots.length <= 7 ? 138 : 124}`, role: 'img',
-      'aria-label': `${metric === 'perHour' ? 'Earned per hour' : 'Earned per ride'} by ${noun.toLowerCase()}: ` +
+      'aria-label': `Earned ${unit} by ${noun.toLowerCase()}: ` +
         slots.filter(s => s[metric] !== null).map(s => `${labelOf(s.key)} ${money(s[metric])}`).join(', ') }, g);
   }
 
   /** The same slots as figures, folded away: every count, and the exact rates. */
   function slotTable(slots, head, labelOf) {
-    const used = slots.filter(s => s.rides);
+    const clocked = slots.some(s => 'clockPerHour' in s);
+    const used = slots.filter(s => s.rides || s.shifts);
     return el('details', {}, [
       el('summary', { text: `${head} figures` }),
       el('table', { class: 'rpt-table mix-table' }, [
-        el('thead', {}, el('tr', {}, [head, 'Rides', 'Per ride', 'Per hour'].map((h, i) =>
+        el('thead', {}, el('tr', {}, [head, 'Rides', 'Per ride', 'Per hour', ...(clocked ? ['On the clock'] : [])].map((h, i) =>
           el('th', { class: i ? 'num' : '', text: h })))),
         el('tbody', {}, used.map(s => el('tr', { class: s.rides < FEW_RIDES ? 'few' : '' }, [
           el('td', { class: 'row-name', 'data-label': head, text: labelOf(s.key) }),
@@ -1462,7 +1506,11 @@
           el('td', { class: 'num', 'data-label': 'Per hour' }, [
             el('span', { text: money(s.perHour) }),
             s.ridesTimed < s.rides ? el('div', { class: 'thin', text: `${s.ridesTimed} of ${s.rides} timed` }) : null
-          ])
+          ]),
+          clocked ? el('td', { class: 'num', 'data-label': 'On the clock' }, [
+            el('span', { text: money(s.clockPerHour) }),
+            s.shifts ? el('div', { class: 'thin', text: SLOT_METRIC.clockPerHour.counted(s.shifts) }) : null
+          ]) : null
         ])))
       ])
     ]);
