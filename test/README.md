@@ -45,10 +45,13 @@ hand from eight seeded records: the placeholder ride and the Uber Eats order
 left out, a missing trip time or distance giving a null rate rather than $0,
 `total_miles` falling back to `miles_driven`, the weekly gaps, and clock times
 landing in the right Central hour either side of a DST change. Seeds March 2019,
-years before any real record, and deletes what it wrote, so it is safe against
-the imported data.
+years before any real record, and deletes what it wrote.
 
-    npm run test:mix
+**Scratch databases only — never the live one.** It writes a placeholder shift
+and a $999 ride, uses up WCF/DCF/INC record numbers for good, and if it is killed
+before it cleans up, that ride stays in the `_all` views reconciliation reads.
+
+    DATABASE_URL=postgresql:///<scratch> npm run test:mix
 
 ## 4. Records browser — needs the IMPORTED data
 

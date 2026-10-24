@@ -1283,7 +1283,7 @@
       const what = p[key] === null
         ? (p.rides ? `no ${key === 'perHour' ? 'trip times' : 'figure'} recorded` : 'no rides')
         : `<b>${money(p[key])}</b> ${unit} · ${rides(p[n])}${key === 'perHour' ? ' timed' : ''}` +
-          (partialLast && i === points.length - 1 ? ' · week still running' : '');
+          (partialLast && i === points.length - 1 ? ' · ' + partialLast : '');
       g.append(hoverable(svg('rect', { x: X(i) - step / 2, y: 0, width: step, height: H, fill: 'transparent' }),
         `${escapeHtml(name)} · week of ${shortDate(p.week)} · ${what}`));
     });
@@ -1300,10 +1300,14 @@
     const box = el('div');
     const weeks = trend.weeks;
     if (!trend.series.length || !weeks.length) return box;
-    // The last week is still running when the range ends before its Sunday.
+    // The last week is short when the range ends before its Sunday: still running
+    // if that end is today, cut off by the period (a month ending mid-week) if not.
+    // Says which, and is null for a whole week.
     const lastSunday = new Date(weeks[weeks.length - 1] + 'T12:00:00');
     lastSunday.setDate(lastSunday.getDate() + 6);
-    const partialLast = trend.to < lastSunday.toISOString().slice(0, 10);
+    const partialLast = trend.to >= lastSunday.toISOString().slice(0, 10) ? null
+      : trend.to === trend.today ? 'week still running'
+      : `week only to ${shortDate(trend.to)}`;
 
     const widened = range && trend.from < range.from;
     const rows = trend.series.map(s => {
@@ -1334,7 +1338,7 @@
       ...rows,
       el('div', { class: 'thin', style: 'margin-top:6px', text:
         `Each line has its own scale, from its low to its high. The figure on the right is the latest week. ` +
-        `Hollow points rest on fewer than ${FEW_IN_WEEK} rides${partialLast ? ', and the last week is still running' : ''}; ` +
+        `Hollow points rest on fewer than ${FEW_IN_WEEK} rides${partialLast ? `, and the last is a part week (${partialLast})` : ''}; ` +
         'a break is a week without that level.' })
     );
     return box;
@@ -1349,10 +1353,8 @@
     const box = el('div');
     const head = el('div', { class: 'rpt-h', text: 'When you earn most' });
     const since = when.since ? shortDate(when.since) : null;
-    if (!when.timed) {
-      box.append(head, el('div', { class: 'mix-note muted', text: since
-        ? `No ride in this period has a time of day. Times are only recorded from ${since} on.`
-        : 'No ride has a time of day yet. Times are read off the screenshot, which began around Sep 10.' }));
+    if (!when.rides) {
+      box.append(head, el('div', { class: 'mix-note muted', text: 'No Uber rides in this period.' }));
       return box;
     }
     const body = el('div');
@@ -1365,20 +1367,28 @@
         })));
       body.replaceChildren(
         toggle,
-        el('div', { class: 'thin', style: 'margin-top:10px', text: 'By hour of day' }),
-        slotChart(when.hours, metric, hourLabel, 3, 'Hour'),
-        slotTable(when.hours, 'Hour', hourLabel),
-        el('div', { class: 'thin', style: 'margin-top:12px', text: 'By weekday' }),
+        // The hours need a clock time, which only rides since about Sep 10 carry.
+        ...(when.timed ? [
+          el('div', { class: 'thin', style: 'margin-top:10px', text: 'By hour of day' }),
+          slotChart(when.hours, metric, hourLabel, 3, 'Hour'),
+          slotTable(when.hours, 'Hour', hourLabel)
+        ] : []),
+        el('div', { class: 'thin', style: 'margin-top:12px', text: 'By weekday (every ride above, by its date)' }),
         slotChart(when.weekdays, metric, k => WEEKDAYS[k - 1], 1, 'Weekday'),
         slotTable(when.weekdays, 'Weekday', k => WEEKDAYS[k - 1])
       );
     };
     draw();
     box.append(head,
+      !when.timed ? el('div', { class: 'mix-note muted', text: (since
+        ? `No ride in this period has a time of day, so there is no hour chart. Times are only recorded from ${since} on.`
+        : 'No ride has a time of day yet, so there is no hour chart. Times are read off the screenshot, which began around Sep 10.') +
+        ' The weekdays below use each ride\'s date.' }) :
       el('div', { class: 'mix-note' }, [
         el('strong', { text: `Times of day start ${since}. ` }),
-        el('span', { text: `Patforce has read the time off each screenshot only since about Sep 10, so this is ` +
-          `${count(when.timed)} of the ${rides(when.rides)} above, in Central time. Faded bars rest on fewer than ${FEW_RIDES} rides; the figure printed is the best of the rest.` })
+        el('span', { text: `Patforce has read the time off each screenshot only since about Sep 10, so the hours are ` +
+          `${count(when.timed)} of the ${rides(when.rides)} above, in Central time. The weekdays use every ride's date, so they go back further. ` +
+          `Faded bars rest on fewer than ${FEW_RIDES} rides; the figure printed is the best of the rest.` })
       ]),
       body);
     return box;

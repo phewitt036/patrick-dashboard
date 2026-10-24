@@ -1637,10 +1637,12 @@ router.get('/ride-types', handle(async (req, res) => {
         where r.source = 'Uber'
           and not coalesce(d.is_placeholder, false)
           and r.income_date between $1 and $2
+     ), measured as (
+       select *, coalesce(nullif(total_miles, 0), nullif(miles_driven, 0)) as trip_miles from rides
      ), grouped as (
-       select 'regular' as kind, * from rides where not is_airport and not is_reservation
-       union all select 'airport', * from rides where is_airport
-       union all select 'reservation', * from rides where is_reservation
+       select 'regular' as kind, * from measured where not is_airport and not is_reservation
+       union all select 'airport', * from measured where is_airport
+       union all select 'reservation', * from measured where is_reservation
      )
      select kind,
             count(*)::int                                                        as rides,
@@ -1648,9 +1650,11 @@ router.get('/ride-types', handle(async (req, res) => {
             round(coalesce(sum(total_earnings) filter (where time_taken_minutes > 0), 0), 2) as earnings_timed,
             round(coalesce(sum(time_taken_minutes) filter (where time_taken_minutes > 0), 0) / 60.0, 4) as hours,
             count(*) filter (where time_taken_minutes > 0)::int                  as rides_timed,
-            round(coalesce(sum(total_earnings) filter (where miles_driven > 0), 0), 2) as earnings_mileaged,
-            round(coalesce(sum(miles_driven) filter (where miles_driven > 0), 0), 2)   as miles,
-            count(*) filter (where miles_driven > 0)::int                        as rides_mileaged,
+            -- The whole trip where the receipt shows it, miles driven where that is
+            -- all there is: the same miles as the ride mix above it on the page.
+            round(coalesce(sum(total_earnings) filter (where trip_miles is not null), 0), 2) as earnings_mileaged,
+            round(coalesce(sum(trip_miles), 0), 2)                               as miles,
+            count(trip_miles)::int                                               as rides_mileaged,
             min(income_date) as first_date, max(income_date) as last_date
        from grouped group by kind`,
     [from, to]);
@@ -1751,6 +1755,7 @@ router.get('/ride-mix', handle(async (req, res) => {
   const { rows: [today] } = await pool.query(`select (now() at time zone $1)::date as d`, [TZ]);
   const from = req.query.from ? requiredDate(req.query.from, 'from') : null;
   const to = req.query.to ? requiredDate(req.query.to, 'to') : today.d;
+  if (from && from > to) throw new BadRequest('from must not be after to', 'from');
   const lo = from || '2000-01-01';
   // A month picked mid-month ends on its last day; the trend stops at today, so
   // the weeks still to come are not drawn as weeks with no rides.
@@ -1794,13 +1799,17 @@ router.get('/ride-mix', handle(async (req, res) => {
        from bounds b`,
     [from, trendTo, TREND_MIN_WEEKS, TREND_MAX_WEEKS]);
 
-  // Clock time exists only since occurred_at did (about 2026-09-10), so this is
-  // over the rides that carry one, and says how many that is.
+  // Clock time exists only since occurred_at did (about 2026-09-10), so the hours
+  // are over the rides that carry one, and say how many that is. The weekday is
+  // read off income_date instead, which every ride has, so it covers the whole
+  // history rather than six weeks of it.
   const when = pool.query(
-    `with rides as (select * from v_uber_ride where income_date between $1 and $2 and occurred_at is not null)
-     select 'hour' as dim, local_hour as key, ${MIX_SUMS} from rides group by local_hour
+    `with rides as (select * from v_uber_ride where income_date between $1 and $2)
+     select 'hour' as dim, local_hour as key, ${MIX_SUMS}
+       from rides where occurred_at is not null group by local_hour
      union all
-     select 'weekday', local_isodow, ${MIX_SUMS} from rides group by local_isodow`,
+     select 'weekday', extract(isodow from income_date)::int, ${MIX_SUMS}
+       from rides group by 2`,
     [lo, to]);
 
   const since = pool.query(
@@ -1866,6 +1875,8 @@ router.get('/ride-mix', handle(async (req, res) => {
     rideTypes: ['regular', 'airport', 'reservation'].map(kind => ({ kind, ...mixFigures(byKind[kind] || empty) })),
     trend: {
       from: String(tr.first_week).slice(0, 10), to: trendTo,
+      // So the page can tell a week still running from one the range cut short.
+      today: today.d,
       minWeeks: TREND_MIN_WEEKS,
       weeks, series
     },
