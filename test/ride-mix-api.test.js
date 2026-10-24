@@ -138,11 +138,15 @@ const eq = (label, got, want) =>
     eq('A lands at 6pm Central, not midnight UTC', m.when.hours[18].rides, 1);
     eq('G lands at 8am Central across the DST change', m.when.hours[8].rides, 1);
     eq('Monday holds A, at 12 a ride', [m.when.weekdays[0].rides, m.when.weekdays[0].perRide], [1, 12]);
-    eq('Tuesday holds G', m.when.weekdays[1].rides, 1);
+    // Weekdays come from income_date, so untimed rides count too.
+    eq('Tuesday holds B and G, by date, at 19.50 a ride', [m.when.weekdays[1].rides, m.when.weekdays[1].perRide], [2, 19.5]);
+    eq('Wednesday holds C and H, though neither has a clock time', m.when.weekdays[2].rides, 2);
+    eq('every ride lands on a weekday', m.when.weekdays.reduce((a, d) => a + d.rides, 0), 6);
     eq('an hour he never drove has no rate', m.when.hours[3].perRide, null);
 
     console.log('\n--- input ---');
     eq('a bad date is refused', (await get('/ride-mix?from=03/04/2019')).status, 400);
+    eq('from after to is refused', (await get('/ride-mix?from=2019-03-17&to=2019-03-04')).status, 400);
     const none = (await get('/ride-mix?from=2019-01-01&to=2019-01-02')).body;
     eq('a range with no rides answers, with nulls', [none.total.rides, none.total.perRide, none.levels.length], [0, null, 0]);
 
