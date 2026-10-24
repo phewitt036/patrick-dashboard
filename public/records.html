@@ -1353,6 +1353,7 @@
     const box = el('div');
     const head = el('div', { class: 'rpt-h', text: 'When you earn most' });
     const since = when.since ? shortDate(when.since) : null;
+    const placed = (when.timed || 0) + (when.approx || 0);
     if (!when.rides) {
       box.append(head, el('div', { class: 'mix-note muted', text: 'No Uber rides in this period.' }));
       return box;
@@ -1367,9 +1368,9 @@
         })));
       body.replaceChildren(
         toggle,
-        // The hours need a clock time, which only rides since about Sep 10 carry.
-        ...(when.timed ? [
-          el('div', { class: 'thin', style: 'margin-top:10px', text: 'By hour of day' }),
+        // The hours need a time: off the screen, or when the screenshot arrived.
+        ...(placed ? [
+          el('div', { class: 'thin', style: 'margin-top:10px', text: when.approx ? 'By hour of day (approximate)' : 'By hour of day' }),
           slotChart(when.hours, metric, hourLabel, 3, 'Hour'),
           slotTable(when.hours, 'Hour', hourLabel)
         ] : []),
@@ -1379,15 +1380,22 @@
       );
     };
     draw();
+    // Uber's Trip Details screen prints no time, so most hours are when the
+    // screenshot reached Patforce that day - sent as the trip ends, a few minutes
+    // late. Said up front with both counts, since the chart rests on it.
+    const how = [
+      when.timed ? `${count(when.timed)} by the time on the screen` : null,
+      when.approx ? `${count(when.approx)} by when the screenshot reached Patforce that day, which runs a few minutes behind the ride` : null
+    ].filter(Boolean).join(' and ');
     box.append(head,
-      !when.timed ? el('div', { class: 'mix-note muted', text: (since
-        ? `No ride in this period has a time of day, so there is no hour chart. Times are only recorded from ${since} on.`
-        : 'No ride has a time of day yet, so there is no hour chart. Times are read off the screenshot, which began around Sep 10.') +
+      !placed ? el('div', { class: 'mix-note muted', text: (since
+        ? `No ride in this period has a time of day, so there is no hour chart. Times only exist from ${since} on.`
+        : 'No ride has a time of day yet, so there is no hour chart. Times began when Pixit started sending records, around Sep 10.') +
         ' The weekdays below use each ride\'s date.' }) :
       el('div', { class: 'mix-note' }, [
-        el('strong', { text: `Times of day start ${since}. ` }),
-        el('span', { text: `Patforce has read the time off each screenshot only since about Sep 10, so the hours are ` +
-          `${count(when.timed)} of the ${rides(when.rides)} above, in Central time. The weekdays use every ride's date, so they go back further. ` +
+        el('strong', { text: when.approx ? 'Hours are approximate. ' : `Times of day start ${since}. ` }),
+        el('span', { text: `The hours place ${count(placed)} of the ${rides(when.rides)} above, in Central time: ${how}. ` +
+          `They start ${since}; the weekdays use every ride's date, so they go back further. ` +
           `Faded bars rest on fewer than ${FEW_RIDES} rides; the figure printed is the best of the rest.` })
       ]),
       body);

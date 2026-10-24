@@ -41,17 +41,21 @@ const eq = (label, got, want) =>
     shiftId = ph.id;
 
     const seed = [
-      // A: UberX, timed, both distances (total_miles wins), clock time Mon 6:10pm CST
+      // A: UberX, timed, both distances (total_miles wins), clock time Mon 6:10pm CST.
+      //    Also arrived from Pixit at 11:50pm, which must lose to the screen's time.
       { level: 'UberX', amount: 10, tips: 2, surge: null, driven: 4, total: 5, mins: 15,
-        date: '2019-03-04', at: '2019-03-04T18:10:00-06:00' },
+        date: '2019-03-04', at: '2019-03-04T18:10:00-06:00',
+        ext: 'ride-mix-test-A', created: '2019-03-04T23:50:00-06:00' },
       // B: UberX airport, surge, only miles_driven (the fallback)
       { level: 'UberX', amount: 20, tips: 0, surge: 3, driven: 8, total: null, mins: 30,
         date: '2019-03-05', airport: true },
       // C: Comfort reservation with nothing measured: no time, no distance
       { level: 'Comfort', amount: 15, tips: null, surge: null, driven: null, total: null, mins: null,
         date: '2019-03-06', reservation: true },
-      // D: no level; total_miles 0 falls back to driven; 0 minutes is unmeasured
-      { level: null, amount: 9, tips: 1.6, surge: null, driven: 3, total: 0, mins: 0, date: '2019-03-07' },
+      // D: no level; total_miles 0 falls back to driven; 0 minutes is unmeasured.
+      //    From Pixit, but the NEXT day (a tip screenshot), so no approximate hour.
+      { level: null, amount: 9, tips: 1.6, surge: null, driven: 3, total: 0, mins: 0, date: '2019-03-07',
+        ext: 'ride-mix-test-D', created: '2019-03-08T09:00:00-06:00' },
       // E: on the placeholder shift - excluded from everything
       { level: 'UberX', amount: 999, tips: 0, surge: 5, driven: 1, total: 1, mins: 1, date: '2019-03-06', placeholder: true },
       // F: an Uber Eats order carrying a level - a delivery, not a ride
@@ -59,16 +63,19 @@ const eq = (label, got, want) =>
       // G: UberX the next week, clock time Tue 8:30am CDT (after the 2019-03-10 change)
       { level: 'UberX', amount: 12, tips: 3, surge: 1, driven: 6, total: 7, mins: 20,
         date: '2019-03-12', at: '2019-03-12T08:30:00-05:00' },
-      // H: a blank-string level, which is no level
-      { level: '', amount: 6, tips: null, surge: null, driven: 2, total: 2.5, mins: 10, date: '2019-03-13' }
+      // H: a blank-string level, which is no level. No time on the screen; from Pixit
+      //    the same evening at 9:20pm CDT, so its hour is 21, approximate.
+      { level: '', amount: 6, tips: null, surge: null, driven: 2, total: 2.5, mins: 10, date: '2019-03-13',
+        ext: 'ride-mix-test-H', created: '2019-03-13T21:20:00-05:00' }
     ];
     for (const r of seed) {
       const { rows: [x] } = await pool.query(
         `insert into income_record (daily_cash_flow_id, income_date, source, amount, tips, surge_bonus, uber_level,
-            miles_driven, total_miles, time_taken_minutes, occurred_at, is_airport, is_reservation)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id`,
+            miles_driven, total_miles, time_taken_minutes, occurred_at, is_airport, is_reservation,
+            external_id, created_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,coalesce($15::timestamptz, now())) returning id`,
         [r.placeholder ? shiftId : null, r.date, r.source || 'Uber', r.amount, r.tips, r.surge, r.level,
-         r.driven, r.total, r.mins, r.at || null, !!r.airport, !!r.reservation]);
+         r.driven, r.total, r.mins, r.at || null, !!r.airport, !!r.reservation, r.ext || null, r.created || null]);
       ids.push(x.id);
     }
 
@@ -133,10 +140,15 @@ const eq = (label, got, want) =>
        ux.find(p => p.week === '2019-02-25'), { week: '2019-02-25', rides: 0, perRide: null, perHour: null, ridesTimed: 0 });
 
     console.log('\n--- when ---');
-    eq('only A and G carry a clock time', [m.when.timed, m.when.rides], [2, 6]);
+    eq('A and G carry a clock time, H an approximate one', [m.when.timed, m.when.approx, m.when.rides], [2, 1, 6]);
+    eq('hours start with the first ride that has one', m.when.since, '2019-03-04');
     eq('24 hours and 7 days, empty ones included', [m.when.hours.length, m.when.weekdays.length], [24, 7]);
     eq('A lands at 6pm Central, not midnight UTC', m.when.hours[18].rides, 1);
     eq('G lands at 8am Central across the DST change', m.when.hours[8].rides, 1);
+    eq('H lands at 9pm, when it reached Patforce that evening', m.when.hours[21].rides, 1);
+    eq('A\'s 11:50pm arrival loses to the time on its screen', m.when.hours[23].rides, 0);
+    eq('D\'s next-morning arrival places it nowhere', m.when.hours[9].rides, 0);
+    eq('the hours hold A, G and H', m.when.hours.reduce((a, h) => a + h.rides, 0), 3);
     eq('Monday holds A, at 12 a ride', [m.when.weekdays[0].rides, m.when.weekdays[0].perRide], [1, 12]);
     // Weekdays come from income_date, so untimed rides count too.
     eq('Tuesday holds B and G, by date, at 19.50 a ride', [m.when.weekdays[1].rides, m.when.weekdays[1].perRide], [2, 19.5]);

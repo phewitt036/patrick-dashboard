@@ -1799,22 +1799,24 @@ router.get('/ride-mix', handle(async (req, res) => {
        from bounds b`,
     [from, trendTo, TREND_MIN_WEEKS, TREND_MAX_WEEKS]);
 
-  // Clock time exists only since occurred_at did (about 2026-09-10), so the hours
-  // are over the rides that carry one, and say how many that is. The weekday is
-  // read off income_date instead, which every ride has, so it covers the whole
-  // history rather than six weeks of it.
+  // The hours are over the rides with an hour: off the screen where it printed
+  // one, otherwise when the screenshot reached Patforce that same day (012, and
+  // approximate - the page says so and counts each). Both exist only since Pixit
+  // began sending records, about 2026-09-10. The weekday is read off income_date
+  // instead, which every ride has, so it covers the whole history.
   const when = pool.query(
     `with rides as (select * from v_uber_ride where income_date between $1 and $2)
      select 'hour' as dim, local_hour as key, ${MIX_SUMS}
-       from rides where occurred_at is not null group by local_hour
+       from rides where local_hour is not null group by local_hour
      union all
      select 'weekday', extract(isodow from income_date)::int, ${MIX_SUMS}
        from rides group by 2`,
     [lo, to]);
 
   const since = pool.query(
-    `select min(occurred_local)::date as since,
+    `select min(income_date) filter (where local_hour is not null) as since,
             count(*) filter (where occurred_at is not null and income_date between $1 and $2)::int as timed,
+            count(*) filter (where hour_approx and income_date between $1 and $2)::int as approx,
             count(*) filter (where income_date between $1 and $2)::int as rides
        from v_uber_ride`,
     [lo, to]);
@@ -1884,6 +1886,8 @@ router.get('/ride-mix', handle(async (req, res) => {
       since: s.rows[0].since,
       rides: s.rows[0].rides,
       timed: s.rows[0].timed,
+      // Placed by when the screenshot arrived, not by a time on it.
+      approx: s.rows[0].approx,
       timeZone: TZ,
       hours: slot('hour', [...Array(24).keys()]),
       // ISO weekday: 1 is Monday, matching the Monday-start weeks.
