@@ -55,7 +55,9 @@ async function land(port, rawPath, opts) {
 }
 
 const toLogin = r => r.status === 302 && r.location === '/login.html';
-const refused = r => r.status === 400 || r.status === 404;
+// 401 is requireAuth's answer when the URL as sent begins /api, as
+// /api/../index.html does, in place of the login redirect a page gets.
+const refused = r => r.status === 400 || r.status === 401 || r.status === 404;
 const show = r => `got ${r.status}${r.location ? ' -> ' + r.location : ''}`;
 
 async function start(port, env) {
@@ -85,7 +87,13 @@ const spellings = p => {
     '/%2f' + name,
     '/%5c' + name,
     '/x/..' + p,
-    '/x/%2e%2e' + p
+    '/x/%2e%2e' + p,
+    // Under the prefixes the Patforce spelling rule leaves alone.
+    '/api/..' + p,
+    '/api/%2e%2e' + p,
+    '/api/%2e%2e%2f' + name,
+    '/auth/..' + p,
+    '/auth/%2e%2e' + p
   ];
 };
 
@@ -98,9 +106,16 @@ const PATFORCE_BLOCKED = ['/index.html', '/gig.html', '/claw.html',
 const PATFORCE_REWRITTEN = ['/sw.js', '/favicon.svg', '/login.html', '/setup.html',
   '/records.html', '/dashboard.html'];
 const ROOT_SPELLINGS = ['/.', '/./', '/%2e/', '/x/../', '/x/%2e%2e/', '/%2f', '/%2F', '/%5c', '//'];
+// Parameters that would step out of their folder on the hub. '..' survives
+// encodeURIComponent, so the one-level ones matter as much as the deep ones.
 const TRAVERSAL = [
   ['GET', '/api/pimax/claw/conversations/..%2f..%2f..%2f../messages'],
-  ['DELETE', '/api/pimax/claw/conversations/..%2f..%2f..%2f..']
+  ['DELETE', '/api/pimax/claw/conversations/..%2f..%2f..%2f..'],
+  ['GET', '/api/pimax/claw/conversations/%2e%2e/messages'],
+  ['DELETE', '/api/pimax/claw/conversations/%2e%2e'],
+  ['DELETE', '/api/pimax/claw/conversations/1%2f..'],
+  ['DELETE', '/api/pimax/claw/knowledge/%2e%2e'],
+  ['DELETE', '/api/pimax/claw/knowledge/.']
 ];
 
 (async () => {
@@ -151,15 +166,21 @@ const TRAVERSAL = [
     console.log('\n--- full dashboard: the hub proxy stays inside its own paths ---');
     for (const [method, p] of TRAVERSAL) {
       hubSeen.length = 0;
-      await send(fullPort, p, { session: true, method });
-      check(`${method} ${p} stays under /chat/conversations/`,
-            hubSeen.length === 1 && hubSeen[0].startsWith(`${method} /chat/conversations/`),
-            `hub saw ${JSON.stringify(hubSeen)}`);
+      const r = await send(fullPort, p, { session: true, method });
+      check(`${method} ${p} is refused before the hub`,
+            r.status === 400 && hubSeen.length === 0, `${show(r)}, hub saw ${JSON.stringify(hubSeen)}`);
     }
-    hubSeen.length = 0;
-    await send(fullPort, '/api/pimax/claw/conversations/abc-123/messages', { session: true });
-    check('an ordinary conversation id still reaches the hub',
-          hubSeen[0] === 'GET /chat/conversations/abc-123/messages', `hub saw ${JSON.stringify(hubSeen)}`);
+    for (const [method, p, upstream] of [
+      ['GET', '/api/pimax/claw/conversations/42/messages', 'GET /chat/conversations/42/messages'],
+      ['DELETE', '/api/pimax/claw/conversations/42', 'DELETE /chat/conversations/42'],
+      ['DELETE', '/api/pimax/claw/knowledge/notes.v2.md', 'DELETE /chat/knowledge/notes.v2.md'],
+      ['DELETE', '/api/pimax/claw/knowledge/my%20file.txt', 'DELETE /chat/knowledge/my%20file.txt']
+    ]) {
+      hubSeen.length = 0;
+      await send(fullPort, p, { session: true, method });
+      check(`${method} ${p} still reaches the hub as ${upstream}`,
+            hubSeen.length === 1 && hubSeen[0] === upstream, `hub saw ${JSON.stringify(hubSeen)}`);
+    }
 
     console.log('\n--- Patforce-only: the command centre stays hidden ---');
     for (const file of PATFORCE_BLOCKED) {

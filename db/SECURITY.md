@@ -36,15 +36,22 @@ file that instance hides, and the dashboard's own `sw.js`, favicon and pages
 without their rewriting. Markup only: every figure comes from `/api`, which
 checks the session itself. `canonicalPath()` in `server.js` now gives each path
 one spelling for the guard in front of static and for the block list, and
-static serves no directory index. `npm run test:paths` sends ten spellings of
-every protected page and hidden file in both modes.
+static serves no directory index. On the Patforce hostname a page or asset is
+served only under the spelling its route expects; API and auth paths are
+exempt only when they stay under `/api/` or `/auth/` once normalised, since
+`/api/../sw.js` would otherwise reach static. `npm run test:paths` sends fifteen
+spellings of every protected page and hidden file in both modes.
 
 **The hub proxy put a conversation id into agent-hub's URL as it was.** Express
 decodes route parameters, so an id sent as `..%2f..%2f..` reached any path on
 agent-hub, carrying `AGENT_API_KEY`: on the full dashboard for any session, and
 on the Patforce hostname past the block list, which then matched only the
-normalised path. The id is now encoded the way `/claw/knowledge/:name` already
-was, and the block list checks both spellings. Not checked: whether Vercel's
+normalised path. Encoding the id is not enough on its own, because
+`encodeURIComponent('..')` is still `..` and steps up one level, and
+`/claw/knowledge/:name` had that flaw already. So a conversation id must now be
+digits, the hub's own integer keys, and a knowledge name may not be `.` or
+`..`. Anything else is answered 400 before the hub is called. The block list checks
+both spellings. Not checked: whether Vercel's
 edge passes `/./` and `%2e` through to the function unchanged. The fix does not
 depend on it either way.
 

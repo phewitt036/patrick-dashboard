@@ -84,9 +84,9 @@ the page hands it real numbers, not whether Chart.js can draw them.
 
 ## 4c. Paths — needs NO database
 
-229 assertions that a page behind the login, and a file the Patforce-only
+337 assertions that a page behind the login, and a file the Patforce-only
 instance hides, stay that way however the path is spelled: percent-encoded,
-upper-cased, with `/./`, `//`, `%2f`, `%5c` or `/x/../` in front. Starts
+upper-cased, with `/./`, `//`, `%2f`, `%5c`, `/x/../` or `/api/../` in front. Starts
 `server.js` twice, once with `PATFORCE_ONLY=1`, on spare ports, with its own
 `JWT_SECRET`, and sends raw request paths — `fetch()` would tidy the dot
 segments away before they reached the server. A stub agent-hub records what

@@ -75,7 +75,10 @@ if (PATFORCE_ONLY) {
     // its route expects. Any other spelling skipped the rewriting below and
     // reached express.static, which handed out the dashboard's own sw.js,
     // favicon and pages untouched.
-    if (raw !== p && !raw.startsWith('/api/') && !raw.startsWith('/auth/')) {
+    // Exempt only when both spellings are under the prefix: send() would
+    // resolve /api/../sw.js to the dashboard's own worker.
+    const underApi = x => x.startsWith('/api/') || x.startsWith('/auth/');
+    if (raw !== p && !(underApi(raw) && underApi(p))) {
       return res.status(404).send('Not found');
     }
     next();

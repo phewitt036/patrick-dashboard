@@ -60,9 +60,16 @@ router.post('/chat', async (req, res) => {
 
 // Claw v2 — conversations
 router.get('/claw/conversations', proxy('/chat/conversations'));
-// Encoded for the same reason as :name below. Express hands the id over decoded,
-// so an id of ../../.. sent as ..%2f..%2f.. walked out of /chat/conversations
-// and reached any path on the hub, carrying its key.
+// Express hands parameters over decoded, so an id sent as ..%2f..%2f.. walked
+// out of /chat/conversations to any path on the hub, carrying its key, and
+// encoding alone does not stop it: encodeURIComponent('..') is still '..', one
+// level up. Conversation ids are the hub's integer keys (claw.html writes them
+// into the page unquoted), so nothing else is passed on. A knowledge name is a
+// file name and may hold dots, but never be one.
+router.param('id', (req, res, next, id) =>
+  /^\d+$/.test(id) ? next() : res.status(400).json({ error: 'Invalid conversation id' }));
+router.param('name', (req, res, next, name) =>
+  name && name !== '.' && name !== '..' ? next() : res.status(400).json({ error: 'Invalid file name' }));
 router.delete('/claw/conversations/:id', proxy(req => `/chat/conversations/${encodeURIComponent(req.params.id)}`, 'DELETE'));
 router.get('/claw/conversations/:id/messages', proxy(req => `/chat/conversations/${encodeURIComponent(req.params.id)}/messages`));
 
