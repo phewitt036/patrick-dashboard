@@ -38,7 +38,7 @@ which exist only inside the dev org and nowhere else.
 | `db/INGEST.md` | pointing Pixit at `/api/ingest` instead of Salesforce |
 | `db/BACKUP.md` | nightly backups, the boss/bee arrangement, restoring |
 | `db/SECURITY.md` | what was fixed, what was checked, what is knowingly accepted |
-| `test/README.md` | which database each of the seven suites expects |
+| `test/README.md` | which database each of the eight suites expects |
 
 Commit messages carry the why for individual decisions. They are long on
 purpose.
@@ -66,12 +66,13 @@ database picks up new files without anyone remembering to run psql.
 
 ## Running the tests
 
-Seven suites, and they want different databases — `test/README.md` is the table.
+Eight suites, and most want different databases — `test/README.md` is the table.
 The two Playwright suites take `CHROME_PATH` if the bundled browser is missing.
 
     npm run test:api        npm run test:records     npm run test:ingest
     npm run test:browser    npm run test:gig         npm run test:mix
+    npm run test:paths      (no database)
     psql -d <empty-scratch> -f db/test_schema.sql
 
 Green as of the last change: schema 42, income 45, records 45, ingest 46,
-records browser 16, gig browser 25, ride mix 51, both reconciliations.
+records browser 16, gig browser 25, ride mix 51, paths 170, both reconciliations.

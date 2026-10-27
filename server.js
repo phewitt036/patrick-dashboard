@@ -26,6 +26,19 @@ app.use(helmet({
 
 app.use(cookieParser());
 
+// One spelling per path, for the checks that decide what is hidden or behind a
+// login. express.static decodes and normalises a path before it looks for the
+// file, so a check on the path as it arrived could be stepped round:
+// /%69ndex.html, /./index.html, //index.html and /x/../index.html all reached
+// the command centre with no session. Lower-cased too, because a Windows disk
+// answers /INDEX.HTML as readily as /index.html. null means it will not decode,
+// and nothing should be served for it.
+function canonicalPath(p) {
+  let decoded;
+  try { decoded = decodeURIComponent(p); } catch { return null; }
+  return path.posix.normalize(decoded.split('\\').join('/')).toLowerCase();
+}
+
 // ---------------------------------------------------------------------------
 // Patforce-only front door
 // ---------------------------------------------------------------------------
@@ -48,8 +61,10 @@ if (PATFORCE_ONLY) {
     // The records screen is the front page here, not a link buried in a menu.
     // The dashboard is the front page. Registered further down with the other
     // rewritten pages so it picks up the icon, manifest and service worker too.
-    if (BLOCKED_PAGES.has(req.path)) return res.status(404).send('Not found');
-    if (BLOCKED_APIS.some(a => req.path === a || req.path.startsWith(a + '/'))) {
+    const p = canonicalPath(req.path);
+    if (p === null) return res.status(400).send('Bad request');
+    if (BLOCKED_PAGES.has(p)) return res.status(404).send('Not found');
+    if (BLOCKED_APIS.some(a => p === a || p.startsWith(a + '/'))) {
       return res.status(404).json({ error: 'Not found' });
     }
     next();
@@ -198,6 +213,20 @@ app.get('/claw', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'p
 app.get('/records', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'records.html')));
 app.get('/records.html', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'records.html')));
 app.get('/claw.html', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'claw.html')));
+
+// The routes above guard each page by its exact name, but express.static below
+// will serve the same file under any spelling that decodes to it. So every
+// request that would land on a protected page is checked again here, by what
+// it means rather than how it was written. dashboard.html had no route of its
+// own on the full dashboard and was served to anyone.
+const PROTECTED_FILES = new Set(['/index.html', '/gig.html', '/claw.html',
+  '/records.html', '/dashboard.html']);
+// A path that will not decode is passed on: express.static cannot decode it
+// either and answers 400, and the API routes after it keep their own handling.
+app.use((req, res, next) => {
+  const p = canonicalPath(req.path);
+  return p !== null && PROTECTED_FILES.has(p) ? requireAuth(req, res, next) : next();
+});
 
 // Static files (login.html, setup.html, assets — no auth)
 app.use(express.static(path.join(__dirname, 'public')));

@@ -1,6 +1,6 @@
 # Running the tests
 
-Seven suites. They need different databases, and pointing one at the wrong
+Eight suites. Most need different databases, and pointing one at the wrong
 database produces a confusing failure rather than a clear one — so each is
 listed here with the state it expects.
 
@@ -81,6 +81,17 @@ Chart.js is stubbed: the page loads it from a CDN, and what matters is whether
 the page hands it real numbers, not whether Chart.js can draw them.
 
     npm run test:gig
+
+## 4c. Paths — needs NO database
+
+170 assertions that a page behind the login, and a file the Patforce-only
+instance hides, stay that way however the path is spelled: percent-encoded,
+upper-cased, with `/./`, `//`, `%2f`, `%5c` or `/x/../` in front. Starts
+`server.js` twice, once with `PATFORCE_ONLY=1`, on spare ports, with its own
+`JWT_SECRET`, and sends raw request paths — `fetch()` would tidy the dot
+segments away before they reached the server. Safe to run anywhere.
+
+    npm run test:paths
 
 ## 5. Fixture round trip — the cutover gate, needs a SCRATCH database
 

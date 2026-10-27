@@ -18,6 +18,7 @@
     "test:ingest": "node test/ingest-api.test.js",
     "test:gig": "node test/gig-browser.test.js",
     "test:mix": "node test/ride-mix-api.test.js",
+    "test:paths": "node test/paths.test.js",
     "crm:install": "node scripts/install-crm.js"
   },
   "keywords": [],
