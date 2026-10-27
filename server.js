@@ -35,7 +35,7 @@ app.use(cookieParser());
 // the same session, so leaving them served would make one passkey open both.
 //
 // Off by default. The Vercel deployment sets nothing and stays the full
-// dashboard; the pimax instance sets PATFORCE_ONLY=1 and is the CRM alone.
+// dashboard; the boss instance sets PATFORCE_ONLY=1 and is the CRM alone.
 const PATFORCE_ONLY = process.env.PATFORCE_ONLY === '1';
 if (PATFORCE_ONLY) {
   // The command centre's manifest and icons name it and wear its mark, so they
