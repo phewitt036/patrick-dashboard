@@ -6,6 +6,15 @@
 <title>Patrick's Command Center</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<!-- Without a manifest Android installs the page as a bare shortcut and draws
+     its own title-and-address bar over it. These make it a real app again. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Command Center">
+<script>if ('serviceWorker' in navigator) { addEventListener('load', function () { navigator.serviceWorker.register('/sw.js'); }); }</script>
 <style>
   :root {
     --bg: #0a0a0f;

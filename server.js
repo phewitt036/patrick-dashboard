@@ -38,7 +38,11 @@ app.use(cookieParser());
 // dashboard; the pimax instance sets PATFORCE_ONLY=1 and is the CRM alone.
 const PATFORCE_ONLY = process.env.PATFORCE_ONLY === '1';
 if (PATFORCE_ONLY) {
-  const BLOCKED_PAGES = new Set(['/index.html', '/gig', '/gig.html', '/claw', '/claw.html']);
+  // The command centre's manifest and icons name it and wear its mark, so they
+  // go with it rather than tell this hostname what else the repo serves.
+  const BLOCKED_PAGES = new Set(['/index.html', '/gig', '/gig.html', '/claw', '/claw.html',
+    '/manifest.webmanifest', '/icon-192.png', '/icon-512.png',
+    '/icon-maskable-192.png', '/icon-maskable-512.png']);
   const BLOCKED_APIS = ['/api/pimax', '/api/pixit'];
   app.use((req, res, next) => {
     // The records screen is the front page here, not a link buried in a menu.
