@@ -941,8 +941,11 @@
     <div class="mining-grid">
       <div class="mining-stat"><div class="mining-stat-val fan-val" id="rack-fan-speed">—</div><div class="mining-stat-label">Speed</div></div>
       <div class="mining-stat"><div class="mining-stat-val" id="rack-fan-state">—</div><div class="mining-stat-label">Fans</div></div>
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="rack-fan-bee">—</div><div class="mining-stat-label">bee Temp</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="rack-fan-mode">—</div><div class="mining-stat-label" id="rack-fan-mode-label">Mode</div></div>
     </div>
     <div class="fan-controls" style="margin-top:10px;">
+      <button class="fan-btn fan-btn-auto" id="rack-btn-auto" onclick="setRackFansAuto()">Auto</button>
       <button class="fan-btn" id="rack-btn-0" onclick="setRackFans(0)">Off</button>
       <button class="fan-btn" id="rack-btn-25" onclick="setRackFans(25)">25%</button>
       <button class="fan-btn" id="rack-btn-50" onclick="setRackFans(50)">50%</button>
@@ -1634,14 +1637,24 @@
   setInterval(loadPiholeFan, 60000);
 
   // Rack fans. agent-hub sets them through Home Assistant; every fan in the rack is on the
-  // controller's one working output, so there is one speed for all of them.
+  // controller's one working output, so there is one speed for all of them. On Auto, bee's
+  // temperature picks the speed (capped by day). A speed button holds for two hours, then Auto
+  // takes back over - agent-hub enforces that, the buttons only ask.
   const RACK_FAN_PRESETS = [0, 25, 50, 75, 100];
+  const rackTime = iso => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
   async function loadRackFans() {
     try {
       const res = await fetch('/api/pimax/rackfans');
       const d = await res.json();
       if (!d.success) throw new Error(d.error);
+      document.getElementById('rack-fan-bee').textContent = d.beeTemp != null ? `${d.beeTemp}°C` : '—';
+      const modeEl = document.getElementById('rack-fan-mode');
+      modeEl.textContent = d.mode === 'manual' ? 'Manual' : 'Auto';
+      modeEl.style.color = d.mode === 'manual' ? '#f7931a' : '#007ac1';
+      document.getElementById('rack-fan-mode-label').textContent =
+        d.mode === 'manual' ? `Auto again at ${rackTime(d.manualUntil)}` : (d.night ? 'Mode · night' : 'Mode · day, quiet');
+      document.getElementById('rack-btn-auto').classList.toggle('fan-btn-active', d.mode === 'auto');
       const stateEl = document.getElementById('rack-fan-state');
       if (!d.reachable) {
         // HA has lost the controller: unplugged, or off the Wi-Fi.
@@ -1653,10 +1666,11 @@
         stateEl.textContent = d.on ? 'On' : 'Off';
         stateEl.style.color = d.on ? '#22c55e' : 'var(--muted)';
       }
-      // A speed set from Home Assistant may match no button; then none lights up.
+      // Only a speed you pressed lights its button; on Auto, the Auto button is the lit one.
       RACK_FAN_PRESETS.forEach(p => document.getElementById(`rack-btn-${p}`)
-        .classList.toggle('fan-btn-active', d.reachable && d.percent === p));
-      document.getElementById('rack-fan-status').textContent = `updated ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+        .classList.toggle('fan-btn-active', d.mode === 'manual' && d.reachable && d.percent === p));
+      const why = d.mode === 'auto' && d.reason ? ` · ${d.reason}` : '';
+      document.getElementById('rack-fan-status').textContent = `updated ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}${why}`;
     } catch (e) {
       document.getElementById('rack-fan-status').textContent = `error: ${e.message}`;
     }
@@ -1672,7 +1686,19 @@
       });
       const d = await res.json();
       if (!d.success) throw new Error(d.error);
-      setTimeout(loadRackFans, 600);
+      setTimeout(loadRackFans, 1500);  // HA takes a moment to report the new speed
+    } catch (e) {
+      document.getElementById('rack-fan-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  async function setRackFansAuto() {
+    document.getElementById('rack-fan-status').textContent = 'back to auto...';
+    try {
+      const res = await fetch('/api/pimax/rackfans/manual', { method: 'DELETE' });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error);
+      setTimeout(loadRackFans, 1500);  // HA takes a moment to report the new speed
     } catch (e) {
       document.getElementById('rack-fan-status').textContent = `error: ${e.message}`;
     }
