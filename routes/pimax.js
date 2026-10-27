@@ -82,6 +82,8 @@ router.post('/fan/override', proxy('/fan/override', 'POST'));
 router.delete('/fan/override', proxy('/fan/override', 'DELETE'));
 router.get('/fan/pihole', proxy('/fan/pihole'));
 router.post('/fan/pihole', proxy('/fan/pihole', 'POST'));
+router.get('/rackfans', proxy('/rackfans'));
+router.post('/rackfans', proxy('/rackfans', 'POST'));
 
 // Mining switch. The POST is deliberately not a passthrough of the hub's path: the
 // button sends {enabled} to /api/pimax/mining and agent-hub takes it at

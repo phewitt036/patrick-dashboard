@@ -937,6 +937,23 @@
       <button class="mining-refresh" onclick="loadPiholeFan()">↻ Refresh</button>
     </div>
 
+    <div class="mining-rig-label" style="margin-top:20px;">Rack Fans</div>
+    <div class="mining-grid">
+      <div class="mining-stat"><div class="mining-stat-val fan-val" id="rack-fan-speed">—</div><div class="mining-stat-label">Speed</div></div>
+      <div class="mining-stat"><div class="mining-stat-val" id="rack-fan-state">—</div><div class="mining-stat-label">Fans</div></div>
+    </div>
+    <div class="fan-controls" style="margin-top:10px;">
+      <button class="fan-btn" id="rack-btn-0" onclick="setRackFans(0)">Off</button>
+      <button class="fan-btn" id="rack-btn-25" onclick="setRackFans(25)">25%</button>
+      <button class="fan-btn" id="rack-btn-50" onclick="setRackFans(50)">50%</button>
+      <button class="fan-btn" id="rack-btn-75" onclick="setRackFans(75)">75%</button>
+      <button class="fan-btn" id="rack-btn-100" onclick="setRackFans(100)">Full</button>
+    </div>
+    <div class="mining-meta">
+      <span id="rack-fan-status">loading...</span>
+      <button class="mining-refresh" onclick="loadRackFans()">↻ Refresh</button>
+    </div>
+
     <div class="mining-rig-label" style="margin-top:20px;">Mining</div>
     <div class="mining-grid">
       <div class="mining-stat"><div class="mining-stat-val" id="mining-switch">—</div><div class="mining-stat-label">Switch</div></div>
@@ -1615,6 +1632,54 @@
 
   loadPiholeFan();
   setInterval(loadPiholeFan, 60000);
+
+  // Rack fans. agent-hub sets them through Home Assistant; every fan in the rack is on the
+  // controller's one working output, so there is one speed for all of them.
+  const RACK_FAN_PRESETS = [0, 25, 50, 75, 100];
+
+  async function loadRackFans() {
+    try {
+      const res = await fetch('/api/pimax/rackfans');
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error);
+      const stateEl = document.getElementById('rack-fan-state');
+      if (!d.reachable) {
+        // HA has lost the controller: unplugged, or off the Wi-Fi.
+        document.getElementById('rack-fan-speed').textContent = '—';
+        stateEl.textContent = 'Offline';
+        stateEl.style.color = '#ef4444';
+      } else {
+        document.getElementById('rack-fan-speed').textContent = d.percent != null ? `${d.percent}%` : '—';
+        stateEl.textContent = d.on ? 'On' : 'Off';
+        stateEl.style.color = d.on ? '#22c55e' : 'var(--muted)';
+      }
+      // A speed set from Home Assistant may match no button; then none lights up.
+      RACK_FAN_PRESETS.forEach(p => document.getElementById(`rack-btn-${p}`)
+        .classList.toggle('fan-btn-active', d.reachable && d.percent === p));
+      document.getElementById('rack-fan-status').textContent = `updated ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+    } catch (e) {
+      document.getElementById('rack-fan-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  async function setRackFans(percent) {
+    document.getElementById('rack-fan-status').textContent = 'setting...';
+    try {
+      const res = await fetch('/api/pimax/rackfans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ percent })
+      });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error);
+      setTimeout(loadRackFans, 600);
+    } catch (e) {
+      document.getElementById('rack-fan-status').textContent = `error: ${e.message}`;
+    }
+  }
+
+  loadRackFans();
+  setInterval(loadRackFans, 60000);
 
   // Mining switch.
   //
