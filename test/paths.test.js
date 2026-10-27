@@ -3,12 +3,14 @@
 //
 // Both checks used to compare the path exactly as it arrived, while
 // express.static decodes and normalises it before looking for the file. So
-// /%69ndex.html served the command centre with no session, and on the
-// Patforce hostname it served the very page that instance exists to hide.
+// /%69ndex.html and /./ served the command centre with no session, and on the
+// Patforce hostname they served the very page that instance exists to hide.
+// The hub proxy had the same flaw one level down: a conversation id of
+// ..%2f..%2f.. walked out of /chat/conversations to any path on agent-hub.
 //
-// Starts server.js twice, once in each mode, and sends raw request paths:
-// fetch() would tidy /./ and %2e away before they ever reached the server.
-// Needs no database.
+// Starts server.js twice, once in each mode, against a stub agent-hub that
+// records what reaches it, and sends raw request paths: fetch() would tidy /./
+// and %2e away before they ever reached the server. Needs no database.
 //
 //   npm run test:paths
 
@@ -27,9 +29,9 @@ const check = (label, ok, detail) => {
   else { console.log(`FAIL  ${label}${detail ? `\n        ${detail}` : ''}`); fail++; }
 };
 
-const get = (port, rawPath, session) => new Promise((resolve, reject) => {
+const send = (port, rawPath, { session, method = 'GET' } = {}) => new Promise((resolve, reject) => {
   const req = http.request({
-    host: '127.0.0.1', port, path: rawPath, method: 'GET',
+    host: '127.0.0.1', port, path: rawPath, method,
     headers: session ? { Cookie: `session=${TOKEN}` } : {}
   }, res => {
     let body = '';
@@ -41,13 +43,28 @@ const get = (port, rawPath, session) => new Promise((resolve, reject) => {
   req.end();
 });
 
-async function start(port, patforceOnly) {
+// Follows 301s, which static uses to add a slash to a folder, so a redirect is
+// judged by where it lands rather than passing because it is not a 200. The
+// 302 to the login page is the answer being tested for, so it is not followed.
+async function land(port, rawPath, opts) {
+  let r = await send(port, rawPath, opts);
+  for (let i = 0; i < 3 && r.status === 301 && r.location && r.location.startsWith('/'); i++) {
+    r = await send(port, r.location, opts);
+  }
+  return r;
+}
+
+const toLogin = r => r.status === 302 && r.location === '/login.html';
+const refused = r => r.status === 400 || r.status === 404;
+const show = r => `got ${r.status}${r.location ? ' -> ' + r.location : ''}`;
+
+async function start(port, env) {
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
-    env: { ...process.env, PORT: String(port), JWT_SECRET: SECRET, PATFORCE_ONLY: patforceOnly ? '1' : '' },
+    env: { ...process.env, PORT: String(port), JWT_SECRET: SECRET, ...env },
     stdio: 'ignore'
   });
   for (let i = 0; i < 50; i++) {
-    try { await get(port, '/login.html'); return child; }
+    try { await send(port, '/login.html'); return child; }
     catch { await new Promise(r => setTimeout(r, 200)); }
   }
   child.kill();
@@ -76,87 +93,128 @@ const PROTECTED = ['/index.html', '/gig.html', '/claw.html', '/records.html', '/
 const PATFORCE_BLOCKED = ['/index.html', '/gig.html', '/claw.html',
   '/manifest.webmanifest', '/icon-192.png', '/icon-512.png',
   '/icon-maskable-192.png', '/icon-maskable-512.png'];
-const ROOT_SPELLINGS = ['/%2f', '/%2F', '/%5c', '//', '/.'];
+// The pages and assets the Patforce instance rewrites or swaps. Under any
+// other spelling they would come from static as the dashboard's own files.
+const PATFORCE_REWRITTEN = ['/sw.js', '/favicon.svg', '/login.html', '/setup.html',
+  '/records.html', '/dashboard.html'];
+const ROOT_SPELLINGS = ['/.', '/./', '/%2e/', '/x/../', '/x/%2e%2e/', '/%2f', '/%2F', '/%5c', '//'];
+const TRAVERSAL = [
+  ['GET', '/api/pimax/claw/conversations/..%2f..%2f..%2f../messages'],
+  ['DELETE', '/api/pimax/claw/conversations/..%2f..%2f..%2f..']
+];
 
 (async () => {
+  const hubSeen = [];
+  const hub = http.createServer((req, res) => {
+    hubSeen.push(`${req.method} ${req.url}`);
+    res.setHeader('Content-Type', 'application/json');
+    res.end('{}');
+  }).listen(0);
+  await new Promise(r => hub.once('listening', r));
+  const hubEnv = { AGENT_HUB_URL: `http://127.0.0.1:${hub.address().port}`, AGENT_API_KEY: 'paths-test-key' };
+
   const fullPort = 39000 + Math.floor(Math.random() * 500);
   const pfPort = fullPort + 500;
-  const full = await start(fullPort, false);
-  const pf = await start(pfPort, true);
+  const full = await start(fullPort, { ...hubEnv, PATFORCE_ONLY: '' });
+  const pf = await start(pfPort, { ...hubEnv, PATFORCE_ONLY: '1' });
 
   try {
     console.log('--- full dashboard: no session reaches a protected page ---');
     for (const page of PROTECTED) {
       for (const p of spellings(page)) {
-        const r = await get(fullPort, p);
-        check(`${p} without a session is not served`, r.status !== 200,
-              `got ${r.status}`);
+        const r = await land(fullPort, p);
+        check(`${p} without a session goes to login or is refused`,
+              toLogin(r) || refused(r), show(r));
       }
     }
     for (const p of ROOT_SPELLINGS) {
-      const r = await get(fullPort, p);
-      check(`${p} without a session does not serve the dashboard`,
-            !r.body.includes(DASHBOARD_TITLE), `got ${r.status}`);
+      const r = await land(fullPort, p);
+      check(`${p} without a session goes to login or is refused`,
+            toLogin(r) || refused(r), show(r));
     }
 
     console.log('\n--- full dashboard: what should still work ---');
     for (const p of ['/', '/index.html', '/gig', '/claw', '/records', '/dashboard.html']) {
-      const r = await get(fullPort, p, true);
-      check(`${p} with a session is served`, r.status === 200, `got ${r.status}`);
+      const r = await send(fullPort, p, { session: true });
+      check(`${p} with a session is served`, r.status === 200, show(r));
     }
-    const bare = await get(fullPort, '/');
-    check('/ without a session goes to the login page',
-          bare.status === 302 && bare.location === '/login.html', `got ${bare.status} ${bare.location}`);
+    const front = await send(fullPort, '/', { session: true });
+    check('/ with a session is the command centre', front.body.includes(DASHBOARD_TITLE));
+    const bare = await send(fullPort, '/');
+    check('/ without a session goes to the login page', toLogin(bare), show(bare));
     for (const p of ['/login.html', '/setup.html', '/favicon.svg', '/manifest.webmanifest',
                      '/sw.js', '/icon-192.png', '/patforce/favicon.svg']) {
-      const r = await get(fullPort, p);
-      check(`${p} is public`, r.status === 200, `got ${r.status}`);
+      const r = await send(fullPort, p);
+      check(`${p} is public`, r.status === 200, show(r));
     }
+
+    console.log('\n--- full dashboard: the hub proxy stays inside its own paths ---');
+    for (const [method, p] of TRAVERSAL) {
+      hubSeen.length = 0;
+      await send(fullPort, p, { session: true, method });
+      check(`${method} ${p} stays under /chat/conversations/`,
+            hubSeen.length === 1 && hubSeen[0].startsWith(`${method} /chat/conversations/`),
+            `hub saw ${JSON.stringify(hubSeen)}`);
+    }
+    hubSeen.length = 0;
+    await send(fullPort, '/api/pimax/claw/conversations/abc-123/messages', { session: true });
+    check('an ordinary conversation id still reaches the hub',
+          hubSeen[0] === 'GET /chat/conversations/abc-123/messages', `hub saw ${JSON.stringify(hubSeen)}`);
 
     console.log('\n--- Patforce-only: the command centre stays hidden ---');
     for (const file of PATFORCE_BLOCKED) {
       for (const p of spellings(file)) {
-        const r = await get(pfPort, p, true);
-        check(`${p} is refused even with a session`,
-              r.status !== 200 && !r.body.includes(DASHBOARD_TITLE), `got ${r.status}`);
+        const r = await land(pfPort, p, { session: true });
+        check(`${p} is refused even with a session`, refused(r), show(r));
       }
     }
     for (const p of ROOT_SPELLINGS) {
-      const r = await get(pfPort, p, true);
-      check(`${p} does not serve the command centre`,
-            !r.body.includes(DASHBOARD_TITLE), `got ${r.status}`);
+      const r = await land(pfPort, p, { session: true });
+      check(`${p} is refused`, refused(r) && !r.body.includes(DASHBOARD_TITLE), show(r));
     }
-    for (const p of ['/api/pimax/x', '/api/%70imax/x', '/API/PIXIT/x']) {
-      const r = await get(pfPort, p, true);
-      check(`${p} is refused`, r.status === 404, `got ${r.status}`);
+    for (const file of PATFORCE_REWRITTEN) {
+      for (const p of spellings(file).slice(3)) {
+        const r = await land(pfPort, p, { session: true });
+        check(`${p} is refused rather than served unrewritten`, refused(r), show(r));
+      }
     }
-    // Express matches the mount on the raw path, so this would reach the pimax
-    // proxy if an undecodable path were waved through.
-    const bad = await get(pfPort, '/api/pimax/%zz', true);
-    check('/api/pimax/%zz is refused', bad.status === 400, `got ${bad.status}`);
-
-    console.log('\n--- an undecodable path serves nothing ---');
-    for (const [port, mode] of [[fullPort, 'full'], [pfPort, 'Patforce-only']]) {
-      const r = await get(port, '/%e0%a4%a', true);
-      check(`${mode}: /%e0%a4%a is refused`, r.status >= 400 && r.status < 500, `got ${r.status}`);
+    for (const p of ['/api/pimax/x', '/api/%70imax/x', '/API/PIXIT/x', '/api/pimax/%zz']) {
+      const r = await send(pfPort, p, { session: true });
+      check(`${p} is refused`, refused(r), show(r));
     }
+    hubSeen.length = 0;
+    for (const [method, p] of TRAVERSAL) {
+      const r = await send(pfPort, p, { session: true, method });
+      check(`${method} ${p} is refused`, refused(r), show(r));
+    }
+    check('nothing from the Patforce instance reached the hub', hubSeen.length === 0,
+          `hub saw ${JSON.stringify(hubSeen)}`);
 
     console.log('\n--- Patforce-only: what should still work ---');
-    for (const p of ['/', '/dashboard', '/records']) {
-      const r = await get(pfPort, p, true);
-      check(`${p} with a session is the Patforce page`,
-            r.status === 200 && r.body.includes('<title>Patforce</title>'), `got ${r.status}`);
+    for (const p of ['/', '/dashboard', '/records', '/LOGIN.HTML']) {
+      const r = await send(pfPort, p, { session: true });
+      check(`${p} is the Patforce page`,
+            r.status === 200 && r.body.includes('<title>Patforce</title>'), show(r));
     }
     for (const p of ['/login.html', '/setup.html', '/sw.js', '/favicon.svg',
                      '/patforce/manifest.webmanifest', '/patforce/icon-192.png']) {
-      const r = await get(pfPort, p);
-      check(`${p} is public`, r.status === 200, `got ${r.status}`);
+      const r = await send(pfPort, p);
+      check(`${p} is public`, r.status === 200, show(r));
     }
-    const sw = await get(pfPort, '/sw.js');
+    const sw = await send(pfPort, '/sw.js');
     check('/sw.js is the Patforce worker', sw.body.includes("startsWith('/patforce/')"));
+    const records = await send(pfPort, '/api/records/meta', { session: true });
+    check('/api/records is not caught by the spelling rule', !refused(records), show(records));
+
+    console.log('\n--- an undecodable path serves nothing ---');
+    for (const [port, mode] of [[fullPort, 'full'], [pfPort, 'Patforce-only']]) {
+      const r = await send(port, '/%e0%a4%a', { session: true });
+      check(`${mode}: /%e0%a4%a is refused`, refused(r), show(r));
+    }
   } finally {
     full.kill();
     pf.kill();
+    hub.close();
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

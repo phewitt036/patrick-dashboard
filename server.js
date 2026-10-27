@@ -61,11 +61,22 @@ if (PATFORCE_ONLY) {
     // The records screen is the front page here, not a link buried in a menu.
     // The dashboard is the front page. Registered further down with the other
     // rewritten pages so it picks up the icon, manifest and service worker too.
+    const raw = req.path.toLowerCase();
     const p = canonicalPath(req.path);
     if (p === null) return res.status(400).send('Bad request');
     if (BLOCKED_PAGES.has(p)) return res.status(404).send('Not found');
-    if (BLOCKED_APIS.some(a => p === a || p.startsWith(a + '/'))) {
+    // Both spellings. Express mounts on the raw path, so a request that starts
+    // /api/pimax/ reaches that router even when its encoded slashes and dots
+    // canonicalise to somewhere else entirely.
+    if ([raw, p].some(x => BLOCKED_APIS.some(a => x === a || x.startsWith(a + '/')))) {
       return res.status(404).json({ error: 'Not found' });
+    }
+    // Outside the APIs, a page or asset is only served under the one spelling
+    // its route expects. Any other spelling skipped the rewriting below and
+    // reached express.static, which handed out the dashboard's own sw.js,
+    // favicon and pages untouched.
+    if (raw !== p && !raw.startsWith('/api/') && !raw.startsWith('/auth/')) {
+      return res.status(404).send('Not found');
     }
     next();
   });
@@ -228,8 +239,10 @@ app.use((req, res, next) => {
   return p !== null && PROTECTED_FILES.has(p) ? requireAuth(req, res, next) : next();
 });
 
-// Static files (login.html, setup.html, assets — no auth)
-app.use(express.static(path.join(__dirname, 'public')));
+// Static files (login.html, setup.html, assets — no auth). No directory index:
+// the front page is the guarded '/' route, and with an index /./ and /x/../
+// were folders that static answered with index.html and no session.
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // Protected API routes
 // Cutover is a config change, not a code change. CRM_BACKEND=postgres serves

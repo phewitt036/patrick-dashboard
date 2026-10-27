@@ -60,8 +60,11 @@ router.post('/chat', async (req, res) => {
 
 // Claw v2 — conversations
 router.get('/claw/conversations', proxy('/chat/conversations'));
-router.delete('/claw/conversations/:id', proxy(req => `/chat/conversations/${req.params.id}`, 'DELETE'));
-router.get('/claw/conversations/:id/messages', proxy(req => `/chat/conversations/${req.params.id}/messages`));
+// Encoded for the same reason as :name below. Express hands the id over decoded,
+// so an id of ../../.. sent as ..%2f..%2f.. walked out of /chat/conversations
+// and reached any path on the hub, carrying its key.
+router.delete('/claw/conversations/:id', proxy(req => `/chat/conversations/${encodeURIComponent(req.params.id)}`, 'DELETE'));
+router.get('/claw/conversations/:id/messages', proxy(req => `/chat/conversations/${encodeURIComponent(req.params.id)}/messages`));
 
 // Claw v2 — attachments (base64 JSON body)
 router.post('/claw/attachments/upload', proxy('/chat/attachments/upload', 'POST'));

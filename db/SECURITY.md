@@ -25,6 +25,29 @@ stops anyone who finds the URL from spending a Pi's CPU on it. 300 requests per
 15 minutes — far above anything Pixit does, since a single request carries up
 to 200 records.
 
+**Pages and hidden files could be reached by spelling the path differently**
+(fixed 2026-10-27). The login check on each page and the Patforce-only block
+list compared the path as it arrived, while `express.static` decodes and
+normalises it first. With no session, `/%69ndex.html`, `/./index.html`,
+`//index.html` and `/x/../index.html` served the command centre, as did `/./`
+through static's directory index. `dashboard.html` was served to anyone even
+under its plain name. On the Patforce hostname the same spellings served every
+file that instance hides, and the dashboard's own `sw.js`, favicon and pages
+without their rewriting. Markup only: every figure comes from `/api`, which
+checks the session itself. `canonicalPath()` in `server.js` now gives each path
+one spelling for the guard in front of static and for the block list, and
+static serves no directory index. `npm run test:paths` sends ten spellings of
+every protected page and hidden file in both modes.
+
+**The hub proxy put a conversation id into agent-hub's URL as it was.** Express
+decodes route parameters, so an id sent as `..%2f..%2f..` reached any path on
+agent-hub, carrying `AGENT_API_KEY`: on the full dashboard for any session, and
+on the Patforce hostname past the block list, which then matched only the
+normalised path. The id is now encoded the way `/claw/knowledge/:name` already
+was, and the block list checks both spellings. Not checked: whether Vercel's
+edge passes `/./` and `%2e` through to the function unchanged. The fix does not
+depend on it either way.
+
 ## Checked, and sound
 
 **SQL injection.** Values are parameterized throughout. The only identifiers
